@@ -87,8 +87,32 @@ ThemisCoprocessor组件为：
 ## Themis使用
 
 ### Themis服务端
+1. 需要在hbase的pom中引入对themis-coprocessor的依赖：
+    <dependency>
+      <groupId>com.xiaomi.infra</groupId>
+      <artifactId>percolator-coprocessor</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+                                          
+2. hbase的配置文件hbase-site.xml中加入themis-coprocessor的配置项：
+    <property>
+      <name>hbase.coprocessor.user.region.classes</name>
+      <value>org.apache.hadoop.hbase.coprocessor.AggregateImplementation,org.apache.hadoop.hbase.coprocessor.example.BulkDeleteEndpoint,org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl</value>
+    </property>
+    <property>
+      <name>hbase.coprocessor.region.classes</name>
+      <value>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver</value>
+    </property>
+3. 对于需要使用themis的表，创建一个额外的family='L'，用来存储persistentLock，IN_MEMORY属性设置为true。
 
 ### Themis客户端
+需要在使用Themis的项目的pom中引入themis-client的依赖即可：
+    <dependency>
+      <groupId>com.xiaomi.infra</groupId>
+      <artifactId>percolator-client</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+
 
 ## 测试
 
