@@ -88,7 +88,7 @@ ThemisCoprocessor组件为：
 
 ### Themis服务端
 1. 需要在hbase的pom中引入对themis-coprocessor的依赖：
-    <dependency>
+    \<dependency\>
     <groupId>com.xiaomi.infra</groupId>
     <artifactId>percolator-coprocessor</artifactId>
     <version>1.0-SNAPSHOT</version>
