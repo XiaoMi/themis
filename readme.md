@@ -44,7 +44,7 @@ Themis API与HBase原生API相近，我们首先给出示例代码需要的常�
 
 Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法，依赖全局时钟服务[chronos](https://github.com/XiaoMi/chronos)为事务定序。
 
-#### Themis的写步骤：
+Themis的写步骤：
 
 1. 在用户写中选取一个column做为primaryColumn，其余的column为secondaryColumns。Themis会为primaryColumn和scondaryColumn构建对应的持久化锁(persistentLock)信息。
 2. 从chronos取全局时间prewriteTs，进行prewrite。对于每一个column，themis会使用对应的lockColumn保留persistentLock；prewrite阶段在没有写冲突的情况下，将数据和持久化锁分别写入对应的column和lockColumn。
@@ -53,14 +53,14 @@ Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法
 
 Themis是通过prewrite/commit两阶段写来完成事务。primaryColumn的commit成功后，事务整体成功，对读可见；否则事务整体失败，对读不可见。
 
-#### Themis读步骤：
+Themis读步骤：
 
 1. 从chronos取一个startTs，首先从lockColumn读取数据判断是否有读写冲突。
 2. 如果没有读写冲突，读取timestamp < startTs的最新提交的事务。
 
 Themis可以确保读取commitTs < startTs的所有提交事物，即数据库在startTs之前的snapshot。
 
-#### Themis冲突解决：
+Themis冲突解决：
 
 Themis可能会遇到写写冲突和读写冲突。解决冲突的关键是利用存储在persistentLock中的时间戳，判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
 
