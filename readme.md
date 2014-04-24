@@ -89,7 +89,7 @@ ThemisCoprocessor组件为：
 ### Themis服务端
 1. 需要在hbase的pom中引入对themis-coprocessor的依赖：
     \<dependency\>
-    \<groupId\>com.xiaomi.infra\</groupId\>
+      \<groupId\>com.xiaomi.infra\</groupId\>
     \<artifactId\>percolator-coprocessor\</artifactId\>
     \<version\>1.0-SNAPSHOT\</version\>
     \</dependency\>
@@ -97,7 +97,8 @@ ThemisCoprocessor组件为：
 2. hbase的配置文件hbase-site.xml中加入themis-coprocessor的配置项：
     \<property\>
     \<name\>hbase.coprocessor.user.region.classes\</name\>
-    \<value\>org.apache.hadoop.hbase.coprocessor.AggregateImplementation,org.apache.hadoop.hbase.coprocessor.example.BulkDeleteEndpoint,org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
+    \<value\>org.apache.hadoop.hbase.coprocessor.AggregateImplementation,org.apache.hadoop.hbase.coprocessor.example.BulkDeleteEndpoint,
+             org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
     \</property\>
     \<property\>
     \<name\>hbase.coprocessor.region.classes\</name\>
