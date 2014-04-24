@@ -89,7 +89,7 @@ ThemisCoprocessor组件为：
 ### Themis服务端
 1. 需要在hbase的pom中引入对themis-coprocessor的依赖：
     \<dependency\>
-      \<groupId\>com.xiaomi.infra\</groupId\>
+    \<groupId\>com.xiaomi.infra\</groupId\>
     \<artifactId\>percolator-coprocessor\</artifactId\>
     \<version\>1.0-SNAPSHOT\</version\>
     \</dependency\>
@@ -117,6 +117,16 @@ ThemisCoprocessor组件为：
 ## 测试
 
 ### 正确性验证
+
+我们设计了一个AccountTransfer程序对themis进行正确性验证。AccountTransfer模拟多个用户，每个用户在HBase的某个column下初始一个value，记录验证开始前的initTotal。验证开始后，会启动多个线程在选定的column之间进行value transfter，修改value的值，但逻辑上保持total value不变，用以模拟事物的并发运行。同时，会有一个TotalChecker线程，不断读出当前所有column的currentTotal，检查currentTotal=initTotal，否则验证失败。另外，会在themis的主要步骤上随机抛出异常，使事务失败，测试themis解决冲突的逻辑。每次更新themis的实现后，都会运行AccountTransfer一段时间，确保逻辑正确。
+
 ### 性能测试
+
+[percolator](http://research.google.com/pubs/pub36726.html)测试了percolator在单column情况的读写性能相对于BigTable的降低百分比：
+
+| | BigTable | Percolator | Relative |
+|-------------|---------|------------------|---------------------|
+| 1      | 15513    | 14590            | 0.94               |
+| 10     | 31003     | 7232            | 0.23               |
 
 ## 将来的工作
