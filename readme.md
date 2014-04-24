@@ -50,7 +50,7 @@ Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法
 Themis的写步骤：
 
 1. 在用户写中选取一个column做为primaryColumn，其余的column为secondaryColumns。Themis会为primaryColumn和scondaryColumn构建对应的持久化锁(persistentLock)信息。
-2. 从chronos取全局时间prewriteTs，进行prewrite，在没有写冲突的情况下，写入数据和持久化锁。
+2. 从chronos取全局时间prewriteTs，进行prewrite：在没有写冲突的情况下，写入数据和持久化锁。
 3. prewrite成功后，从chronos取全局时间commitTs，对primaryColumn进行commit：需要确保其persistentLock没有被删除的情况下删除persistentLock并写入commit信息。
 4. primaryColumn提交成功后，开始提交secondaryColumn：删除persistentLock并写入commit信息。
 
@@ -67,7 +67,7 @@ Themis冲突解决：
 
 Themis可能会遇到写/写冲突和读/写冲突。解决冲突的关键是利用存储在persistentLock中的时间戳，判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
 
-更多原理细节参考[percolator](http://research.google.com/pubs/pub36726.html)
+更多原理细节参考：[percolator](http://research.google.com/pubs/pub36726.html)
 
 ### Themis实现
 
@@ -125,7 +125,7 @@ ThemisCoprocessor组件为：
 
 ### 性能测试
 
-[percolator](http://research.google.com/pubs/pub36726.html)测试了percolator在单column情况的读写性能相对于BigTable的降低百分比：
+[percolator](http://research.google.com/pubs/pub36726.html)测试在单column情况的读写性能相对于BigTable的降低百分比：
 
 | | BigTable | Percolator | Relative |
 |-------------|---------|------------------|---------------------|
@@ -134,7 +134,7 @@ ThemisCoprocessor组件为：
 
 与percolator类似，themis也对比了单column情况下读写性能相对于HBase的降低，我们结论如下：
 
-themisGet对比。预写入10g数据。
+themisGet对比，预写入10g数据。
 
 | Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
@@ -145,7 +145,7 @@ themisGet对比。预写入10g数据。
 | 50            | 5000000  | 6295.83               | 5935.88              | 0.94     |
 
 
-themisPut对比。预写入10g数据，然后对其中的row进行更新，对比写性能。
+themisPut对比，预写入10g数据，然后对其中的row进行更新，对比写性能。
 
 | Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
