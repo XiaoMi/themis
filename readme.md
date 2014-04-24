@@ -69,7 +69,7 @@ Themis可能会遇到写写冲突和读写冲突。解决冲突的关键是利�
 ### Themis实现
 
 Themis的实现利用了HBase的coprocessor框架，其架构为：
-
+![themis architecture](https://raw.github.com/XiaoMi/themis/master/themis_architecture.jpg)
 
 ## Themis使用
 
