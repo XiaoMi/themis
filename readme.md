@@ -69,8 +69,20 @@ Themis可能会遇到写写冲突和读写冲突。解决冲突的关键是利�
 ### Themis实现
 
 Themis的实现利用了HBase的coprocessor框架，其架构为：
-<img src="http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg"/>
-![themis architecture]()
+[在gitlab中，图片貌似没法显示，先给出链接]("http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg")
+
+ThemisClient组件为：
+1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
+2. ThemisPut/PercolatorGet/PercolatorDelete/PercolatorScan是HBase的put/get/delete/scan的封装，屏蔽了timestamp的设置接口。
+3. ColumnMutationCache。将用户的修改按照row索引起来。
+4. TimestampOracle。访问[chronos](https://github.com/XiaoMi/chronos)的客户端，可以将客户端对chronos的请求做batch，然后批量访问。
+5. LockCleaner。负责解决写写冲突和读写冲突。
+
+对于写事务，Themis将用户的mutations按照row进行索引，然后利用ThemisCoprocessorClient的接口进行prewrite/commit和读操作。
+
+ThemisCoprocessor组件为：
+1. ThemisProtocol/ThemisCoprocessorImpl。定义和实现Themis coprocessor，主要接口是prewrite/commit/themisGet。
+2. ThemisServerScanner/ThemisScanObserver。实现themisScan逻辑。
 
 ## Themis使用
 
