@@ -69,7 +69,7 @@ Themis可能会遇到写写冲突和读写冲突。解决冲突的关键是利�
 ### Themis实现
 
 Themis的实现利用了HBase的coprocessor框架，其架构为：
-[在gitlab中，图片貌似没法显示，先给出链接]("http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg")
+[在gitlab中，图片貌似没法显示，先给出链接](http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg)
 
 ThemisClient组件为：
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
