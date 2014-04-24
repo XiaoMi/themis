@@ -130,7 +130,8 @@ ThemisCoprocessor组件为：
 | Write/s     | 31003     | 7232            | 0.23               |
 
 与percolator类似，themis也对比了单column情况下读写性能相对于HBase的降低，我们结论如下：
-1. themisGet对比。预写入10g数据。
+
+themisGet对比。预写入10g数据。
 
 | Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
@@ -140,7 +141,8 @@ ThemisCoprocessor组件为：
 | 20            | 5000000  | 2639.60               | 2427.78              | 0.92     |
 | 50            | 5000000  | 6295.83               | 5935.88              | 0.94     |
 
-2. themisPut对比。预写入10g数据，然后对其中的row进行更新，对比写性能。
+
+themisPut对比。预写入10g数据，然后对其中的row进行更新，对比写性能。
 
 | Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
@@ -150,4 +152,10 @@ ThemisCoprocessor组件为：
 | 20            | 1000000  | 8486.28               | 1891.47              | 0.22     |
 | 50            | 1000000  | 18356.76              | 3384.32              | 0.18     |
 
+可以看出，themis的读性能相当与hbase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
+
 ## 将来的工作
+1. themis单行事物的写优化。
+2. themis在跨行事务时使用coprocessor的并发机制，提高效率。
+3. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
+4. themis删除过期数据时确保不影响事务的一致性。
