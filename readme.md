@@ -26,7 +26,7 @@ Themis API与HBase原生API相近，我们首先给出示例代码需要的常�
     transaction.put(TABLENAME, put);
     transaction.commit();
 
-如果transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，并且对读同时可见；如果commit失败，会保证ROW和ANOTHER_ROW的修改都失败，对读都不可见。
+transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，并且对读同时可见；commit失败，会保证ROW和ANOTHER_ROW的修改都失败，对读都不可见。
 
 ### Themis读
 
