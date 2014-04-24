@@ -37,7 +37,7 @@ transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，�
     Result resultB = transaction.get(TABLENAME, get);
     // ... 
 
-对于跨行读，themis可以确保读取完整的事务。
+themis可以确保读取完整的事务。
 
 更多示例代码参见：org.apache.hadoop.hbase.themis.example.Example.java
 
