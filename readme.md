@@ -263,7 +263,7 @@ Themis的写步骤：
 1. 在用户写中选取一个column做为primaryColumn，其余的column为secondaryColumns。Themis会为primaryColumn和scondaryColumn构建对应的持久化锁(persistentLock)信息。
 2. 从chronos取全局时间prewriteTs，进行prewrite：在没有写冲突的情况下，写入数据和持久化锁，时间戳为prewriteTs。
 3. prewrite成功后，从chronos取全局时间commitTs，对primaryColumn进行commit：需要确保其persistentLock没有被删除的情况下删除persistentLock并写入commit信息(时间戳为commitTs)。
-4. primaryColumn提交成功后，开始提交secondaryColumn：删除persistentLock并写入commit信息。
+4. primaryColumn提交成功后，开始提交secondaryColumn：删除persistentLock并写入commit信息(时间戳为commitTs)。
 
 Themis是通过prewrite/commit两阶段写来完成事务。primaryColumn的commit成功后，事务整体成功，对读可见；否则事务整体失败，对读不可见。
 
