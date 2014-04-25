@@ -3,6 +3,7 @@
 ## Introduction
 
 Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
+
 Themis guarantees the ACID characteristics of cross-row transaction by two-phase write and conflict resolution, which is based on the single-row transaction of HBase. Themis depends [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and make themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The APIs of themis are similar with HBase's, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, the performance of themis in current version is similar to the result reported in paper of [google's percolator](http://research.google.com/pubs/pub36726.html). 
 
 ## Example of Themis API
@@ -203,6 +204,7 @@ The above tests are all done in a single region server. From the results, we can
 ## 简介
 
 Themis在HBase上实现跨行、跨表事务，原理基于google提出的[percolator](http://research.google.com/pubs/pub36726.html)算法。
+
 Themis以HBase行级别事务为基础，通过两阶段写和冲突约定(写写冲突、读写冲突)保证跨行事务的ACID特性。Themis依赖[chronos](https://github.com/XiaoMi/chronos)提供的全局严格单调递增timestamp服务为事务全局定序，确保读取某个timestamp之前数据库的snapshot。Themis利用了HBase coprocessor框架，不需要修改HBase代码，在server端加载themis coprocessor后即可服务。Themis提供与HBase类似的数据读写接口：themisPut/themisDelete/themisGet/themisScan。经过了几个月的正确性验证和性能测试，目前性能与[percolator](http://research.google.com/pubs/pub36726.html)论文中报告的结果相近。
 
 ## Themis API使用示例
