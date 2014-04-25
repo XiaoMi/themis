@@ -6,18 +6,9 @@ Themis provides cross-row/cross-table transaction on HBase based on [google perc
 Themis complishes cross-row transaction by coordinating the single-row transaction of HBase in client side. Themis depends [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The API of themis is similar with that of HBase, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, the performance of themis in current version is similar to the result reported in paper of [google percolator](http://research.google.com/pubs/pub36726.html). 
 
 ## Example of Themis API
-Firstly, we defines the constants needed by example code:
-
-    private static final byte[] TABLENAME = Bytes.toBytes("ThemisTable");
-    private static final byte[] ROW = Bytes.toBytes("Row");
-    private static final byte[] ANOTHER_ROW = Bytes.toBytes("AnotherRow");
-    private static final byte[] FAMILY = Bytes.toBytes("ThemisCF");
-    private static final byte[] QUALIFIER = Bytes.toBytes("Qualifier");
-    private static final byte[] VALUE = Bytes.toBytes(10);
-    private static Configuration conf;
-
 ### Example for Cross-Row Write
 
+    Configuration conf = HBaseConfiguration.create();
     HConnection connection = HConnectionManager.createConnection(conf);
     Transaction transaction = new Transaction(conf, connection);
     ThemisPut put = new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE);
