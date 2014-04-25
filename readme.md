@@ -132,7 +132,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
      </property>
      ```
 
-3. For tables which needs themis, create a family named 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
+3. For tables need themis, create a family 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
 
 ### depends themis-client
 
