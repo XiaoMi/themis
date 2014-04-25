@@ -3,10 +3,11 @@
 ## Introduction
 
 Themis provides cross-row/cross-table transaction on HBase based on [google percolator algorithm](http://research.google.com/pubs/pub36726.html).
-Themis complishes cross-row transaction by coordinating the single-row transaction of HBase in client side. Themis depends [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The API of themis is similar with that of HBase, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, the performance of themis in current version is similar to the result reported in paper of [google percolator](http://research.google.com/pubs/pub36726.html). 
+Themis guarantees the ACID characteristics of cross-row transaction by two-phase write and conflict resolution, which is based on the single-row transaction provided by HBase. Themis depends [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and make themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The API of themis is similar with that of HBase, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, the performance of themis in current version is similar to the result reported in paper of [google percolator](http://research.google.com/pubs/pub36726.html). 
 
 ## Example of Themis API
-### Cross-Row Write
+
+### themisPut 
 
     Configuration conf = HBaseConfiguration.create();
     HConnection connection = HConnectionManager.createConnection(conf);
@@ -17,18 +18,42 @@ Themis complishes cross-row transaction by coordinating the single-row transacti
     transaction.put(TABLENAME, put);
     transaction.commit();
 
-In above code, the mutations of ROW and ANOTHER_ROW will both be put to HBase and visiable to read after transaction.commit() finished. On the other hands, neither of the two mutations will be visiable to read if transaction.commit() failed.
+### themisDelete 
 
-### Themis Read
+     Transaction transaction = new Transaction(conf, connection);
+     ThemisDelete delete = new ThemisDelete(ROW);
+     delete.deleteColumn(FAMILY, QUALIFIER);
+     transaction.delete(TABLENAME, delete);
+     delete = new ThemisDelete(ANOTHER_ROW);
+     delete.deleteColumn(FAMILY, QUALIFIER);
+     transaction.delete(TABLENAME, delete);
+     transaction.commit();
+
+In above code, the mutations of ROW and ANOTHER_ROW will both be put to HBase and visiable to read after transaction.commit() finished. If transaction.commit() failed, neither of the two mutations will be visiable to read.
+
+### themisGet 
 
     Transaction transaction = new Transaction(conf, connection);
     ThemisGet get = new ThemisGet(ROW).addColumn(FAMILY, QUALIFIER);
     Result resultA = transaction.get(TABLENAME, get);
     get = new ThemisGet(ANOTHER_ROW).addColumn(FAMILY, QUALIFIER);
     Result resultB = transaction.get(TABLENAME, get);
-    // ... 
+    // themisGet will return consistent results from ROW and ANOTHER_ROW 
 
-Themis can promise to read consistent state of database.
+### themisScan
+
+    Transaction transaction = new Transaction(conf, connection);
+    ThemisScan scan = new ThemisScan();
+    scan.addColumn(FAMILY, QUALIFIER);
+    ThemisScanner scanner = transaction.getScanner(TABLENAME, scan);
+    Result result = null;
+    while ((result = scanner.next()) != null) {
+      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
+      // themisScan will return consistent state of database
+    }
+    scanner.close();
+
+Transaction will get a timestamp from chronos in its constructor, then, themis can promise to read the database snapshot before the timestamp.
 
 For more example code, please see org.apache.hadoop.hbase.themis.example.Example.java.
 
@@ -69,8 +94,9 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 **Themis Client:**
 1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
 2. MutationCache: index the mutations of users by rows in client side.
-3. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
-4. LockCleaner: resovle write/write conflict and read/write conflict.
+3. ThemisCoprocessorClient: the client to access themis coprocessor.
+4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
+5. LockCleaner: resovle write/write conflict and read/write conflict.
 
 Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
 
@@ -173,22 +199,15 @@ The above tests are all done in a single region server. From the results, we can
 
 ## 简介
 
-Themis是基于google提出的[percolator](http://research.google.com/pubs/pub36726.html)算法，在HBase上实现跨行、跨表事务。
-Themis以HBase行级别事务为基础，通过client端的协同完成跨行事务。Themis依赖[chronos](https://github.com/XiaoMi/chronos)提供的全局单调递增时钟服务为事务全局定序，确保事务的ACID特性。Themis利用了HBase coprocessor框架，不需要修改HBase代码，在server端加载themis coprocessor后即可服务。Themis提供与HBase类似的数据读写接口：themisPut/themisDelete/themisGet/themisScan。经过了几个月的正确性验证和性能测试，目前性能与[percolator](http://research.google.com/pubs/pub36726.html)论文中报告的结果相近。
+Themis在HBase上实现跨行、跨表事务，原理基于google提出的[percolator](http://research.google.com/pubs/pub36726.html)算法。
+Themis以HBase行级别事务为基础，通过两阶段写和冲突约定(写写冲突、读写冲突)保证跨行事务的ACID特性。Themis依赖[chronos](https://github.com/XiaoMi/chronos)提供的全局严格单调递增timestamp服务为事务全局定序，确保读取某个timestamp之前数据库的snapshot。Themis利用了HBase coprocessor框架，不需要修改HBase代码，在server端加载themis coprocessor后即可服务。Themis提供与HBase类似的数据读写接口：themisPut/themisDelete/themisGet/themisScan。经过了几个月的正确性验证和性能测试，目前性能与[percolator](http://research.google.com/pubs/pub36726.html)论文中报告的结果相近。
 
 ## Themis API使用示例
-Themis API与HBase原生API相近，我们首先给出示例代码需要的常量：
+Themis API与HBase原生API相近。
 
-    private static final byte[] TABLENAME = Bytes.toBytes("ThemisTable");
-    private static final byte[] ROW = Bytes.toBytes("Row");
-    private static final byte[] ANOTHER_ROW = Bytes.toBytes("AnotherRow");
-    private static final byte[] FAMILY = Bytes.toBytes("ThemisCF");
-    private static final byte[] QUALIFIER = Bytes.toBytes("Qualifier");
-    private static final byte[] VALUE = Bytes.toBytes(10);
-    private static Configuration conf;
+### themisPut
 
-### 跨行写
-
+    Configuration conf = HBaseConfiguration.create();
     HConnection connection = HConnectionManager.createConnection(conf);
     Transaction transaction = new Transaction(conf, connection);
     ThemisPut put = new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE);
@@ -199,16 +218,42 @@ Themis API与HBase原生API相近，我们首先给出示例代码需要的常�
 
 transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，并且对读同时可见；commit失败，会保证ROW和ANOTHER_ROW的修改都失败，对读都不可见。
 
-### Themis读
+### themisDelete
+
+     Transaction transaction = new Transaction(conf, connection);
+     ThemisDelete delete = new ThemisDelete(ROW);
+     delete.deleteColumn(FAMILY, QUALIFIER);
+     transaction.delete(TABLENAME, delete);
+     delete = new ThemisDelete(ANOTHER_ROW);
+     delete.deleteColumn(FAMILY, QUALIFIER);
+     transaction.delete(TABLENAME, delete);
+     transaction.commit();
+
+与themisPut类似，themisDelete可以保证ROW和ANOTHER_ROW的删除同时成功或者均不成功。
+
+### themisGet
 
     Transaction transaction = new Transaction(conf, connection);
     ThemisGet get = new ThemisGet(ROW).addColumn(FAMILY, QUALIFIER);
     Result resultA = transaction.get(TABLENAME, get);
     get = new ThemisGet(ANOTHER_ROW).addColumn(FAMILY, QUALIFIER);
     Result resultB = transaction.get(TABLENAME, get);
-    // ... 
+    // 对于同一个transaction的themisGet, 可以确保从ROW和ANOTHER_ROW读出完整的事务
 
-themis可以确保读取完整的事务。
+### themisScan
+
+    Transaction transaction = new Transaction(conf, connection);
+    ThemisScan scan = new ThemisScan();
+    scan.addColumn(FAMILY, QUALIFIER);
+    ThemisScanner scanner = transaction.getScanner(TABLENAME, scan);
+    Result result = null;
+    while ((result = scanner.next()) != null) {
+      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
+      // 对于同一个transaction的themisScan，可以确保scanner返回完整的事务
+    }
+    scanner.close();
+
+Transaction创建时会从chronos取一个startTs，themis的读可以确保读取到数据库在startTs之前所有提交的事务。
 
 更多示例代码参见：org.apache.hadoop.hbase.themis.example.Example.java
 
@@ -216,7 +261,7 @@ themis可以确保读取完整的事务。
 
 ### Themis原理
 
-Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法，依赖全局递增时钟服务[chronos](https://github.com/XiaoMi/chronos)为事务定序。
+Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法，依赖全局严格递增时钟服务[chronos](https://github.com/XiaoMi/chronos)为事务定序。
 
 Themis的写步骤：
 
@@ -236,7 +281,7 @@ Themis可以确保读取commitTs < startTs的所有已提交事物，即数据�
 
 Themis冲突解决：
 
-Themis可能会遇到写/写冲突和读/写冲突。解决冲突是根据存储在persistentLock中的时间戳判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
+Themis可能会遇到写写冲突和读写冲突。解决冲突是根据存储在persistentLock中的时间戳判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
 
 更多原理细节参考：[percolator](http://research.google.com/pubs/pub36726.html)
 
@@ -247,10 +292,10 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 ThemisClient主要模块为：
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
-2. ThemisPut/PercolatorGet/PercolatorDelete/PercolatorScan。是HBase的put/get/delete/scan的封装，屏蔽了timestamp的设置接口。
-3. ColumnMutationCache。将用户的修改按照row索引在client端。
+2. MutationCache。将用户的修改按照row索引在client端。
+3. ThemisCoprocessorClient。访问themis coprocessor的客户端。
 4. TimestampOracle。访问[chronos](https://github.com/XiaoMi/chronos)的客户端，可以将客户端对chronos的请求做batch，然后批量取回timestamp。
-5. LockCleaner。负责解决写/写冲突和读/写冲突。
+5. LockCleaner。负责解决写写冲突和读写冲突。
 
 对于写事务，Themis将用户的mutations按照row进行索引，然后利用ThemisCoprocessorClient的接口进行prewrite/commit和读操作。
 
