@@ -109,13 +109,11 @@ Themis client will manage the users's mutations by row and invoke methods of The
 ### depends themis-client
 add the following dependency to pom of project which needs cross-row transactions.
 
-     ```
      <dependency>
        <groupId>com.xiaomi.infra</groupId>
        <artifactId>themis-coprocessor</artifactId>
        <version>1.0-SNAPSHOT</version>
      </dependency>
-     ```
 
 ## Test 
 
