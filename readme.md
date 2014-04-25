@@ -241,7 +241,7 @@ Themis可能会遇到写/写冲突和读/写冲突。解决冲突是根据存储
 ### Themis实现
 
 Themis的实现利用了HBase的coprocessor框架，其模块图为：
-![在gitlab中，图片貌似没法显示，先给出链接](http://git.n.xiaomi.com/yehangjun/themis/master/themis_architecture.png)
+![themis模块图](http://wiki.mioffice.cn/images/e/e4/Themis_architecture.png)
 
 ThemisClient主要模块为：
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
