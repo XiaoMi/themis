@@ -61,8 +61,6 @@ For more example code, please see org.apache.hadoop.hbase.themis.example.Example
 
 ### Principal
 
-Themis is based on [percolator algorithm](http://research.google.com/pubs/pub36726.html), which defines the order of transactions by timestamp from [chronos](https://github.com/XiaoMi/chronos).
-
 **Themis Write:**
 
 1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
