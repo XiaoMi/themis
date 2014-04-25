@@ -81,7 +81,7 @@ Themis provides the guarantee to read all transactions with commitTs smaller tha
 
 There might be write/write and read/write conflicts as described above. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
 
-Please see [percolator](http://research.google.com/pubs/pub36726.html) for more details.
+Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
 
 ### Themis Implementation
 
@@ -99,7 +99,7 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
 
 **Themis Coprocessor:**
-1. ThemisProtocol/ThemisCoprocessorImpl: defination and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
+1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
 2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
 
 ## Usage 
