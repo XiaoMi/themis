@@ -109,7 +109,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 ### Loads themis coprocessor in server side 
 
-1. depends themis-coprocessor in the pom of HBase:
+1. add themis-coprocessor dependency in the pom of HBase:
 
      ```
      <dependency>
@@ -136,7 +136,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 ### depends themis-client
 
-add the following dependency to pom of project which needs cross-row transactions.
+add the themis-client dependency to pom of project which needs cross-row transactions.
 
      <dependency>
        <groupId>com.xiaomi.infra</groupId>
