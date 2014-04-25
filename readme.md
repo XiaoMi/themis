@@ -69,7 +69,7 @@ For more example code, please see [Example.java](https://github.com/XiaoMi/themi
 3. After prewrite-phase finished, get timestamp from chronos(named commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs when the persistent lock of primaryColumn is not deleted.
 4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumn.
 
-Themis applies mutations of transaction by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
+Themis applies transaction mutations by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
 
 **Themis Read:**
 
