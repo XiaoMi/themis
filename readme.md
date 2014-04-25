@@ -343,7 +343,7 @@ ThemisCoprocessor主要模块为：
 
 ### 性能测试
 
-[percolator](http://research.google.com/pubs/pub36726.html)测试在单column情况的读写性能相对于BigTable的降低百分比：
+[google's percolator](http://research.google.com/pubs/pub36726.html)测试了在单column情况下读写性能相对于BigTable的降低百分比：
 
 | | BigTable | Percolator | Relative |
 |-------------|---------|------------------|---------------------|
