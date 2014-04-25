@@ -72,6 +72,7 @@ Please see [percolator](http://research.google.com/pubs/pub36726.html) for more 
 ### Themis Implementation
 
 The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
+
 ![themis_architecture](http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg)
 
 Modules of ThemisClient:
