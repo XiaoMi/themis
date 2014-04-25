@@ -192,7 +192,7 @@ The above tests are all done in a single region server. From the results, we can
 
 1. Optimze the write performance for single-row write transaction.
 2. Adopt the concurrency characteristic of HBase coprocessor when prewrite/commit multi-rows.
-3. Create themis-needed family and set attributes for family automactically when user creates a table for themis.
+3. Create themis-needed family and set attributes automactically when user creates a table for themis.
 4. A normal way to clear expired data for thmeis.
 
 
