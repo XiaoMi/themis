@@ -149,7 +149,7 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 **Percolator Result**
 
-The [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
+[percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
 
 **Themis Result**
 
