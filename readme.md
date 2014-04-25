@@ -289,7 +289,7 @@ ThemisClient主要模块为：
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
 2. MutationCache。将用户的修改按照row索引在client端。
 3. ThemisCoprocessorClient。访问themis coprocessor的客户端。
-4. TimestampOracle。访问[chronos](https://github.com/XiaoMi/chronos)的客户端，可以将客户端对chronos的请求做batch，然后批量取回timestamp。
+4. TimestampOracle。访问chronos的客户端，可以将客户端对chronos的请求做batch，然后批量取回timestamp。
 5. LockCleaner。负责解决写写冲突和读写冲突。
 
 对于写事务，Themis将用户的mutations按照row进行索引，然后利用ThemisCoprocessorClient的接口进行prewrite/commit和读操作。
