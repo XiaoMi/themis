@@ -336,7 +336,7 @@ themisPut对比，预写入10g数据，然后对其中的row进行更新，对�
 上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
 
 
-将来的工作
+### 将来的工作
 
 1.themis单行事物的写优化。
 2.themis在跨行事务时使用coprocessor的并发机制，提高效率。
