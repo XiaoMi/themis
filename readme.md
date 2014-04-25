@@ -263,7 +263,7 @@ Themis在事务开始之前会从chronos取一个startTs，themis的读可以确
 
 ### Themis原理
 
-Themis的写步骤：
+**Themis的写步骤：**
 
 1. 在用户写中选取一个column做为primaryColumn，其余的column为secondaryColumns。Themis会为primaryColumn和scondaryColumn构建对应的持久化锁(persistentLock)信息。
 2. 从chronos取全局时间prewriteTs，进行prewrite：在没有写冲突的情况下，写入数据和持久化锁，时间戳为prewriteTs。
@@ -272,7 +272,7 @@ Themis的写步骤：
 
 Themis是通过prewrite/commit两阶段写来完成事务。primaryColumn的commit成功后，事务整体成功，对读可见；否则事务整体失败，对读不可见。
 
-Themis读步骤：
+**Themis读步骤：**
 
 1. 从chronos取一个startTs，首先判断是否有读写冲突。
 2. 如果没有读写冲突，读取timestamp < startTs的最新提交的事务。
@@ -290,7 +290,8 @@ Themis可能会遇到写写冲突和读写冲突。解决冲突是根据存储�
 Themis的实现利用了HBase的coprocessor框架，其模块图为：
 ![themis模块图](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
 
-ThemisClient主要模块为：
+**ThemisClient主要模块为：**
+
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
 2. MutationCache。将用户的修改按照row索引在client端。
 3. ThemisCoprocessorClient。访问themis coprocessor的客户端。
@@ -299,7 +300,8 @@ ThemisClient主要模块为：
 
 对于写事务，Themis将用户的mutations按照row进行索引，然后利用ThemisCoprocessorClient的接口进行prewrite/commit和读操作。
 
-ThemisCoprocessor主要模块为：
+**ThemisCoprocessor主要模块为：**
+
 1. ThemisProtocol/ThemisCoprocessorImpl。定义和实现Themis coprocessor接口，主要接口是prewrite/commit/themisGet。
 2. ThemisServerScanner/ThemisScanObserver。实现themisScan逻辑。
 
