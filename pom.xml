@@ -8,13 +8,6 @@
   <name>Themis Implementationn for HBase</name>
   <packaging>pom</packaging>
 
-  <parent>
-    <groupId>com.xiaomi.infra</groupId>
-    <artifactId>mdh-library</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <relativePath>../</relativePath>
-  </parent>
-
   <licenses>
     <license>
       <name>The Apache Software License, Version 2.0</name>
