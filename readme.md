@@ -45,14 +45,14 @@ The Steps of Themis Write:
 3. After prewrite-phase finished, get timestamp from chronos(named commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs when the persistent lock of primaryColumn is not deleted.
 4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumn.
 
-Themis finishes mutations of transaction by two-phase write(prewrite/commit). The transaction will success and be visiable to read if commiting primaryColumn succesfully; otherwise, the transaction will fail and can not be read.
+Themis applies mutations of transaction by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can not be read.
 
 The Steps of Themis Read:
 
 1. Get timestamp from chronos(named startTs), check the read/write conflicts.
 2. Read the snapshot of database with timestamp smaller than startTs when there are no read/write conflicts.
 
-The guarantee of themis read is to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
+Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
 
 Conflict Resolution:
 
@@ -66,18 +66,17 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 
 ![themis_architecture](http://wiki.mioffice.cn/images/e/e4/Themis_architecture.png)
 
-Modules of ThemisClient:
-1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan.
-2. ThemisPut/PercolatorGet/PercolatorDelete/PercolatorScan are the wrapped classes of HBase's put/get/delete/scan, which hide the timestamp access method.
-3. ColumnMutationCache: index the mutations of users by rows in client side.
-4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos) which will cache the timestamp requests and issue batch request to chronos in one rpc.
-5. LockCleaner: resovle write/write conflict and read/write conflict.
+Modules of Themis Client:
+1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
+2. MutationCache: index the mutations of users by rows in client side.
+3. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
+4. LockCleaner: resovle write/write conflict and read/write conflict.
 
 Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
 
-Modules of ThemisCoprocessor:
-1. ThemisProtocol/ThemisCoprocessorImpl: defination and implementation the interfaces of themis coprocessor. The major interfaces are prewrite/commit/themisGet.
-2. ThemisServerScanner/ThemisScanObserver: implement the logic of themis scan.
+Modules of Themis Coprocessor:
+1. ThemisProtocol/ThemisCoprocessorImpl: defination and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
+2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
 
 ## Usage 
 
@@ -123,9 +122,9 @@ The [percolator](http://research.google.com/pubs/pub36726.html) tests the read/w
 | Read/s      | 15513    | 14590            | 0.94               |
 | Write/s     | 31003     | 7232            | 0.23               |
 
-We evaluate the performance of themis under similar cicumstances with percolator's test and give the relative drop compared to HBase.
+We evaluate the performance of themis under similar test conditions with percolator's and give the relative drop compared to HBase.
 
-Evaluation of themisGet. Load 10g data into HBase firstly and then test themisGet: 
+Evaluation of themisGet. Load 10g data into HBase before testing themisGet by reading loaded rows: 
 
 | Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
@@ -136,7 +135,7 @@ Evaluation of themisGet. Load 10g data into HBase firstly and then test themisGe
 | 50            | 5000000  | 6295.83               | 5935.88              | 0.94     |
 
 
-Evaluation of themisPut. Load 10g data into HBase firstly and test themisPut by updating the loaded rows:
+Evaluation of themisPut. Load 10g data into HBase before testing themisPut by updating loaded rows:
 
 | Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
