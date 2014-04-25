@@ -82,30 +82,40 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 ### Loads themis coprocessor in server side 
 1. depends themis-coprocessor in the pom of HBase:
-    \<dependency\>
-    \<groupId\>com.xiaomi.infra\</groupId\>
-    \<artifactId\>percolator-coprocessor\</artifactId\>
-    \<version\>1.0-SNAPSHOT\</version\>
-    \</dependency\>
+
+     ```
+     <dependency>
+       <groupId>com.xiaomi.infra</groupId>
+       <artifactId>themis-coprocessor</artifactId>
+       <version>1.0-SNAPSHOT</version>
+     </dependency>
+     ```
                                           
 2. add configurations for themis coprocessor in hbase-site.xml:
-    \<property\>
-    \<name\>hbase.coprocessor.user.region.classes\</name\>
-    \<value\>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
-    \</property\>
-    \<property\>
-    \<name\>hbase.coprocessor.region.classes\</name\>
-    \<value\>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver\</value\>
-    \</property\>
+
+     ```
+     <property>
+       <name>hbase.coprocessor.user.region.classes</name>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl</value>
+     </property>
+     <property>
+       <name>hbase.coprocessor.region.classes</name>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver</value>
+     </property>
+     ```
+
 3. For tables which needs themis, create a family named 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
 
 ### depends themis-client
 add the following dependency to pom of project which needs cross-row transactions.
-    \<dependency\>
-    \<groupId\>com.xiaomi.infra\</groupId\>
-    \<artifactId\>percolator-client\</artifactId\>
-    \<version\>1.0-SNAPSHOT\</version\>
-    \</dependency\>
+
+     ```
+     <dependency>
+       <groupId>com.xiaomi.infra</groupId>
+       <artifactId>themis-coprocessor</artifactId>
+       <version>1.0-SNAPSHOT</version>
+     </dependency>
+     ```
 
 ## Test 
 
