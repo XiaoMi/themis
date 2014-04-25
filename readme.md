@@ -218,31 +218,31 @@ Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法
 Themis的写步骤：
 
 1. 在用户写中选取一个column做为primaryColumn，其余的column为secondaryColumns。Themis会为primaryColumn和scondaryColumn构建对应的持久化锁(persistentLock)信息。
-2. 从chronos取全局时间prewriteTs，进行prewrite：在没有写冲突的情况下，写入数据和持久化锁。
-3. prewrite成功后，从chronos取全局时间commitTs，对primaryColumn进行commit：需要确保其persistentLock没有被删除的情况下删除persistentLock并写入commit信息。
+2. 从chronos取全局时间prewriteTs，进行prewrite：在没有写冲突的情况下，写入数据和持久化锁，时间戳为prewriteTs。
+3. prewrite成功后，从chronos取全局时间commitTs，对primaryColumn进行commit：需要确保其persistentLock没有被删除的情况下删除persistentLock并写入commit信息(时间戳为commitTs)。
 4. primaryColumn提交成功后，开始提交secondaryColumn：删除persistentLock并写入commit信息。
 
 Themis是通过prewrite/commit两阶段写来完成事务。primaryColumn的commit成功后，事务整体成功，对读可见；否则事务整体失败，对读不可见。
 
 Themis读步骤：
 
-1. 从chronos取一个startTs，首先从lockColumn读取数据判断是否有读写冲突。
+1. 从chronos取一个startTs，首先判断是否有读写冲突。
 2. 如果没有读写冲突，读取timestamp < startTs的最新提交的事务。
 
 Themis可以确保读取commitTs < startTs的所有已提交事物，即数据库在startTs之前的snapshot。
 
 Themis冲突解决：
 
-Themis可能会遇到写/写冲突和读/写冲突。解决冲突的关键是利用存储在persistentLock中的时间戳，判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
+Themis可能会遇到写/写冲突和读/写冲突。解决冲突是根据存储在persistentLock中的时间戳判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
 
 更多原理细节参考：[percolator](http://research.google.com/pubs/pub36726.html)
 
 ### Themis实现
 
-Themis的实现利用了HBase的coprocessor框架，其架构为：
+Themis的实现利用了HBase的coprocessor框架，其模块图为：
 [在gitlab中，图片貌似没法显示，先给出链接](http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg)
 
-ThemisClient组件为：
+ThemisClient主要模块为：
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
 2. ThemisPut/PercolatorGet/PercolatorDelete/PercolatorScan。是HBase的put/get/delete/scan的封装，屏蔽了timestamp的设置接口。
 3. ColumnMutationCache。将用户的修改按照row索引在client端。
@@ -251,7 +251,7 @@ ThemisClient组件为：
 
 对于写事务，Themis将用户的mutations按照row进行索引，然后利用ThemisCoprocessorClient的接口进行prewrite/commit和读操作。
 
-ThemisCoprocessor组件为：
+ThemisCoprocessor主要模块为：
 1. ThemisProtocol/ThemisCoprocessorImpl。定义和实现Themis coprocessor接口，主要接口是prewrite/commit/themisGet。
 2. ThemisServerScanner/ThemisScanObserver。实现themisScan逻辑。
 
@@ -268,8 +268,7 @@ ThemisCoprocessor组件为：
 2. hbase的配置文件hbase-site.xml中加入themis-coprocessor的配置项：
     \<property\>
     \<name\>hbase.coprocessor.user.region.classes\</name\>
-    \<value\>org.apache.hadoop.hbase.coprocessor.AggregateImplementation,org.apache.hadoop.hbase.coprocessor.example.BulkDeleteEndpoint,
-             org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
+    \<value\>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
     \</property\>
     \<property\>
     \<name\>hbase.coprocessor.region.classes\</name\>
@@ -278,7 +277,7 @@ ThemisCoprocessor组件为：
 3. 对于需要使用themis的表，创建一个额外的family='L'，用来存储persistentLock，IN_MEMORY属性设置为true。
 
 ### Themis客户端
-需要在使用Themis的项目的pom中引入themis-client的依赖即可：
+需要在使用Themis的项目的pom中引入themis-client的依赖：
     \<dependency\>
     \<groupId\>com.xiaomi.infra\</groupId\>
     \<artifactId\>percolator-client\</artifactId\>
@@ -302,7 +301,7 @@ ThemisCoprocessor组件为：
 
 与percolator类似，themis也对比了单column情况下读写性能相对于HBase的降低，我们结论如下：
 
-themisGet对比，预写入10g数据。
+themisGet对比，预写入10g数据，然后读出写入的数据。
 
 | Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |--------- |-----------------------|----------------------|----------|
@@ -323,10 +322,10 @@ themisPut对比，预写入10g数据，然后对其中的row进行更新，对�
 | 20            | 1000000  | 8486.28               | 1891.47              | 0.22     |
 | 50            | 1000000  | 18356.76              | 3384.32              | 0.18     |
 
-上面结论都是在单region server上得出的，可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
+上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
 
 ## 将来的工作
 1. themis单行事物的写优化。
 2. themis在跨行事务时使用coprocessor的并发机制，提高效率。
 3. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
-4. themis删除过期数据时确保不影响事务的一致性。
+4. 清理过期数据。
