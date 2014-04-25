@@ -23,8 +23,8 @@
   </licenses>
 
   <organization>
-    <name>Apache Software Foundation</name>
-    <url>http://www.apache.org</url>
+    <name>Xiaomi Inc</name>
+    <url>http://www.mi.com</url>
   </organization>
 
   <dependencies>
@@ -32,6 +32,12 @@
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>4.9</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-all</artifactId>
+      <version>1.8.5</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

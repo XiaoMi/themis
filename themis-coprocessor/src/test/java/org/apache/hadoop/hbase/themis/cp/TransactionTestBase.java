@@ -304,7 +304,6 @@ public class TransactionTestBase extends TestBase {
   
   protected ThemisLock prewritePrimaryRow() throws IOException {
     byte[] lockBytes = ThemisLock.toByte(getLock(COLUMN));
-    System.out.println("#####first write lock");
     ThemisLock lock = cpClient.prewriteRow(COLUMN.getTableName(), PRIMARY_ROW.getRow(),
       PRIMARY_ROW.mutationList(), prewriteTs, lockBytes, getSecondaryLockBytes(), 2);
     return lock;

@@ -24,7 +24,6 @@ public class TestColumnMutationCache extends TestBase {
     Assert.assertFalse(cache.addMutation(TABLENAME, kvWithAnotherValue));
     Assert.assertEquals(1, cache.size());
     byte[] actualValue = cache.getMutation(COLUMN).getSecond();
-    System.out.println(Bytes.toString(actualValue));
     Assert.assertTrue(Bytes.equals(ANOTHER_VALUE, actualValue));
     Assert.assertTrue(cache.hasMutation(COLUMN));
     
