@@ -29,7 +29,7 @@ Themis guarantees the ACID characteristics of cross-row transaction by two-phase
      transaction.delete(TABLENAME, delete);
      transaction.commit();
 
-In above code, the mutations of ROW and ANOTHER_ROW will both be put to HBase and visiable to read after transaction.commit() finished. If transaction.commit() failed, neither of the two mutations will be visiable to read.
+In above code, the mutations of ROW and ANOTHER_ROW will both be applied to HBase and visiable to read after transaction.commit() finished. If transaction.commit() failed, neither of the two mutations will be visiable to read.
 
 ### themisGet 
 
@@ -53,7 +53,7 @@ In above code, the mutations of ROW and ANOTHER_ROW will both be put to HBase an
     }
     scanner.close();
 
-Transaction will get a timestamp from chronos in its constructor, then, themis can promise to read the database snapshot before the timestamp.
+Themis will get a timestamp from chronos before transaction starts, and will promise to read the database snapshot before the timestamp.
 
 For more example code, please see org.apache.hadoop.hbase.themis.example.Example.java.
 
