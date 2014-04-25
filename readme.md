@@ -73,7 +73,7 @@ Please see [percolator](http://research.google.com/pubs/pub36726.html) for more 
 
 The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
 
-![themis_architecture](http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg)
+![themis_architecture](http://git.n.xiaomi.com/yehangjun/themis/master/themis_architecture.jpg)
 
 Modules of ThemisClient:
 1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan.
@@ -241,7 +241,7 @@ Themis可能会遇到写/写冲突和读/写冲突。解决冲突是根据存储
 ### Themis实现
 
 Themis的实现利用了HBase的coprocessor框架，其模块图为：
-[在gitlab中，图片貌似没法显示，先给出链接](http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg)
+![在gitlab中，图片貌似没法显示，先给出链接](http://git.n.xiaomi.com/yehangjun/themis/master/themis_architecture.jpg)
 
 ThemisClient主要模块为：
 1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
