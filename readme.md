@@ -278,7 +278,7 @@ Themis冲突解决：
 
 Themis可能会遇到写写冲突和读写冲突。解决冲突是根据存储在persistentLock中的时间戳判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
 
-更多原理细节参考：[percolator](http://research.google.com/pubs/pub36726.html)
+更多原理细节参考：[google's percolator](http://research.google.com/pubs/pub36726.html)
 
 ### Themis实现
 
