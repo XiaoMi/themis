@@ -201,7 +201,6 @@ Themis在HBase上实现跨行、跨表事务，原理基于google提出的[perco
 Themis以HBase行级别事务为基础，通过两阶段写和冲突约定(写写冲突、读写冲突)保证跨行事务的ACID特性。Themis依赖[chronos](https://github.com/XiaoMi/chronos)提供的全局严格单调递增timestamp服务为事务全局定序，确保读取某个timestamp之前数据库的snapshot。Themis利用了HBase coprocessor框架，不需要修改HBase代码，在server端加载themis coprocessor后即可服务。Themis提供与HBase类似的数据读写接口：themisPut/themisDelete/themisGet/themisScan。经过了几个月的正确性验证和性能测试，目前性能与[percolator](http://research.google.com/pubs/pub36726.html)论文中报告的结果相近。
 
 ## Themis API使用示例
-Themis API与HBase原生API相近。
 
 ### themisPut
 
@@ -258,8 +257,6 @@ Themis在事务开始之前会从chronos取一个startTs，themis的读可以确
 ## 原理和实现
 
 ### Themis原理
-
-Themis实现了[percolator](http://research.google.com/pubs/pub36726.html)算法，依赖全局严格递增时钟服务[chronos](https://github.com/XiaoMi/chronos)为事务定序。
 
 Themis的写步骤：
 
@@ -379,7 +376,7 @@ themisPut对比，预写入10g数据，然后对其中的row进行更新，对�
 上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
 
 
-**将来的工作**
+## 将来的工作
 
 1.themis单行事物的写优化。
 2.themis在跨行事务时使用coprocessor的并发机制，提高效率。
