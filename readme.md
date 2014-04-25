@@ -38,7 +38,7 @@ For more example code, please see org.apache.hadoop.hbase.themis.example.Example
 
 Themis is based on [percolator algorithm](http://research.google.com/pubs/pub36726.html), which defines the order of transactions by timestamp from [chronos](https://github.com/XiaoMi/chronos).
 
-The steps of Themis Write:
+The Steps of Themis Write:
 
 1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
 2. Prewrite-Phase: get timestamp from chronos(named prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
@@ -47,7 +47,7 @@ The steps of Themis Write:
 
 Themis finishes mutations of transaction by two-phase write(prewrite/commit). The transaction will success and be visiable to read if commiting primaryColumn succesfully; otherwise, the transaction will fail and can not be read.
 
-The steps of Themis Read:
+The Steps of Themis Read:
 
 1. Get timestamp from chronos(named startTs), check the read/write conflicts.
 2. Read the snapshot of database with timestamp smaller than startTs when there are no read/write conflicts.
