@@ -135,7 +135,7 @@ add the following dependency to pom of project which needs cross-row transaction
 
      <dependency>
        <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-coprocessor</artifactId>
+       <artifactId>themis-client</artifactId>
        <version>1.0-SNAPSHOT</version>
      </dependency>
 
@@ -331,7 +331,7 @@ ThemisCoprocessor主要模块为：
 
      <dependency>
        <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-coprocessor</artifactId>
+       <artifactId>themis-client</artifactId>
        <version>1.0-SNAPSHOT</version>
      </dependency>
 
