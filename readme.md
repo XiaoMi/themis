@@ -55,7 +55,7 @@ In above code, the mutations of ROW and ANOTHER_ROW will both be applied to HBas
 
 Themis will get a timestamp from chronos before transaction starts, and will promise to read the database snapshot before the timestamp.
 
-For more example code, please see org.apache.hadoop.hbase.themis.example.Example.java.
+For more example code, please see [Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
 
 ## Principal and Implementation 
 
@@ -257,7 +257,7 @@ transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，�
 
 Themis在事务开始之前会从chronos取一个startTs，themis的读可以确保读取到数据库在startTs之前所有提交的事务。
 
-更多示例代码参见：org.apache.hadoop.hbase.themis.example.Example.java
+更多示例代码参见：[Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
 
 ## 原理和实现
 
