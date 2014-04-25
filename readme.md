@@ -279,7 +279,7 @@ Themis是通过prewrite/commit两阶段写来完成事务。primaryColumn的comm
 
 Themis可以确保读取commitTs < startTs的所有已提交事物，即数据库在startTs之前的snapshot。
 
-Themis冲突解决：
+**Themis冲突解决：**
 
 Themis可能会遇到写写冲突和读写冲突。解决冲突是根据存储在persistentLock中的时间戳判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
 
