@@ -74,7 +74,7 @@ Themis applies mutations of transaction by two-phase write(prewrite/commit). The
 **Themis Read:**
 
 1. Get timestamp from chronos(named startTs), check the read/write conflicts.
-2. Read the snapshot of database with timestamp smaller than startTs when there are no read/write conflicts.
+2. Read the snapshot of database before startTs when there are no read/write conflicts.
 
 Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
 
