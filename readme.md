@@ -26,7 +26,7 @@ Firstly, we defines the constants needed by example code:
     transaction.put(TABLENAME, put);
     transaction.commit();
 
-In above code, the mutations of 'ROW' and 'ANOTHER_ROW' will both be put to HBase and visiable to read after transaction.commit() finished. On the other hands, neither of the two mutations will be visiable to read if transaction.commit() failed.
+In above code, the mutations of ROW and ANOTHER_ROW will both be put to HBase and visiable to read after transaction.commit() finished. On the other hands, neither of the two mutations will be visiable to read if transaction.commit() failed.
 
 ### Themis Read
 
@@ -39,7 +39,7 @@ In above code, the mutations of 'ROW' and 'ANOTHER_ROW' will both be put to HBas
 
 Themis can promise to read consistent state of database.
 
-For more example code, please see org.apache.hadoop.hbase.themis.example.Example.java
+For more example code, please see org.apache.hadoop.hbase.themis.example.Example.java.
 
 ## Principal and Implementation 
 
@@ -58,7 +58,7 @@ Themis finishes mutations of transaction by two-phase write(prewrite/commit). Th
 
 The steps of Themis Read:
 
-1. Get timestamp from chronos(named startTs), check the read/write conflicts: there are no concurrent writes with timestamp of persistent lock smaller than startTs.
+1. Get timestamp from chronos(named startTs), check the read/write conflicts.
 2. Read the snapshot of database with timestamp smaller than startTs when there are no read/write conflicts.
 
 The guarantee of themis read is to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
@@ -67,7 +67,7 @@ Conflict Resolution:
 
 There might be write/write and read/write conflicts as described above. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
 
-For more details of cross-row transaction algorithms, please see：[percolator](http://research.google.com/pubs/pub36726.html)
+Please see [percolator](http://research.google.com/pubs/pub36726.html) for more details.
 
 ### Themis Implementation
 
@@ -75,7 +75,7 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 [The gitlab could not show the picture in page](http://git.n.xiaomi.com/yehangjun/themis/blob/master/themis_architecture.jpg)
 
 Modules of ThemisClient:
-1. Transaction: provides APIs of themis：themisPut/themisGet/themisDelete/themisScan.
+1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan.
 2. ThemisPut/PercolatorGet/PercolatorDelete/PercolatorScan are the wrapped classes of HBase's put/get/delete/scan, which hide the timestamp access method.
 3. ColumnMutationCache: index the mutations of users by rows in client side.
 4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos) which will cache the timestamp requests and issue batch request to chronos in one rpc.
@@ -100,8 +100,7 @@ Modules of ThemisCoprocessor:
 2. add configurations for themis coprocessor in hbase-site.xml:
     \<property\>
     \<name\>hbase.coprocessor.user.region.classes\</name\>
-    \<value\>org.apache.hadoop.hbase.coprocessor.AggregateImplementation,org.apache.hadoop.hbase.coprocessor.example.BulkDeleteEndpoint,
-             org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
+    \<value\>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl\</value\>
     \</property\>
     \<property\>
     \<name\>hbase.coprocessor.region.classes\</name\>
@@ -110,6 +109,7 @@ Modules of ThemisCoprocessor:
 3. For tables which needs themis, create a family named 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
 
 ### depends themis-client
+add the following dependency to pom of project which needs cross-row transactions.
     \<dependency\>
     \<groupId\>com.xiaomi.infra\</groupId\>
     \<artifactId\>percolator-client\</artifactId\>
@@ -124,14 +124,14 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 ### Performance Test 
 
-The [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable. The following table shows the result:
+The [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
 
 | | BigTable | Percolator | Relative |
 |-------------|---------|------------------|---------------------|
 | Read/s      | 15513    | 14590            | 0.94               |
 | Write/s     | 31003     | 7232            | 0.23               |
 
-We evaluate the performance of themis under similar cicumstances with percolator's test  and give the relative drop compared with HBase.
+We evaluate the performance of themis under similar cicumstances with percolator's test and give the relative drop compared to HBase.
 
 Evaluation of themisGet. Load 10g data into HBase firstly and then test themisGet: 
 
@@ -161,11 +161,12 @@ The above tests are all done in a single region server. From the results, we can
 2. Adopt the concurrency characteristic of HBase coprocessor when prewrite/commit multi-rows.
 3. Create themis-needed family and set attributes for family automactically when user creates a table for themis.
 4. A normal way to clear expired data for thmeis.
-# Themis 
 
 
 ---
 
+
+# Themis 
 
 ## 简介
 
