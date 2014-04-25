@@ -341,3 +341,4 @@ themisPut对比，预写入10g数据，然后对其中的row进行更新，对�
 2.themis在跨行事务时使用coprocessor的并发机制，提高效率。
 3.themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
 4.清理过期数据。
+
