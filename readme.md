@@ -38,7 +38,7 @@ For more example code, please see org.apache.hadoop.hbase.themis.example.Example
 
 Themis is based on [percolator algorithm](http://research.google.com/pubs/pub36726.html), which defines the order of transactions by timestamp from [chronos](https://github.com/XiaoMi/chronos).
 
-**The Steps of Themis Write:**
+**Themis Write:**
 
 1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
 2. Prewrite-Phase: get timestamp from chronos(named prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
@@ -47,14 +47,14 @@ Themis is based on [percolator algorithm](http://research.google.com/pubs/pub367
 
 Themis applies mutations of transaction by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can not be read.
 
-The Steps of Themis Read:
+**Themis Read:**
 
 1. Get timestamp from chronos(named startTs), check the read/write conflicts.
 2. Read the snapshot of database with timestamp smaller than startTs when there are no read/write conflicts.
 
 Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
 
-Conflict Resolution:
+**Conflict Resolution:**
 
 There might be write/write and read/write conflicts as described above. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
 
@@ -66,7 +66,7 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 
 ![themis_architecture](http://wiki.mioffice.cn/images/e/e4/Themis_architecture.png)
 
-Modules of Themis Client:
+**Themis Client:**
 1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
 2. MutationCache: index the mutations of users by rows in client side.
 3. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
@@ -74,7 +74,7 @@ Modules of Themis Client:
 
 Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
 
-Modules of Themis Coprocessor:
+**Themis Coprocessor:**
 1. ThemisProtocol/ThemisCoprocessorImpl: defination and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
 2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
 
@@ -115,7 +115,11 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 ### Performance Test 
 
+**Percolator Result**
+
 The [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
+
+**Themis Result**
 
 | | BigTable | Percolator | Relative |
 |-------------|---------|------------------|---------------------|
