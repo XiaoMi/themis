@@ -90,6 +90,7 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 ![themis_architecture](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
 
 **Themis Client:**
+
 1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
 2. MutationCache: index the mutations of users by rows in client side.
 3. ThemisCoprocessorClient: the client to access themis coprocessor.
@@ -99,12 +100,14 @@ The implementation of Themis adopts the HBase coprocessor framework, the followi
 Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
 
 **Themis Coprocessor:**
+
 1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
 2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
 
 ## Usage 
 
 ### Loads themis coprocessor in server side 
+
 1. depends themis-coprocessor in the pom of HBase:
 
      ```
@@ -131,6 +134,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
 3. For tables which needs themis, create a family named 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
 
 ### depends themis-client
+
 add the following dependency to pom of project which needs cross-row transactions.
 
      <dependency>
@@ -184,6 +188,7 @@ Evaluation of themisPut. Load 10g data into HBase before testing themisPut by up
 The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
 
 ## Future Works
+
 1. Optimze the write performance for single-row write transaction.
 2. Adopt the concurrency characteristic of HBase coprocessor when prewrite/commit multi-rows.
 3. Create themis-needed family and set attributes for family automactically when user creates a table for themis.
