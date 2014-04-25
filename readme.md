@@ -251,7 +251,7 @@ transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，�
     }
     scanner.close();
 
-Transaction创建时会从chronos取一个startTs，themis的读可以确保读取到数据库在startTs之前所有提交的事务。
+Themis在事务开始之前会从chronos取一个startTs，themis的读可以确保读取到数据库在startTs之前所有提交的事务。
 
 更多示例代码参见：org.apache.hadoop.hbase.themis.example.Example.java
 
