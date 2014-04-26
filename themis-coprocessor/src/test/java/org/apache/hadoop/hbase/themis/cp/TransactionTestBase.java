@@ -5,7 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
@@ -49,13 +51,17 @@ public class TransactionTestBase extends TestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    conf = TEST_UTIL.getConfiguration();
-    conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
-    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, ThemisScanObserver.class.getName());
-    // We need more than one region server in this test
-    TEST_UTIL.startMiniCluster();
-    TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-    TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+//    conf = TEST_UTIL.getConfiguration();
+//    conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
+//    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, ThemisScanObserver.class.getName());
+//    // We need more than one region server in this test
+//    TEST_UTIL.startMiniCluster();
+//    TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+//    TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+    conf = HBaseConfiguration.create();
+    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
   }
 
   @AfterClass
