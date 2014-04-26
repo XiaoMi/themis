@@ -39,4 +39,17 @@
     <module>themis-coprocessor</module>
     <module>themis-client</module>
   </modules>
+
+  <distributionManagement>
+    <repository>
+      <id>archiva.internal</id>
+      <name>Internal Release Repository</name>
+      <url>https://nexus.d.xiaomi.net/nexus/content/repositories/releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>archiva.snapshots</id>
+      <name>Internal Snapshot Repository</name>
+      <url>https://nexus.d.xiaomi.net/nexus/content/repositories/snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
