@@ -44,6 +44,10 @@
         </exclusion>
         <exclusion>
           <groupId>com.xiaomi.infra</groupId>
+          <artifactId>scribe-log4j</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.xiaomi.infra</groupId>
           <artifactId>themis-coprocessor</artifactId>
         </exclusion>
       </exclusions>

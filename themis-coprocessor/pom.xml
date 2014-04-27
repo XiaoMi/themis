@@ -33,6 +33,10 @@
           <artifactId>libthrift</artifactId>
         </exclusion>
         <exclusion>
+          <groupId>com.xiaomi.infra</groupId>
+          <artifactId>scribe-log4j</artifactId>
+        </exclusion>
+        <exclusion>
           <groupId>org.apache.zookeeper</groupId>
           <artifactId>zookeeper</artifactId>
         </exclusion>
