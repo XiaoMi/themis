@@ -252,7 +252,6 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
           return null;
         }
         
-        // TODO : not need invoke cacheFlusher.reclaimMemStoreMemory()? which will be invoked HRegionServer.delete
         Column lockColumn = ColumnUtil.getLockColumn(family, qualifier);
         List<Pair<Mutation, Integer>> mutationsAndLocks = new ArrayList<Pair<Mutation,Integer>>();
         Delete delete = new Delete(row);

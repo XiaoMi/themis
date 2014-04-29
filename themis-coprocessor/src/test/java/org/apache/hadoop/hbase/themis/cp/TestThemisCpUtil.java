@@ -258,7 +258,6 @@ public class TestThemisCpUtil extends TestBase {
   public void testSeperateLockAndWriteKvs() {
     List<KeyValue> kvs = new ArrayList<KeyValue>();
     kvs.add(KEYVALUE);
-    // TODO : using getLockKv()
     kvs.add(getLockKv(KEYVALUE));
     kvs.add(getPutKv(KEYVALUE));
     Column column = ColumnUtil.getDeleteColumn(new Column(FAMILY, QUALIFIER));

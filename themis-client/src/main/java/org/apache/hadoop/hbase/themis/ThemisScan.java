@@ -94,8 +94,5 @@ public class ThemisScan extends ThemisRead {
     return this.scan.getFilter();
   }
   
-  // TODO(cuijianwei):
-  // 1. support reverse scan
-  // 2. add an attribute named "skipConflict" so that ThemisScanner will
-  //    skip the lock conflict row and continue fetch following rows
+  // TODO(cuijianwei): support reverse scan
 }
