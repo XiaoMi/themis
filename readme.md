@@ -137,8 +137,11 @@ Themis client will manage the users's mutations by row and invoke methods of The
 ### install [chronos](https://github.com/XiaoMi/chronos)
 
 chronos has not been deployed into maven remote repository, needs to install chronos in local repository:
+
 1. fetch chronos source code from github : "git clone git@github.com:XiaoMi/chronos.git".
+
 2. install thrift-0.8.0, chronos depdends thrift-0.8.0 to generate rpc stub codes.
+
 3. run "mvn clean install -DskipTests" in chronos directory to install chronos in local repository.
 
 ### depends themis-client
