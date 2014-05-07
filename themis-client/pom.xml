@@ -74,7 +74,7 @@
       <!-- install git@github.com:XiaoMi/chronos.git in your mvn repository -->
       <groupId>com.xiaomi.infra</groupId>
       <artifactId>chronos-client</artifactId>
-      <version>1.2.0-thrift0.5.0</version>
+      <version>1.2.0-thrift0.8.0-SNAPSHOT</version>
       <exclusions>
         <exclusion>
           <groupId>org.apache.thrift</groupId>
