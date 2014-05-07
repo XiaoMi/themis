@@ -30,6 +30,8 @@ public class Example {
   }
   
   public static void main(String args[]) throws Exception {
+    // firstly, create 'ThemisTable' in hbase shell:
+    // create 'ThemisTable', {NAME=>'ThemisCF', VERSIONS => '2147483647'}, {NAME => 'L', 'IN_MEMORY' => true, VERSIONS => '1'}
     setOneboxConfiguration();
     
     HConnection connection = HConnectionManager.createConnection(conf);
