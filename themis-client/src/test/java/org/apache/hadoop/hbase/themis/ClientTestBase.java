@@ -5,11 +5,8 @@ import java.io.IOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.themis.ThemisDelete;
-import org.apache.hadoop.hbase.themis.ThemisGet;
-import org.apache.hadoop.hbase.themis.ThemisPut;
-import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
+import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.themis.lockcleaner.WallClock;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister;
@@ -120,5 +117,39 @@ public class ClientTestBase extends TransactionTestBase {
     transaction.wallTime = wallTime;
     transaction.primary = COLUMN;
     transaction.selectPrimaryAndSecondaries();
-  }  
+  }
+  
+  protected void checkPrewriteSecondariesSuccess() throws IOException {
+    for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
+      checkPrewriteRowSuccess(secondaryRow.getFirst(), secondaryRow.getSecond());
+    }
+  }
+  
+  protected void prepareCommit() throws IOException {
+    preparePrewrite();
+    transaction.prewritePrimary();
+    transaction.prewriteSecondaries();
+    transaction.commitTs = commitTs;
+  }
+  
+  protected void checkCommitSecondaryRowsSuccess() throws IOException {
+    for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
+      checkCommitRowSuccess(secondaryRow.getFirst(), secondaryRow.getSecond());
+    }
+  }
+  
+  protected void applyMutations(ColumnCoordinate[] columns) throws IOException {
+    mockTimestamp(commitTs);
+    for (ColumnCoordinate columnCoordinate : columns) {
+      if (getColumnType(columnCoordinate).equals(Type.Put)) {
+        ThemisPut put = new ThemisPut(columnCoordinate.getRow());
+        put.add(columnCoordinate.getFamily(), columnCoordinate.getQualifier(), VALUE);
+        transaction.put(columnCoordinate.getTableName(), put);
+      } else {
+        ThemisDelete delete = new ThemisDelete(columnCoordinate.getRow());
+        delete.deleteColumn(columnCoordinate.getFamily(), columnCoordinate.getQualifier());
+        transaction.delete(columnCoordinate.getTableName(), delete);
+      }
+    }
+  }
 }

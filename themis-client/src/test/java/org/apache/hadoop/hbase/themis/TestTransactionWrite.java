@@ -3,13 +3,9 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.themis.ThemisDelete;
-import org.apache.hadoop.hbase.themis.ThemisPut;
-import org.apache.hadoop.hbase.themis.TransactionConstant;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
@@ -24,7 +20,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 public class TestTransactionWrite extends ClientTestBase {
   @Override
@@ -151,12 +146,6 @@ public class TestTransactionWrite extends ClientTestBase {
     checkPrewriteSecondariesSuccess();
   }
   
-  protected void checkPrewriteSecondariesSuccess() throws IOException {
-    for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
-      checkPrewriteRowSuccess(secondaryRow.getFirst(), secondaryRow.getSecond());
-    }
-  }
-  
   @Test
   public void testPrewriteFailDueToNewerWrite() throws IOException {
     ColumnCoordinate conflictColumn = COLUMN_WITH_ANOTHER_ROW;
@@ -174,7 +163,7 @@ public class TestTransactionWrite extends ClientTestBase {
   @Test
   public void testPrewriteFailDueToLockConflict() throws IOException {
     ColumnCoordinate conflictColumn = COLUMN_WITH_ANOTHER_ROW;
-    writeLockAndData(conflictColumn);
+    writeLockAndData(conflictColumn, commitTs + 1);
     conf.setInt(TransactionConstant.THEMIS_RETRY_COUNT, 0);
     preparePrewrite();
     transaction.prewritePrimary();
@@ -182,17 +171,10 @@ public class TestTransactionWrite extends ClientTestBase {
       transaction.prewriteSecondaries();
       Assert.fail();
     } catch (LockConflictException e) {
-      checkSecondariesRollback();
+      checkTransactionRollback();
     }
   }
   
-  protected void prepareCommit() throws IOException {
-    preparePrewrite();
-    transaction.prewritePrimary();
-    transaction.prewriteSecondaries();
-    transaction.commitTs = commitTs;
-  }
-
   @Test
   public void testCommitPrimary() throws IOException {
     // commit primary success
@@ -230,24 +212,18 @@ public class TestTransactionWrite extends ClientTestBase {
     }
   }
 
-  protected void checkCommitSecondariesSuccess() throws IOException {
-    for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
-      checkCommitRowSuccess(secondaryRow.getFirst(), secondaryRow.getSecond());
-    }
-  }
-  
   @Test
   public void testCommitSecondaries() throws IOException {
     // commit secondary success
     prepareCommit();
     transaction.commitSecondaries();
-    checkCommitSecondariesSuccess();
+    checkCommitSecondaryRowsSuccess();
     // secondary lock has been removed by commit
     deleteOldDataAndUpdateTs();
     prepareCommit();
     eraseLock(COLUMN_WITH_ANOTHER_TABLE, prewriteTs);
     transaction.commitSecondaries();
-    checkCommitSecondariesSuccess();
+    checkCommitSecondaryRowsSuccess();
     // commit one secondary lock fail
     deleteOldDataAndUpdateTs();
     prepareCommit();
@@ -269,21 +245,6 @@ public class TestTransactionWrite extends ClientTestBase {
     admin.close();
   }
 
-  public void applyMutations(ColumnCoordinate[] columns) throws IOException {
-    mockTimestamp(commitTs);
-    for (ColumnCoordinate columnCoordinate : columns) {
-      if (getColumnType(columnCoordinate).equals(Type.Put)) {
-        ThemisPut put = new ThemisPut(columnCoordinate.getRow());
-        put.add(columnCoordinate.getFamily(), columnCoordinate.getQualifier(), VALUE);
-        transaction.put(columnCoordinate.getTableName(), put);
-      } else {
-        ThemisDelete delete = new ThemisDelete(columnCoordinate.getRow());
-        delete.deleteColumn(columnCoordinate.getFamily(), columnCoordinate.getQualifier());
-        transaction.delete(columnCoordinate.getTableName(), delete);
-      }
-    }
-  }
-  
   @Test
   public void testTransactionSuccess() throws IOException {
     applyMutations(TRANSACTION_COLUMNS);
