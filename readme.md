@@ -188,12 +188,36 @@ Evaluation of themisPut. Load 10g data into HBase before testing themisPut by up
 
 The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
 
+### Concurrent prewrite/commit Improvement 
+
+The latency of themis put will increase as the transaction size(number of rows to mutate) becomes larger because prewrite and commit will be implementated one by one for each column(named RawThemis). Actually, prewrite could be implemented concurrently for all columns and commit could also be implemented for secondary columns(named ConcurrentThemis). We compare the lateny between RawThemis and ConcurrentThemis under the different transaction size:
+
+Latency comparison of ThemisPut between RawThemis and ConcurrentThemis. Use one client thread to do the comparsion.
+
+| TransactionSize | PutCount | RawThemis AvgLatency(us) | ConcurrentThemis AvgLatency(us) | Relative Improve |
+|-------------    |--------- |--------------------------|---------------------------------|------------------|
+| 2               | 1000000  | 1654.14                  | 995.98                          | 1.66             |
+| 4               | 1000000  | 3233.11                  | 1297.49                         | 2.50             |
+| 8               | 1000000  | 6470.30                  | 1963.47                         | 3.30             |
+| 16              | 1000000  | 13301.50                 | 2941.81                         | 4.52             |
+| 32              | 600000   | 28151.37                 | 3884.17                         | 7.25             |
+| 64              | 400000   | 51685.58                 | 5765.08                         | 8.96             |
+| 128             | 200000   | 103289.05                | 11282.95                        | 9.15             |
+
+The obove result shows there will be significant improvement as the transaction size becomes larger, which illustrates ConcurrentThemis will outperform RawThemis when doing large transaction.
+
+Currently, ConcurrentThemis is disabled. To enable ConcurrentThemis, add the following setting to configuration file of client-side:
+
+     <property>
+       <name>themis.enable.concurrent.rpc</name>
+       <value>true</value>
+     </property>
+
 ## Future Works
 
 1. Optimze the write performance for single-row write transaction.
-2. Adopt the concurrency characteristic of HBase coprocessor when prewrite/commit multi-rows.
-3. Create themis-needed family and set attributes automactically when user creates a table for themis.
-4. A normal way to clear expired data for thmeis.
+2. Create themis-needed family and set attributes automactically when user creates a table for themis.
+3. A normal way to clear expired data for thmeis.
 
 
 ---
@@ -384,11 +408,35 @@ themisPut对比，预写入10g数据，然后对其中的row进行更新，对�
 
 上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
 
+### 并发执行prewrite/commit带来的效率提升 
+
+随着事务修改行数(TransactionSize)的增加，themisPut的延时也会同比增加。这是因为目前的版本的prewrite和commit是串行执行的(这种实现记为RawThemis)。实际上，所有columns的prewrite可以并发执行，所有secondary-columns的commit也可以并发执行(这种实现记为ConcurrentThemis)。我们在TransactionSize不同的情况下，比较了RawThemis和ConcurrentThemis的性能：
+
+RawThemis和ConcurrentThemis的themisPut延时对比，客户端开启一个线程。
+
+| TransactionSize | PutCount | RawThemis AvgLatency(us) | ConcurrentThemis AvgLatency(us) | Relative Improve |
+|-------------    |--------- |--------------------------|---------------------------------|------------------|
+| 2               | 1000000  | 1654.14                  | 995.98                          | 1.66             |
+| 4               | 1000000  | 3233.11                  | 1297.49                         | 2.50             |
+| 8               | 1000000  | 6470.30                  | 1963.47                         | 3.30             |
+| 16              | 1000000  | 13301.50                 | 2941.81                         | 4.52             |
+| 32              | 600000   | 28151.37                 | 3884.17                         | 7.25             |
+| 64              | 400000   | 51685.58                 | 5765.08                         | 8.96             |
+| 128             | 200000   | 103289.05                | 11282.95                        | 9.15             |
+
+上面的结果显示：随着TransactionSize的增加，ConcurrentThemis相对于RawThemis有较大的性能提升；这说明了在提交大事务时，ConcurrentThemis会更有效。
+
+目前，ConcurrentThemis默认不会开启。开启ConcurrentThemis，需要将下面的设置加入到client端的配置文件：
+
+     <property>
+       <name>themis.enable.concurrent.rpc</name>
+       <value>true</value>
+     </property>
+
 
 ## 将来的工作
 
 1. themis单行事物的写优化。
-2. themis在跨行事务时使用coprocessor的并发机制，提高效率。
-3. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
-4. 清理过期数据。
+2. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
+3. 清理过期数据。
 
