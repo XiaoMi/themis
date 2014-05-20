@@ -63,7 +63,8 @@ public class Transaction extends Configured implements TransactionInterface {
   protected RowMutation primaryRow; // the row contains the primary column
   protected List<Pair<byte[], RowMutation>> secondaryRows;
   protected byte[] secondaryLockBytesWithoutType;
-  protected ExecutorService threadPool;
+  protected volatile static ExecutorService singletonThreadPool;
+  private static Object singletonThreadPoolLock = new Object();
   protected boolean enableConcurrentRpc;
   
   // will use the connection.getConfiguation() to config the Transaction
@@ -85,19 +86,27 @@ public class Transaction extends Configured implements TransactionInterface {
     this.register = register;
     this.register.registerWorker();
     this.enableConcurrentRpc = getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
-    if (enableConcurrentRpc) {
-      this.threadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
-        Integer.MAX_VALUE, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
-        Threads.newDaemonThreadFactory("hbase-connection-shared-executor"));
-    }
     this.cpClient = new WrappedCoprocessorClient(connection);
     this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
   }
   
-  protected void setThreadPool(ExecutorService threadPool) {
-    this.threadPool = threadPool;
+  protected static void setThreadPool(ExecutorService threadPool) {
+    Transaction.singletonThreadPool = threadPool;
+  }
+  
+  protected static ExecutorService getThreadPool() {
+    if (singletonThreadPool == null) {
+      synchronized (singletonThreadPoolLock) {
+        if (singletonThreadPool == null) {
+          singletonThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
+              Integer.MAX_VALUE, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
+              Threads.newDaemonThreadFactory("themis-client-transaction-shared-executor"));
+        }
+      }
+    }
+    return singletonThreadPool;
   }
   
   public void put(byte[] tableName, ThemisPut put) throws IOException {
@@ -200,7 +209,7 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   protected void concurrentPrewrite() throws IOException {
-    ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(threadPool);
+    ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
     asyncPrewriteRowWithLockClean(calls, primary.getTableName(), primaryRow, true);
     for (int i = 0; i < secondaryRows.size(); ++i) {
       final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
@@ -209,7 +218,7 @@ public class Transaction extends Configured implements TransactionInterface {
     calls.waitForResult();
     if (calls.getExceptions().size() != 0) {
       // async rollback success rows
-      ConcurrentRowCallables<Void> rollbacks = new ConcurrentRowCallables<Void>(threadPool);
+      ConcurrentRowCallables<Void> rollbacks = new ConcurrentRowCallables<Void>(getThreadPool());
       for (Entry<TableAndRow, Void> successRows : calls.getResults().entrySet()) {
         TableAndRow tableAndRow = successRows.getKey();
         asyncRollback(rollbacks, tableAndRow.getTableName(),
@@ -364,7 +373,7 @@ public class Transaction extends Configured implements TransactionInterface {
   }
 
   protected void concurrentCommitSecondaries() throws IOException {
-    ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(threadPool);
+    ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
     for (int i = 0; i < secondaryRows.size(); ++i) {
       final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
       calls.addCallable(new RowCallable<Void>(secondaryRow.getFirst(),

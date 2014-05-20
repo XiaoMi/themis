@@ -35,7 +35,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     transaction = new Transaction(conf, connection, mockTimestampOracle, mockClock, mockRegister);
     ArrayBlockingQueue<Runnable> requestQueue = new ArrayBlockingQueue<Runnable>(100);
     this.threadPool = new ThreadPoolExecutor(1, 10, 10, TimeUnit.SECONDS, requestQueue);
-    transaction.setThreadPool(this.threadPool);
+    Transaction.setThreadPool(this.threadPool);
     conf.setBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
   }
   
@@ -104,7 +104,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
   public void testConcurrentPrewriteWithRequestRejected() throws IOException {
     preparePrewrite();
     createThreadPoolForToRejectRequest();
-    transaction.threadPool = this.threadPool;
+    Transaction.setThreadPool(this.threadPool);
     try {
       transaction.concurrentPrewrite();
       Assert.fail();
@@ -156,7 +156,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
   public void testConcurrentConcurrentCommitWithRequestRejected() throws IOException {
     prepareCommit();
     createThreadPoolForToRejectRequest();
-    transaction.threadPool = this.threadPool;
+    Transaction.setThreadPool(this.threadPool);
     try {
       transaction.concurrentCommitSecondaries();
     } catch (MultiRowExceptions e) {
