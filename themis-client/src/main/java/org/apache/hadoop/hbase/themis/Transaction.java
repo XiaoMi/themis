@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -39,6 +42,7 @@ import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.ThemisTimest
 import org.apache.hadoop.hbase.themis.timestamp.TimestampOracleFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.util.Threads;
 
 public class Transaction extends Configured implements TransactionInterface {
   private static final Log LOG = LogFactory.getLog(Transaction.class);
@@ -60,45 +64,40 @@ public class Transaction extends Configured implements TransactionInterface {
   protected List<Pair<byte[], RowMutation>> secondaryRows;
   protected byte[] secondaryLockBytesWithoutType;
   protected ExecutorService threadPool;
+  protected boolean enableConcurrentRpc;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
-    this(connection, null);
+    this(connection.getConfiguration(), connection);
   }
   
-  public Transaction(HConnection connection, ExecutorService threadPool) throws IOException {
-    this(connection.getConfiguration(), connection, threadPool);
-  }
-  
-  public Transaction(Configuration conf, HConnection connection) throws IOException {
-    this(conf, connection, null);
-  }
-  
-  public Transaction(Configuration conf, HConnection connection, ExecutorService threadPool)
+  public Transaction(Configuration conf, HConnection connection)
       throws IOException {
     this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf), WallClock
-      .getWallTimer(conf), WorkerRegister.getWorkerRegister(conf), threadPool);
+      .getWallTimer(conf), WorkerRegister.getWorkerRegister(conf));
   }
   
   protected Transaction(Configuration conf, HConnection connection,
-      BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register)
-      throws IOException {
-    this(conf, connection, timestampOracle, wallClock, register, null);
-  }
-  
-  protected Transaction(Configuration conf, HConnection connection,
-      BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register,
-      ExecutorService threadPool) throws IOException {
+      BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register) throws IOException {
     setConf(conf);
     this.timestampOracle = new ThemisTimestamp(timestampOracle);
     this.wallClock = wallClock;
     this.register = register;
     this.register.registerWorker();
-    this.threadPool = threadPool;
+    this.enableConcurrentRpc = getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
+    if (enableConcurrentRpc) {
+      this.threadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
+        Integer.MAX_VALUE, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
+        Threads.newDaemonThreadFactory("hbase-connection-shared-executor"));
+    }
     this.cpClient = new WrappedCoprocessorClient(connection);
     this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
+  }
+  
+  protected void setThreadPool(ExecutorService threadPool) {
+    this.threadPool = threadPool;
   }
   
   public void put(byte[] tableName, ThemisPut put) throws IOException {
@@ -161,19 +160,19 @@ public class Transaction extends Configured implements TransactionInterface {
     }
     wallTime = wallClock.getWallTime();
     selectPrimaryAndSecondaries();
-    if (threadPool == null) {
+    if (enableConcurrentRpc) {
+      concurrentPrewrite();
+    } else {
       prewritePrimary();
       prewriteSecondaries();
-    } else {
-      concurrentPrewrite();
     }
     // must get commitTs after doing prewrite successfully
     commitTs = timestampOracle.getCommitTs();
     commitPrimary();
-    if (threadPool == null) {
-      commitSecondaries();
-    } else {
+    if (enableConcurrentRpc) {
       concurrentCommitSecondaries();
+    } else {
+      commitSecondaries();
     }
   }
   

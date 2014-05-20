@@ -31,9 +31,12 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
   
   protected void createTransactionWithMock() throws IOException {
     super.createTransactionWithMock();
+    conf.setBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, true);
+    transaction = new Transaction(conf, connection, mockTimestampOracle, mockClock, mockRegister);
     ArrayBlockingQueue<Runnable> requestQueue = new ArrayBlockingQueue<Runnable>(100);
     this.threadPool = new ThreadPoolExecutor(1, 10, 10, TimeUnit.SECONDS, requestQueue);
-    transaction = new Transaction(conf, connection, mockTimestampOracle, mockClock, mockRegister, threadPool);
+    transaction.setThreadPool(this.threadPool);
+    conf.setBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
   }
   
   protected void createThreadPoolForToRejectRequest() throws IOException {
