@@ -465,7 +465,7 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 | 64              | 400000   | 51658.58              | 5765.08                      | 8.96             |
 | 128             | 200000   | 103289.95             | 11282.95                     | 9.15             |
 
-TransactionSize是事务的行数，我们关注使用并发后的相对性能提升：RelativeImprove = ConcurrentThemisAvgTime / RawThemisAvgTime。可以看出，随着TransactionSize的增长，ConcurrentThemis相对于RawThemis的latency的提升逐渐增加。在事物行数超过32之后，这种提升逐渐放缓。
+TransactionSize是事务的行数，我们关注使用并发后的相对性能提升：RelativeImprove = ConcurrentThemisAvgTime / RawThemisAvgTime。可以看出，随着TransactionSize的增长，ConcurrentThemis相对于RawThemis的latency的提升逐渐增加。在事物行数超过32之后，提升逐渐放缓。
 
 
 ## 将来的工作
