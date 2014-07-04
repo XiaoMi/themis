@@ -177,7 +177,7 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 ### Performance Test 
 
-**Percolator Result**
+**Percolator Result:**
 
 [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
 
@@ -186,7 +186,7 @@ We design an AccountTransfer simulation program to validate the correctness of i
 | Read/s      | 15513     | 14590            | 0.94                |
 | Write/s     | 31003     | 7232             | 0.23                |
 
-**Themis Result**
+**Themis Result:**
 We evaluate the performance of themis under similar test conditions with percolator's and give the relative drop compared to HBase.
 
 Evaluation of themisGet. Load 10g data into HBase before testing themisGet by reading loaded rows: 
@@ -212,7 +212,7 @@ Evaluation of themisPut. Load 10g data into HBase before testing themisPut by up
 
 The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
 
-**ConcurrentThemis Result**
+**ConcurrentThemis Result:**
 The prewrite of different rows could be implemented concurrently, which could do cross-row transaction more efficiently. We denote the concurrent way as 'ConcurrentThemis' and 'RawThemis' to represent the original way, then get the efficiency comparsion:
 
 | TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
@@ -230,11 +230,11 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 ## Future Works
 
 1. Optimize the write performance for single-row transaction. The persistent lock is not needed to write to HLog for single-row transaction.
-2. Optimize the memory usage of RegionServer. The persistent locks of committed transactions could be removed from memory so that only need to keep persistent locks of un-committing transactions in the memory.
+2. Optimize the memory usage of RegionServer. Persistent locks of committed transactions could be removed from memory so that only need to keep persistent locks of un-committing transactions in memory.
 3. Create themis-needed family and set attributes automactically when user creates a table for themis.
 4. A normal way to clear expired data for thmeis.
-5. For the same Transaction, Merge the its local mutation with committed transactions from server-side for user.
-6. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean its persistent locks of uncommitted transactions.
+5. For the same Transaction, Merge the its local mutation with committed transactions from server-side.
+6. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client more quickly and clean its persistent locks of uncommitted transactions.
 
 ---
 
@@ -389,8 +389,8 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 2. 在themis-client目录下运行：mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example" 可以看到ThemisPut/ThemisGet/ThemisScan/ThemisDelete的运行结果。
 
-### 依赖Chronos提供Timestamp
 默认情况下，themis将使用LocalTimestampOracle提供进程级别单调递增的timestamp。使用Chronos提供全局单调递增的timestamp，需要:
+
 1. 配置和启动Chronos Server，参见：https://github.com/XiaoMi/themis/。
 
 2. 在client端的hbase-site.xml配置文件中加入：
@@ -402,9 +402,7 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
      </property>
      ```
 
-这样Themis会默认访问本机启动的Chronos Server。可以通过themis.remote.timestamp.server.zk.quorum和themis.remote.timestamp.server.clustername两个参数来指定需要访问的Chronos集群。
-
-3. 运行mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"，themis将访问chronos提供的timestamp来完成事务。
+这样Themis会默认访问本机启动的Chronos Server。可以通过themis.remote.timestamp.server.zk.quorum和themis.remote.timestamp.server.clustername两个参数来指定需要访问的Chronos集群。运行Example代码，themis将使用Chronos提供的timestamp来完成事务。
 
 
 ## 测试
@@ -415,7 +413,7 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 ### 性能测试
 
-** Percolator性能 **
+**Percolator性能**
 
 [google's percolator](http://research.google.com/pubs/pub36726.html)测试了在单column情况下读写性能相对于BigTable的降低百分比：
 
@@ -426,7 +424,7 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 与percolator类似，themis也对比了单column情况下读写性能相对于HBase的降低，我们结论如下：
 
-** Themis性能 **
+**Themis性能**
 
 1. themisGet对比，预写入10g数据，然后读出写入的数据。
 
@@ -451,7 +449,8 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
 
-** 跨行写事物并行优化后的性能 **
+**跨行写事物并行优化后的性能**
+
 对于跨行写事物，prewrite可以并发的执行，在commitPrimary之后，也可以并发的commitSecondary。并发有利于提高写事务的性能。我们将使用并发写优化的Themis称为ConcurrentThemis，未使用并发的Themis称为RawThemis，两者的性能对比如下：
 
 1. 单线程，跨行事物的性能对比(我们关注相对性能的提升，没有预写数据)：
