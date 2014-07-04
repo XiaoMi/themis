@@ -2,6 +2,7 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <hadoop.version>2.0.0-alpha</hadoop.version>
     <hbase.version>0.94.11</hbase.version>
     <themis.version>1.0-SNAPSHOT</themis.version>
   </properties>
@@ -49,13 +50,13 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
-      <version>2.0.0-alpha</version>
+      <version>${hadoop.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-hdfs</artifactId>
-      <version>2.0.0-alpha</version>
+      <version>${hadoop.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -65,6 +66,13 @@
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-minicluster</artifactId>
+      <version>${hadoop.version}</version>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
   <build>
     <plugins>

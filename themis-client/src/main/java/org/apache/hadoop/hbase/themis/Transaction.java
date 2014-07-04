@@ -5,6 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -16,6 +20,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
@@ -24,21 +29,24 @@ import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
+import org.apache.hadoop.hbase.themis.exception.MultiRowExceptions;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
-import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
+import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.themis.lockcleaner.LockCleaner;
 import org.apache.hadoop.hbase.themis.lockcleaner.WallClock;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle;
-import org.apache.hadoop.hbase.themis.timestamp.TimestampOracleFactory;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.ThemisTimestamp;
+import org.apache.hadoop.hbase.themis.timestamp.TimestampOracleFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.util.Threads;
 
 public class Transaction extends Configured implements TransactionInterface {
   private static final Log LOG = LogFactory.getLog(Transaction.class);
+  private HConnection connection;
   private ThemisTimestamp timestampOracle;
   protected LockCleaner lockCleaner;
   // wallClock will be include into lock to judge whether the transaction is expired
@@ -56,29 +64,51 @@ public class Transaction extends Configured implements TransactionInterface {
   protected RowMutation primaryRow; // the row contains the primary column
   protected List<Pair<byte[], RowMutation>> secondaryRows;
   protected byte[] secondaryLockBytesWithoutType;
+  protected volatile static ExecutorService singletonThreadPool;
+  private static Object singletonThreadPoolLock = new Object();
+  protected boolean enableConcurrentRpc;
   
-  // will the connection.getConfiguation() to config the Transaction
+  // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
     this(connection.getConfiguration(), connection);
   }
   
-  public Transaction(Configuration conf, HConnection connection) throws IOException {
+  public Transaction(Configuration conf, HConnection connection)
+      throws IOException {
     this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf), WallClock
-        .getWallTimer(conf), WorkerRegister.getWorkerRegister(conf));
+      .getWallTimer(conf), WorkerRegister.getWorkerRegister(conf));
   }
   
   protected Transaction(Configuration conf, HConnection connection,
-      BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register)
-      throws IOException {
+      BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register) throws IOException {
     setConf(conf);
+    this.connection = connection;
     this.timestampOracle = new ThemisTimestamp(timestampOracle);
     this.wallClock = wallClock;
     this.register = register;
     this.register.registerWorker();
+    this.enableConcurrentRpc = getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
     this.cpClient = new WrappedCoprocessorClient(connection);
     this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
+  }
+  
+  protected static void setThreadPool(ExecutorService threadPool) {
+    Transaction.singletonThreadPool = threadPool;
+  }
+  
+  protected static ExecutorService getThreadPool() {
+    if (singletonThreadPool == null) {
+      synchronized (singletonThreadPoolLock) {
+        if (singletonThreadPool == null) {
+          singletonThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
+              Integer.MAX_VALUE, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
+              Threads.newDaemonThreadFactory("themis-client-transaction-shared-executor"));
+        }
+      }
+    }
+    return singletonThreadPool;
   }
   
   public void put(byte[] tableName, ThemisPut put) throws IOException {
@@ -134,19 +164,87 @@ public class Transaction extends Configured implements TransactionInterface {
     ThemisRequest.checkContainColumn(userScan);
     return new ThemisScanner(tableName, userScan.getHBaseScan(), this);
   }
-
+  
   public void commit() throws IOException {
     if (mutationCache.size() == 0) {
       return;
     }
     wallTime = wallClock.getWallTime();
     selectPrimaryAndSecondaries();
-    prewritePrimary();
-    prewriteSecondaries();
+    if (enableConcurrentRpc) {
+      concurrentPrewrite();
+    } else {
+      prewritePrimary();
+      prewriteSecondaries();
+    }
     // must get commitTs after doing prewrite successfully
     commitTs = timestampOracle.getCommitTs();
     commitPrimary();
-    commitSecondaries();
+    if (enableConcurrentRpc) {
+      concurrentCommitSecondaries();
+    } else {
+      commitSecondaries();
+    }
+  }
+  
+  public HConnection getHConnection() {
+    return this.connection;
+  }
+  
+  // destroy inter-threads used by themis
+  public static void destroy() throws IOException {
+    BaseTimestampOracle timestampOracle = TimestampOracleFactory.getTimestampOracleWithoutCreate();
+    if (timestampOracle != null) {
+      timestampOracle.close();
+    }
+    if (singletonThreadPool != null) {
+      singletonThreadPool.shutdownNow();
+    }
+  }
+  
+  protected void asyncPrewriteRowWithLockClean(ConcurrentRowCallables<Void> calls,
+      final byte[] tableName, final RowMutation rowMutation, final boolean containPrimary)
+      throws IOException {
+    calls.addCallable(new RowCallable<Void>(tableName, rowMutation.getRow()) {
+      @Override
+      public Void call() throws Exception {
+        prewriteRowWithLockClean(tableName, rowMutation, containPrimary);
+        return null;
+      }
+    });
+  }
+  
+  protected void asyncRollback(ConcurrentRowCallables<Void> calls, final byte[] tableName,
+      final RowMutation rowMutation) throws IOException {
+    calls.addCallable(new RowCallable<Void>(tableName, rowMutation.getRow()) {
+      @Override
+      public Void call() throws Exception {
+        rollbackRow(tableName, rowMutation);
+        return null;
+      }
+    });
+  }
+  
+  protected void concurrentPrewrite() throws IOException {
+    ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
+    asyncPrewriteRowWithLockClean(calls, primary.getTableName(), primaryRow, true);
+    for (int i = 0; i < secondaryRows.size(); ++i) {
+      final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+      asyncPrewriteRowWithLockClean(calls, secondaryRow.getFirst(), secondaryRow.getSecond(), false);
+    }
+    calls.waitForResult();
+    if (calls.getExceptions().size() != 0) {
+      // async rollback success rows
+      ConcurrentRowCallables<Void> rollbacks = new ConcurrentRowCallables<Void>(getThreadPool());
+      for (Entry<TableAndRow, Void> successRows : calls.getResults().entrySet()) {
+        TableAndRow tableAndRow = successRows.getKey();
+        asyncRollback(rollbacks, tableAndRow.getTableName(),
+          mutationCache.getRowMutation(tableAndRow));
+      }
+      
+      // throw multi-excpetions to show failed rows
+      throw new MultiRowExceptions("concurrent prewrite fail", calls.getExceptions());
+    }
   }
 
   protected void selectPrimaryAndSecondaries() throws IOException {
@@ -291,6 +389,31 @@ public class Transaction extends Configured implements TransactionInterface {
     }
   }
 
+  protected void concurrentCommitSecondaries() throws IOException {
+    ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
+    for (int i = 0; i < secondaryRows.size(); ++i) {
+      final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+      calls.addCallable(new RowCallable<Void>(secondaryRow.getFirst(),
+          secondaryRow.getSecond().getRow()) {
+        @Override
+        public Void call() throws Exception {
+          cpClient.commitSecondaryRow(secondaryRow.getFirst(), secondaryRow.getSecond().getRow(),
+            secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
+          return null;
+        }
+      });
+    }
+    // TODO(cuijianwei) : do not need to wait for returning
+    calls.waitForResult();
+    // log commit failed rows
+    for (Entry<TableAndRow, IOException> failedRow : calls.getExceptions().entrySet()) {
+      TableAndRow tableAndRow = failedRow.getKey();
+      LOG.warn("commit secondary fail, table=" + tableAndRow.getTableName() + ", columns="
+          + mutationCache.getRowMutation(tableAndRow) + ", prewriteTs=" + startTs,
+        failedRow.getValue());
+    }
+  }
+  
   public void commitSecondaries() throws IOException {
     for (int i = 0; i < secondaryRows.size(); ++i) {
       Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);

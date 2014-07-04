@@ -17,12 +17,16 @@ public class TransactionConstant {
   public static final int DEFAULT_THEMIS_PAUSE = 100;
   public static final String THEMIS_LOCK_TTL_KEY = "themis.lock.ttl";
   public static final int DEFAULT_THEMIS_LOCK_TTL = 10 * 1000; // 10 seconds
+  public static final String THEMIS_ENABLE_CONCURRENT_RPC = "themis.enable.concurrent.rpc";
+  
   // constants for timestamp oracle
   public static final String MAX_TIMESTAMP_REQUEST_QUEUE_KEY = "themis.max.timestamp.request.queue.size";
   public static final int DEFAULT_MAX_TIMESTAMP_REQUEST_QUEUE_LEN = 10000;
   public static final String TIMESTAMP_REQUEST_TIMEOUT = "themis.timestamp.request.timeout";
   public static final int DEFAULT_TIMESTAMP_REQUEST_TIMEOUT = 1000;
   // zookeeper quorum where remote timestamp server registered
-  public static final String REMOTE_TIMESTAMP_SERVER_ZK_QUORUM_KEY = "themis.remote.timestamp.server.zk.qurom";
+  public static final String REMOTE_TIMESTAMP_SERVER_ZK_QUORUM_KEY = "themis.remote.timestamp.server.zk.quorum";
+  public static final String DEFAULT_REMOTE_TIMESTAMP_SERVER_ZK_QUORUM = "127.0.0.1:2181";
   public static final String REMOTE_TIMESTAMP_SERVER_CLUSTER_NAME = "themis.remote.timestamp.server.clustername";
+  public static final String DEFAULT_REMOTE_TIMESTAMP_SERVER_CLUSTER = "default-cluster";
 }

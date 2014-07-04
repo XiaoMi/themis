@@ -2,8 +2,10 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <hadoop.version>2.0.0-alpha</hadoop.version>
     <hbase.version>0.94.11</hbase.version>
     <themis.version>1.0-SNAPSHOT</themis.version>
+    <chronos.version>1.0.1-thrift0.8.0</chronos.version>
   </properties>
 
   <modelVersion>4.0.0</modelVersion>
@@ -69,12 +71,17 @@
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-minicluster</artifactId>
+      <version>${hadoop.version}</version>
+      <scope>test</scope>
+    </dependency>
 
     <dependency>
-      <!-- install git@github.com:XiaoMi/chronos.git in your mvn repository -->
       <groupId>com.xiaomi.infra</groupId>
       <artifactId>chronos-client</artifactId>
-      <version>1.2.0-thrift0.8.0-SNAPSHOT</version>
+      <version>${chronos.version}</version>
       <exclusions>
         <exclusion>
           <groupId>org.apache.thrift</groupId>

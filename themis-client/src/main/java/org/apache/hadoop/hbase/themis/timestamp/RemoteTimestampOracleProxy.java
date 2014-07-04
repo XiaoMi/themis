@@ -13,8 +13,10 @@ public class RemoteTimestampOracleProxy extends BaseTimestampOracle {
   private final ChronosClient clientImpl;
   public RemoteTimestampOracleProxy(Configuration conf) throws IOException {
     super(conf);
-    String zkQurom = conf.get(TransactionConstant.REMOTE_TIMESTAMP_SERVER_ZK_QUORUM_KEY);
-    String clusterName = conf.get(TransactionConstant.REMOTE_TIMESTAMP_SERVER_CLUSTER_NAME);
+    String zkQurom = conf.get(TransactionConstant.REMOTE_TIMESTAMP_SERVER_ZK_QUORUM_KEY,
+      TransactionConstant.DEFAULT_REMOTE_TIMESTAMP_SERVER_ZK_QUORUM);
+    String clusterName = conf.get(TransactionConstant.REMOTE_TIMESTAMP_SERVER_CLUSTER_NAME,
+      TransactionConstant.DEFAULT_REMOTE_TIMESTAMP_SERVER_CLUSTER);
     clientImpl = new ChronosClient(zkQurom, clusterName);
   }
 
@@ -25,5 +27,13 @@ public class RemoteTimestampOracleProxy extends BaseTimestampOracle {
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().remoteTimestampRequestLatency, beginTs);
     }
+  }
+  
+  @Override
+  public void close() throws IOException {
+    if (clientImpl != null) {
+      clientImpl.close();
+    }
+    super.close();
   }
 }

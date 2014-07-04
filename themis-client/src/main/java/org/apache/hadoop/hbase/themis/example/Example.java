@@ -1,8 +1,13 @@
 package org.apache.hadoop.hbase.themis.example;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.Result;
@@ -12,6 +17,9 @@ import org.apache.hadoop.hbase.themis.ThemisPut;
 import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.ThemisScanner;
 import org.apache.hadoop.hbase.themis.Transaction;
+import org.apache.hadoop.hbase.themis.TransactionConstant;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.LocalTimestampOracle;
 import org.apache.hadoop.hbase.util.Bytes;
 
 public class Example {
@@ -23,18 +31,43 @@ public class Example {
   private static final byte[] VALUE = Bytes.toBytes(10);
   private static Configuration conf;
   
-  public static void setOneboxConfiguration() throws Exception {
-    conf = HBaseConfiguration.create();
-    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
+  protected static void createTable(HConnection connection) throws IOException {
+    HBaseAdmin admin = null;
+    try {
+      admin = new HBaseAdmin(connection);
+      if (!admin.tableExists(TABLENAME)) {
+        HTableDescriptor tableDesc = new HTableDescriptor(TABLENAME);
+        HColumnDescriptor themisCF = new HColumnDescriptor(FAMILY);
+        themisCF.setMaxVersions(Integer.MAX_VALUE);
+        tableDesc.addFamily(themisCF);
+        HColumnDescriptor lockCF = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
+        lockCF.setMaxVersions(1);
+        lockCF.setInMemory(true);
+        tableDesc.addFamily(lockCF);
+        admin.createTable(tableDesc);
+      } else {
+        System.out.println(Bytes.toString(TABLENAME) + " exist, please check the schema of the table");
+        if (!admin.isTableEnabled(TABLENAME)) {
+          admin.enableTable(TABLENAME);
+        }
+      }
+    } finally {
+      if (admin != null) {
+        admin.close();
+      }
+    }
   }
   
-  public static void main(String args[]) throws Exception {
-    // firstly, create 'ThemisTable' in hbase shell:
-    // create 'ThemisTable', {NAME=>'ThemisCF', VERSIONS => '2147483647'}, {NAME => 'L', 'IN_MEMORY' => true, VERSIONS => '1'}
-    setOneboxConfiguration();
-    
+  public static void main(String args[]) throws IOException {
+    conf = HBaseConfiguration.create();
     HConnection connection = HConnectionManager.createConnection(conf);
+    // will create 'ThemisTable' for test, the corresponding shell command is:
+    // create 'ThemisTable', {NAME=>'ThemisCF', VERSIONS => '2147483647'}, {NAME => 'L', 'IN_MEMORY' => true, VERSIONS => '1'}
+    createTable(connection);
+    
+    String timeStampOracleCls = conf.get(TransactionConstant.TIMESTAMP_ORACLE_CLASS_KEY,
+      LocalTimestampOracle.class.getName());
+    System.out.println("use timestamp oracle class : " + timeStampOracleCls);
     
     {
       // write two rows
@@ -104,5 +137,6 @@ public class Example {
     }
     
     connection.close();
+    Transaction.destroy();
   }
 }
