@@ -148,24 +148,26 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 1. start a standalone HBase cluster and make sure themis-coprocessor is loaded as above steps.
 
-2. run org.apache.hadoop.hbase.themis.example.Example.java. If you use maven, come in the themis-client directory and run:
+2. run "org.apache.hadoop.hbase.themis.example.Example.java". If you use maven, come in the themis-client directory and run:
      
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
   
-The result of themisPut/themisGet/themisDelete/themisScan will output to screen. Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
+The result of themisPut/themisGet/themisDelete/themisScan will output to screen.
+
+Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
 
 1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/themis/.
 
 2. add the following config to the hbase-site.xml in client-side:
 
+     ```
      <property>
        <name>themis.timestamp.oracle.class</name>
 	     <value>org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy</value>
      </property>
+     ```
 
-With this config, themis will connect Chronos cluster in the same machine. The Chronos cluster address and name could be configed by 'themis.remote.timestamp.server.zk.quorum' and 'themis.remote.timestamp.server.clustername' respectively.
-
-3. run the example code as introduced above, then, themis will use the timestamp from Chronos to do transactions.
+With this config, themis will connect Chronos cluster in the same machine. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'. Then, run the example code as introduced above, and themis will use the timestamp from Chronos to do transactions.
 
 ## Test 
 
@@ -210,7 +212,7 @@ Evaluation of themisPut. Load 10g data into HBase before testing themisPut by up
 
 The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
 
-** ConcurrentThemis Result **
+**ConcurrentThemis Result**
 The prewrite of different rows could be implemented concurrently, which could do cross-row transaction more efficiently. We denote the concurrent way as 'ConcurrentThemis' and 'RawThemis' to represent the original way, then get the efficiency comparsion:
 
 | TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
@@ -393,10 +395,12 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 2. 在client端的hbase-site.xml配置文件中加入：
 
+     ```
      <property>
        <name>themis.timestamp.oracle.class</name>
 	     <value>org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy</value>
      </property>
+     ```
 
 这样Themis会默认访问本机启动的Chronos Server。可以通过themis.remote.timestamp.server.zk.quorum和themis.remote.timestamp.server.clustername两个参数来指定需要访问的Chronos集群。
 
