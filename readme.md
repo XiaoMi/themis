@@ -158,7 +158,7 @@ Themis will use a LocalTimestampOracle class to provide incremental timestamp fo
 
 1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/themis/.
 
-2. add the following config to the hbase-site.xml in client-side:
+2. add the following config to the hbase-site.xml in client-side of themis:
 
      ```
      <property>
@@ -213,7 +213,7 @@ Evaluation of themisPut. Load 10g data into HBase before testing themisPut by up
 The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
 
 **ConcurrentThemis Result:**
-The prewrite of different rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't load data before this comparsion because we focus on the relative improvement):
+The prewrite of different rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
 
 | TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
 |-----------------|--------- |-----------------------|------------------------------|------------------|
@@ -230,7 +230,7 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 ## Future Works
 
 1. Optimize the write performance for single-row transaction. The persistent lock is not needed to write to HLog for single-row transaction.
-2. Optimize the memory usage of RegionServer. Persistent locks of committed transactions could be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
+2. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
 3. Create themis-needed family and set attributes automactically when user creates a table for themis.
 4. A normal way to clear expired data for thmeis.
 5. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
