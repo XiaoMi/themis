@@ -146,9 +146,17 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 ### run example code
 
-1. start a standalone HBase cluster and make sure themis-coprocessor is loaded as above steps.
+1. themis depends on hbase 0.94.11 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.11 and install in maven local repository by(in the directory of hbase 0.94.11):
+   
+     mvn clean install -DskipTests -Dhadoop.profile=2.0
 
-2. run "org.apache.hadoop.hbase.themis.example.Example.java". If you use maven, come in the themis-client directory and run:
+2. install themis in maven local repository(in the directory of themis):
+
+     mvn clean install -DskipTests
+
+3. start a standalone HBase cluster(0.94.11 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
+
+4. run "org.apache.hadoop.hbase.themis.example.Example.java". If you use maven, come in the themis-client directory and run:
      
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
   
@@ -158,7 +166,7 @@ Themis will use a LocalTimestampOracle class to provide incremental timestamp fo
 
 1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/themis/.
 
-2. add the following config to the hbase-site.xml in client-side of themis:
+2. add the following config to the hbase-site.xml which located under the classpath of themis-client side:
 
      ```
      <property>
