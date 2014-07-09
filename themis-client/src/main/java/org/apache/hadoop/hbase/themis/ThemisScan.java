@@ -8,7 +8,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
 
-//a wrapper class of Put in HBase which not expose timestamp to user
+//a wrapper class of Scan in HBase which not expose timestamp to user
 public class ThemisScan extends ThemisRead {
   private Scan scan;
   
