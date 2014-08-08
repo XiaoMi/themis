@@ -18,9 +18,12 @@ public class ThemisCpStatistics implements Updater {
   public final MetricsTimeVaryingRate prewriteReadLockLatency = new MetricsTimeVaryingRate("prewriteReadLockLatency", registry);
   public final MetricsTimeVaryingRate prewriteReadWriteLatency = new MetricsTimeVaryingRate("prewriteReadWriteLatency", registry);
   public final MetricsTimeVaryingRate prewriteWriteLatency = new MetricsTimeVaryingRate("prewriteWriteLatency", registry);
+  public final MetricsTimeVaryingRate prewriteTotalLatency = new MetricsTimeVaryingRate("prewriteTotalLatency", registry); 
   public final MetricsTimeVaryingRate commitPrimaryReadLatency = new MetricsTimeVaryingRate("commitPrimaryReadLatency", registry);
   public final MetricsTimeVaryingRate commitWriteLatency = new MetricsTimeVaryingRate("commitWriteLatency", registry);
+  public final MetricsTimeVaryingRate commitTotalLatency = new MetricsTimeVaryingRate("commitTotalLatency", registry);
   public final MetricsTimeVaryingRate getLockAndEraseReadLatency = new MetricsTimeVaryingRate("getLockAndEraseReadLatency", registry);
+  public final MetricsTimeVaryingRate getLockAndEraseDeleteLatency = new MetricsTimeVaryingRate("getLockAndEraseDeleteLatency", registry);
   
   public ThemisCpStatistics() {
     context = MetricsUtil.getContext("themis");
@@ -34,9 +37,12 @@ public class ThemisCpStatistics implements Updater {
     prewriteReadLockLatency.pushMetric(metricsRecord);
     prewriteReadWriteLatency.pushMetric(metricsRecord);
     prewriteWriteLatency.pushMetric(metricsRecord);
+    prewriteTotalLatency.pushMetric(metricsRecord);
     commitPrimaryReadLatency.pushMetric(metricsRecord);
     commitWriteLatency.pushMetric(metricsRecord);
+    commitTotalLatency.pushMetric(metricsRecord);
     getLockAndEraseReadLatency.pushMetric(metricsRecord);
+    getLockAndEraseDeleteLatency.pushMetric(metricsRecord);
     metricsRecord.update();
   }
 

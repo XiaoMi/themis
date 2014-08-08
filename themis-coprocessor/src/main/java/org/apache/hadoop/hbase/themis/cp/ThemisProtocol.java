@@ -18,10 +18,17 @@ public interface ThemisProtocol extends CoprocessorProtocol {
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex) throws IOException;
   
+  public byte[][] prewriteSingleRow(final byte[] row, final List<ColumnMutation> mutations,
+      final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
+      final int primaryIndex) throws IOException;
+  
   // commit for a row. The row will contain primary column if primaryIndex is not negative
   public boolean commitRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final long commitTs, final int primaryIndex) throws IOException;
 
+  public boolean commitSingleRow(final byte[] row, final List<ColumnMutation> mutations,
+      final long prewriteTs, final long commitTs, final int primaryIndex) throws IOException;
+  
   // return null if lock not exist; otherwise, return lock and erase the lock
   public byte[] getLockAndErase(final byte[] row, final byte[] family, final byte[] column,
       final long prewriteTs) throws IOException;

@@ -67,6 +67,8 @@ public class Transaction extends Configured implements TransactionInterface {
   protected volatile static ExecutorService singletonThreadPool;
   private static Object singletonThreadPoolLock = new Object();
   protected boolean enableConcurrentRpc;
+  protected boolean singleRowTransaction = false;
+  protected boolean enableSingleRowWrite;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -92,6 +94,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
+    this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -276,6 +279,9 @@ public class Transaction extends Configured implements TransactionInterface {
     if (primaryIndexInRow == -1) {
       throw new IOException("can not find primary column in mutations, primary column=" + primary);
     }
+    if (secondaryRows.size() == 0) {
+      singleRowTransaction = true;
+    }
     SecondaryLock secondaryLock = constructSecondaryLock(Type.Put);
     secondaryLockBytesWithoutType = secondaryLock == null ? null : ThemisLock.toByte(secondaryLock);
   }
@@ -322,9 +328,15 @@ public class Transaction extends Configured implements TransactionInterface {
   protected ThemisLock prewriteRow(byte[] tableName, RowMutation mutation, boolean containPrimary)
       throws IOException {
     if (containPrimary) {
-      return cpClient.prewriteRow(tableName, mutation.getRow(), mutation.mutationList(),
-        startTs, ThemisLock.toByte(constructPrimaryLock()), secondaryLockBytesWithoutType,
-        primaryIndexInRow);
+      if (singleRowTransaction && enableSingleRowWrite) {
+        return cpClient.prewriteSingleRow(tableName, mutation.getRow(),
+          mutation.mutationListWithoutValue(), startTs, ThemisLock.toByte(constructPrimaryLock()),
+          secondaryLockBytesWithoutType, primaryIndexInRow);
+      } else {
+        return cpClient.prewriteRow(tableName, mutation.getRow(), mutation.mutationList(), startTs,
+          ThemisLock.toByte(constructPrimaryLock()), secondaryLockBytesWithoutType,
+          primaryIndexInRow);
+      }
     } else {
       return cpClient.prewriteSecondaryRow(tableName, mutation.getRow(), mutation.mutationList(),
         startTs, secondaryLockBytesWithoutType);
@@ -373,8 +385,13 @@ public class Transaction extends Configured implements TransactionInterface {
   
   public void commitPrimary() throws IOException {
     try {
-      cpClient.commitRow(primary.getTableName(), primaryRow.getRow(),
-        primaryRow.mutationListWithoutValue(), startTs, commitTs, primaryIndexInRow);
+      if (singleRowTransaction && enableSingleRowWrite) {
+        cpClient.commitSingleRow(primary.getTableName(), primaryRow.getRow(),
+          primaryRow.mutationList(), startTs, commitTs, primaryIndexInRow);
+      } else {
+        cpClient.commitRow(primary.getTableName(), primaryRow.getRow(),
+          primaryRow.mutationListWithoutValue(), startTs, commitTs, primaryIndexInRow);
+      }
     } catch (LockCleanedException e) {
       // rollback all prewrites if commit primary fail because primary lock has been erased
       LOG.warn("primary lock has been cleaned, transaction will rollback, primary column="

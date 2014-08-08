@@ -57,6 +57,12 @@ public class ClientTestBase extends TransactionTestBase {
     }
   }
   
+  protected void checkRollbackForSingleRow() throws IOException {
+    for (ColumnCoordinate columnCoordinate : PRIMARY_ROW_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
   protected void checkColumnRollback(ColumnCoordinate columnCoordinate) throws IOException {
     Assert.assertNull(readLockBytes(columnCoordinate));
     Assert.assertNull(readPut(columnCoordinate));
@@ -111,12 +117,30 @@ public class ClientTestBase extends TransactionTestBase {
     }
   }
   
+  protected void applySingleRowTransactionMutations() throws IOException {
+    for (ColumnCoordinate columnCoordinate : PRIMARY_ROW_COLUMNS) {
+      if (getColumnType(columnCoordinate).equals(Type.Put)) {
+        transaction.put(columnCoordinate.getTableName(), getThemisPut(columnCoordinate));
+      } else {
+        transaction.delete(columnCoordinate.getTableName(), getThemisDelete(columnCoordinate));
+      }
+    }
+  }
+  
   protected void preparePrewrite() throws IOException {
+    preparePrewrite(false);
+  }
+  
+  protected void preparePrewrite(boolean singleRowTransaction) throws IOException {
     createTransactionWithMock();
-    applyTransactionMutations();
+    if (singleRowTransaction) {
+      applySingleRowTransactionMutations();
+    } else {
+      applyTransactionMutations();
+    }
     transaction.wallTime = wallTime;
     transaction.primary = COLUMN;
-    transaction.selectPrimaryAndSecondaries();
+    transaction.selectPrimaryAndSecondaries();    
   }
   
   protected void checkPrewriteSecondariesSuccess() throws IOException {
@@ -126,7 +150,11 @@ public class ClientTestBase extends TransactionTestBase {
   }
   
   protected void prepareCommit() throws IOException {
-    preparePrewrite();
+    prepareCommit(false);
+  }
+  
+  protected void prepareCommit(boolean singleRow) throws IOException {
+    preparePrewrite(singleRow);
     transaction.prewritePrimary();
     transaction.prewriteSecondaries();
     transaction.commitTs = commitTs;

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue.Type;
@@ -50,6 +51,7 @@ public class TransactionTestBase extends TestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
+    /*
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
     conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, ThemisScanObserver.class.getName());
@@ -59,6 +61,11 @@ public class TransactionTestBase extends TestBase {
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
     TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
     TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+    */
+    conf = HBaseConfiguration.create();
+    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
   }
 
   @AfterClass
@@ -134,7 +141,11 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected ThemisLock getLock(ColumnCoordinate c, long ts) throws IOException {
-    ThemisLock lock =  COLUMN.equals(c) ? getPrimaryLock(ts) : getSecondaryLock(c, ts);
+    return getLock(c, ts, false);
+  }
+  
+  protected ThemisLock getLock(ColumnCoordinate c, long ts, boolean singleRow) throws IOException {
+    ThemisLock lock =  COLUMN.equals(c) ? getPrimaryLock(ts, singleRow) : getSecondaryLock(c, ts);
     lock.setColumn(c);
     return lock;
   }
@@ -273,14 +284,24 @@ public class TransactionTestBase extends TestBase {
     checkPrewriteColumnSuccess(c, prewriteTs);
   }
   
+  protected void checkPrewriteColumnSuccess(ColumnCoordinate c, boolean singleRow)
+      throws IOException {
+    checkPrewriteColumnSuccess(c, prewriteTs, singleRow);
+  }
+  
   protected void checkPrewriteColumnSuccess(ColumnCoordinate c, long prewriteTs) throws IOException {
-    byte[] lockBytes = ThemisLock.toByte(getLock(c, prewriteTs));
+    checkPrewriteColumnSuccess(c, prewriteTs, false);
+  }
+  
+  protected void checkPrewriteColumnSuccess(ColumnCoordinate c, long prewriteTs, boolean singleRow)
+      throws IOException {
+    byte[] lockBytes = ThemisLock.toByte(getLock(c, prewriteTs, singleRow));
     Assert.assertArrayEquals(lockBytes, readLockBytes(c, prewriteTs));
-    if (getColumnType(c).equals(Type.Put)) {
+    if (getColumnType(c).equals(Type.Put) && !singleRow) {
       Assert.assertArrayEquals(VALUE, readDataValue(c, prewriteTs));    
     } else {
       Assert.assertNull(readDataValue(c, prewriteTs));
-    }    
+    }        
   }
     
   protected void checkCommitRowSuccess(byte[] tableName, RowMutation rowMutation) throws IOException {
@@ -291,9 +312,15 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void checkPrewriteRowSuccess(byte[] tableName, RowMutation rowMutation) throws IOException {
+    checkPrewriteRowSuccess(tableName, rowMutation, false);
+  }
+  
+  protected void checkPrewriteRowSuccess(byte[] tableName, RowMutation rowMutation,
+      boolean singleRow) throws IOException {
     for (ColumnMutation mutation : rowMutation.mutationList()) {
-      ColumnCoordinate columnCoordinate = new ColumnCoordinate(tableName, rowMutation.getRow(), mutation);
-      checkPrewriteColumnSuccess(columnCoordinate);
+      ColumnCoordinate columnCoordinate = new ColumnCoordinate(tableName, rowMutation.getRow(),
+          mutation);
+      checkPrewriteColumnSuccess(columnCoordinate, singleRow);
     }
   }
   
@@ -304,6 +331,13 @@ public class TransactionTestBase extends TestBase {
     return lock;
   }
   
+  protected ThemisLock prewriteSingleRow() throws IOException {
+    byte[] lockBytes = ThemisLock.toByte(getLock(COLUMN, prewriteTs, true));
+    ThemisLock lock = cpClient.prewriteSingleRow(COLUMN.getTableName(), PRIMARY_ROW.getRow(),
+      PRIMARY_ROW.mutationListWithoutValue(), prewriteTs, lockBytes, getSecondaryLockBytes(), 2);
+    return lock;
+  }
+  
   protected byte[] getSecondaryLockBytes() throws IOException {
     return ThemisLock.toByte(getLock(COLUMN_WITH_ANOTHER_TABLE));
   }
@@ -311,6 +345,11 @@ public class TransactionTestBase extends TestBase {
   protected void commitPrimaryRow() throws IOException {
     cpClient.commitRow(COLUMN.getTableName(), PRIMARY_ROW.getRow(),
       PRIMARY_ROW.mutationListWithoutValue(), prewriteTs, commitTs, 2);
+  }
+  
+  protected void commitSingleRow() throws IOException {
+    cpClient.commitSingleRow(COLUMN.getTableName(), PRIMARY_ROW.getRow(),
+      PRIMARY_ROW.mutationList(), prewriteTs, commitTs, 2);
   }
 
   protected List<ThemisLock> prewriteSecondaryRows() throws IOException {
