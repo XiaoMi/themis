@@ -78,7 +78,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
       Integer lid = region.getLock(null, row, true);
       // wait for all previous transactions to complete (with lock held)
-      region.getMVCC().completeMemstoreInsert(region.getMVCC().beginMemstoreInsert());
+      // region.getMVCC().completeMemstoreInsert(region.getMVCC().beginMemstoreInsert());
       try {
         return doMutation(region, lid);
       } finally {
@@ -320,12 +320,11 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
         }
         
         Column lockColumn = ColumnUtil.getLockColumn(family, qualifier);
-        List<Pair<Mutation, Integer>> mutationsAndLocks = new ArrayList<Pair<Mutation,Integer>>();
         Delete delete = new Delete(row);
         setLockFamilyDelete(delete);
         delete.deleteColumn(lockColumn.getFamily(), lockColumn.getQualifier(), prewriteTs);
-        mutationsAndLocks.add(new Pair<Mutation, Integer>(delete, lid));
-        region.batchMutate(mutationsAndLocks.toArray(new Pair[]{}));
+        mutateToRegion(region, Lists.<Mutation> newArrayList(delete),
+        ThemisCpStatistics.getThemisCpStatistics().getLockAndEraseReadLatency);
         return lockBytes;
       }
     }.run();
