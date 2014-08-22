@@ -41,12 +41,44 @@ public class WrappedCoprocessorClient extends ThemisCoprocessorClient {
   }
   
   @Override
+  public ThemisLock prewriteSingleRow(final byte[] tableName, final byte[] row,
+      final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
+      final byte[] secondaryLock, final int primaryIndex) throws IOException {
+    long beginTs = System.nanoTime();
+    try {
+      return super.prewriteSingleRow(tableName, row, mutations, prewriteTs, primaryLock,
+        secondaryLock, primaryIndex);
+    } finally {
+      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().prewriteLatency,
+        beginTs);
+    }
+  }
+  
+  @Override
   public void commitRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
       final int primaryIndex) throws IOException {
     long beginTs = System.nanoTime();
     try {
       super.commitRow(tableName, row, mutations, prewriteTs, commitTs, primaryIndex);
+    } finally {
+      if (primaryIndex >= 0) {
+        ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().commitPrimaryLatency,
+          beginTs);
+      } else {
+        ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().commitSecondaryLatency,
+          beginTs);        
+      }
+    }
+  }
+  
+  @Override
+  public void commitSingleRow(final byte[] tableName, final byte[] row,
+      final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
+      final int primaryIndex) throws IOException {
+    long beginTs = System.nanoTime();
+    try {
+      super.commitSingleRow(tableName, row, mutations, prewriteTs, commitTs, primaryIndex);
     } finally {
       if (primaryIndex >= 0) {
         ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().commitPrimaryLatency,

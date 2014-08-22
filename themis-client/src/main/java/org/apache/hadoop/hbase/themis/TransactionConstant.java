@@ -25,6 +25,10 @@ public class TransactionConstant {
   public static final String TIMESTAMP_REQUEST_TIMEOUT = "themis.timestamp.request.timeout";
   public static final int DEFAULT_TIMESTAMP_REQUEST_TIMEOUT = 1000;
   // zookeeper quorum where remote timestamp server registered
-  public static final String REMOTE_TIMESTAMP_SERVER_ZK_QUORUM_KEY = "themis.remote.timestamp.server.zk.qurom";
+  public static final String REMOTE_TIMESTAMP_SERVER_ZK_QUORUM_KEY = "themis.remote.timestamp.server.zk.quorum";
+  public static final String DEFAULT_REMOTE_TIMESTAMP_SERVER_ZK_QUORUM = "127.0.0.1:2181";
   public static final String REMOTE_TIMESTAMP_SERVER_CLUSTER_NAME = "themis.remote.timestamp.server.clustername";
+  public static final String DEFAULT_REMOTE_TIMESTAMP_SERVER_CLUSTER = "default-cluster";
+  
+  public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
 }

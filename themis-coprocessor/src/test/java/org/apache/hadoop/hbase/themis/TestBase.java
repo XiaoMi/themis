@@ -82,12 +82,17 @@ public class TestBase {
 
   // transaction by row
   protected static RowMutation PRIMARY_ROW;
+  protected static ColumnCoordinate[] PRIMARY_ROW_COLUMNS;
   protected static List<Pair<byte[], RowMutation>> SECONDARY_ROWS;
   static {
     PRIMARY_ROW = new RowMutation(ROW);
+    PRIMARY_ROW_COLUMNS = new ColumnCoordinate[3];
     addToRowMutation(PRIMARY_ROW, COLUMN);
+    PRIMARY_ROW_COLUMNS[0] = COLUMN;
     addToRowMutation(PRIMARY_ROW, COLUMN_WITH_ANOTHER_FAMILY);
+    PRIMARY_ROW_COLUMNS[1] = COLUMN_WITH_ANOTHER_FAMILY;
     addToRowMutation(PRIMARY_ROW, COLUMN_WITH_ANOTHER_QUALIFIER);    
+    PRIMARY_ROW_COLUMNS[2] = COLUMN_WITH_ANOTHER_QUALIFIER;
     SECONDARY_ROWS = new ArrayList<Pair<byte[], RowMutation>>();
     RowMutation secondaryRow = new RowMutation(ROW);
     addToRowMutation(secondaryRow, COLUMN_WITH_ANOTHER_TABLE);
@@ -108,9 +113,15 @@ public class TestBase {
   }
 
   public static PrimaryLock getPrimaryLock(long prewriteTs) {
+    return getPrimaryLock(prewriteTs, false);
+  }
+  
+  public static PrimaryLock getPrimaryLock(long prewriteTs, boolean singleRowTransaction) {
     PrimaryLock lock = new PrimaryLock(getColumnType(COLUMN));
     setThemisLock(lock, prewriteTs, prewriteTs);
-    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
+    ColumnCoordinate[] secondaryColumns = singleRowTransaction ? new ColumnCoordinate[] {
+        COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER } : SECONDARY_COLUMNS;
+    for (ColumnCoordinate columnCoordinate : secondaryColumns) {
       lock.addSecondaryColumn(columnCoordinate, getColumnType(columnCoordinate));
     }
     return lock;

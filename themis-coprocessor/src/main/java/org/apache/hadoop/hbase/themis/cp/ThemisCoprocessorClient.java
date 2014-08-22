@@ -105,6 +105,25 @@ public class ThemisCoprocessorClient {
     return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
   }
   
+  public ThemisLock prewriteSingleRow(final byte[] tableName, final byte[] row,
+      final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
+      final byte[] secondaryLock, final int primaryIndex) throws IOException {
+    CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName) {
+      @Override
+      public void invokeCoprocessor(HTableInterface table, ResultCallback<byte[][]> callback)
+          throws Throwable {
+        table.coprocessorExec(ThemisProtocol.class, row, row,
+          new Batch.Call<ThemisProtocol, byte[][]>() {
+            public byte[][] call(ThemisProtocol instance) throws IOException {
+              return instance.prewriteSingleRow(row, mutations, prewriteTs, secondaryLock, primaryLock,
+                primaryIndex);
+            }
+          }, callback);
+      }
+    };
+    return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
+  }
+  
   protected ThemisLock judgePerwriteResultRow(byte[] tableName, byte[] row,
       byte[][] prewriteResult, long prewriteTs) throws IOException {
     if (prewriteResult != null) {
@@ -139,6 +158,33 @@ public class ThemisCoprocessorClient {
           new Batch.Call<ThemisProtocol, Boolean>() {
             public Boolean call(ThemisProtocol instance) throws IOException {
               return instance.commitRow(row, mutations, prewriteTs, commitTs, primaryIndex);
+            }
+          }, callback);
+      }
+    };
+    if (!callable.run()) {
+      if (primaryIndex < 0) {
+        throw new IOException("secondary row commit fail, should not happend!");
+      } else {
+        ColumnMutation primaryMutation = mutations.get(primaryIndex);
+        throw new LockCleanedException("lock has been cleaned, column="
+            + new ColumnCoordinate(tableName, row, primaryMutation.getFamily(), primaryMutation.getQualifier())
+            + ", prewriteTs=" + prewriteTs);
+      }
+    }
+  }
+  
+  public void commitSingleRow(final byte[] tableName, final byte[] row,
+      final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
+      final int primaryIndex) throws IOException {
+    CoprocessorCallable<Boolean> callable = new CoprocessorCallable<Boolean>(conn, tableName) {
+      @Override
+      public void invokeCoprocessor(HTableInterface table, ResultCallback<Boolean> callback)
+          throws Throwable {
+        table.coprocessorExec(ThemisProtocol.class, row, row,
+          new Batch.Call<ThemisProtocol, Boolean>() {
+            public Boolean call(ThemisProtocol instance) throws IOException {
+              return instance.commitSingleRow(row, mutations, prewriteTs, commitTs, primaryIndex);
             }
           }, callback);
       }

@@ -46,6 +46,7 @@ import org.apache.hadoop.hbase.util.Threads;
 
 public class Transaction extends Configured implements TransactionInterface {
   private static final Log LOG = LogFactory.getLog(Transaction.class);
+  private HConnection connection;
   private ThemisTimestamp timestampOracle;
   protected LockCleaner lockCleaner;
   // wallClock will be include into lock to judge whether the transaction is expired
@@ -66,6 +67,8 @@ public class Transaction extends Configured implements TransactionInterface {
   protected volatile static ExecutorService singletonThreadPool;
   private static Object singletonThreadPoolLock = new Object();
   protected boolean enableConcurrentRpc;
+  protected boolean singleRowTransaction = false;
+  protected boolean enableSingleRowWrite;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -81,6 +84,7 @@ public class Transaction extends Configured implements TransactionInterface {
   protected Transaction(Configuration conf, HConnection connection,
       BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register) throws IOException {
     setConf(conf);
+    this.connection = connection;
     this.timestampOracle = new ThemisTimestamp(timestampOracle);
     this.wallClock = wallClock;
     this.register = register;
@@ -90,6 +94,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
+    this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -169,10 +174,12 @@ public class Transaction extends Configured implements TransactionInterface {
     }
     wallTime = wallClock.getWallTime();
     selectPrimaryAndSecondaries();
+
+    // must prewrite primary successfully before prewriting secondaries
+    prewritePrimary();
     if (enableConcurrentRpc) {
-      concurrentPrewrite();
+      concurrentPrewriteSecondaries();
     } else {
-      prewritePrimary();
       prewriteSecondaries();
     }
     // must get commitTs after doing prewrite successfully
@@ -182,6 +189,21 @@ public class Transaction extends Configured implements TransactionInterface {
       concurrentCommitSecondaries();
     } else {
       commitSecondaries();
+    }
+  }
+  
+  public HConnection getHConnection() {
+    return this.connection;
+  }
+  
+  // destroy inter-threads used by themis
+  public static void destroy() throws IOException {
+    BaseTimestampOracle timestampOracle = TimestampOracleFactory.getTimestampOracleWithoutCreate();
+    if (timestampOracle != null) {
+      timestampOracle.close();
+    }
+    if (singletonThreadPool != null) {
+      singletonThreadPool.shutdownNow();
     }
   }
   
@@ -208,9 +230,8 @@ public class Transaction extends Configured implements TransactionInterface {
     });
   }
   
-  protected void concurrentPrewrite() throws IOException {
+  protected void concurrentPrewriteSecondaries() throws IOException {
     ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
-    asyncPrewriteRowWithLockClean(calls, primary.getTableName(), primaryRow, true);
     for (int i = 0; i < secondaryRows.size(); ++i) {
       final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
       asyncPrewriteRowWithLockClean(calls, secondaryRow.getFirst(), secondaryRow.getSecond(), false);
@@ -259,6 +280,9 @@ public class Transaction extends Configured implements TransactionInterface {
     if (primaryIndexInRow == -1) {
       throw new IOException("can not find primary column in mutations, primary column=" + primary);
     }
+    if (secondaryRows.size() == 0) {
+      singleRowTransaction = true;
+    }
     SecondaryLock secondaryLock = constructSecondaryLock(Type.Put);
     secondaryLockBytesWithoutType = secondaryLock == null ? null : ThemisLock.toByte(secondaryLock);
   }
@@ -305,9 +329,15 @@ public class Transaction extends Configured implements TransactionInterface {
   protected ThemisLock prewriteRow(byte[] tableName, RowMutation mutation, boolean containPrimary)
       throws IOException {
     if (containPrimary) {
-      return cpClient.prewriteRow(tableName, mutation.getRow(), mutation.mutationList(),
-        startTs, ThemisLock.toByte(constructPrimaryLock()), secondaryLockBytesWithoutType,
-        primaryIndexInRow);
+      if (singleRowTransaction && enableSingleRowWrite) {
+        return cpClient.prewriteSingleRow(tableName, mutation.getRow(),
+          mutation.mutationListWithoutValue(), startTs, ThemisLock.toByte(constructPrimaryLock()),
+          secondaryLockBytesWithoutType, primaryIndexInRow);
+      } else {
+        return cpClient.prewriteRow(tableName, mutation.getRow(), mutation.mutationList(), startTs,
+          ThemisLock.toByte(constructPrimaryLock()), secondaryLockBytesWithoutType,
+          primaryIndexInRow);
+      }
     } else {
       return cpClient.prewriteSecondaryRow(tableName, mutation.getRow(), mutation.mutationList(),
         startTs, secondaryLockBytesWithoutType);
@@ -356,8 +386,13 @@ public class Transaction extends Configured implements TransactionInterface {
   
   public void commitPrimary() throws IOException {
     try {
-      cpClient.commitRow(primary.getTableName(), primaryRow.getRow(),
-        primaryRow.mutationListWithoutValue(), startTs, commitTs, primaryIndexInRow);
+      if (singleRowTransaction && enableSingleRowWrite) {
+        cpClient.commitSingleRow(primary.getTableName(), primaryRow.getRow(),
+          primaryRow.mutationList(), startTs, commitTs, primaryIndexInRow);
+      } else {
+        cpClient.commitRow(primary.getTableName(), primaryRow.getRow(),
+          primaryRow.mutationListWithoutValue(), startTs, commitTs, primaryIndexInRow);
+      }
     } catch (LockCleanedException e) {
       // rollback all prewrites if commit primary fail because primary lock has been erased
       LOG.warn("primary lock has been cleaned, transaction will rollback, primary column="

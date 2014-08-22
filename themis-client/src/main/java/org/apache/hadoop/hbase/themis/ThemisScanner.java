@@ -31,7 +31,8 @@ public class ThemisScanner {
       // themis coprocessor could recognize this scanner from hbase scanners and do themis logics.
       // TODO(cuijianwei): how to avoid no-themis users set this attribute when doing hbase scan?
       setStartTsToScan(scan, transaction.startTs);
-      this.scanner = new ClientScanner(transaction.getConf(), scan, tableName);
+      this.scanner = new ClientScanner(transaction.getConf(), scan, tableName,
+          transaction.getHConnection());
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().getScannerLatency, beginTs);
     }
@@ -77,7 +78,9 @@ public class ThemisScanner {
   }
 
   public void close() {
-    this.scanner.close();
+    if (scanner != null) {
+      this.scanner.close();
+    }
   }
   
   protected Scan getScan() {

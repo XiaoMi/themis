@@ -47,6 +47,12 @@ public abstract class BaseTimestampOracle {
     return getRequestIdWithTimestamp(0);
   }
   
+  public void close() throws IOException {
+    if (this.executor != null) {
+      this.executor.shutdownNow();
+    }
+  }
+  
   protected Pair<Long, Long> getRequestIdWithTimestamp(long timeout) throws IOException {
     Future<Pair<Long, Long>> future = null;
     try {

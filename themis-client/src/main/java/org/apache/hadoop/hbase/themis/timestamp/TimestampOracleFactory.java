@@ -29,5 +29,9 @@ public class TimestampOracleFactory {
       }
     }
     return timestampClient;
-  }  
+  }
+  
+  public static BaseTimestampOracle getTimestampOracleWithoutCreate() {
+    return timestampClient;
+  }
 }

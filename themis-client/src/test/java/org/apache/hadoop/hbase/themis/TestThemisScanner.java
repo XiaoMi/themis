@@ -285,6 +285,7 @@ public class TestThemisScanner extends ClientTestBase {
     valueFilter = new ValueFilter(CompareOp.EQUAL, new BinaryComparator(VALUE));
     singleColumnFilter = new SingleColumnValueFilter(QUALIFIER, QUALIFIER, CompareOp.EQUAL,
         ANOTHER_VALUE);
+    singleColumnFilter.setFilterIfMissing(true);
     FilterList filterList = new FilterList();
     filterList.addFilter(valueFilter);
     filterList.addFilter(singleColumnFilter);
@@ -317,7 +318,7 @@ public class TestThemisScanner extends ClientTestBase {
     filterList.addFilter(prefixFilter);
     scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
     checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
-    Assert.assertEquals(3, scanner.next().size());
+    Assert.assertEquals(1, scanner.next().size());
     checkAndCloseScanner(scanner);
   }  
 }

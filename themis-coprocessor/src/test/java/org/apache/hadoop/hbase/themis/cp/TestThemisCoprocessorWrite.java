@@ -5,6 +5,7 @@ import java.util.List;
 
 import junit.framework.Assert;
 
+import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
@@ -29,6 +30,12 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
   }
   
   @Test
+  public void testCheckPrewriteSingleRowSuccess() throws Exception {
+    Assert.assertNull(prewriteSingleRow());
+    checkPrewriteRowSuccess(TABLENAME, PRIMARY_ROW, true);
+  }
+  
+  @Test
   public void testCheckPrewriteSecondaryRowSuccess() throws Exception {
     List<ThemisLock> prewriteLocks = prewriteSecondaryRows();
     for (int i = 0; i < prewriteLocks.size(); ++i) {
@@ -45,9 +52,31 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
   }
   
   @Test
+  public void testCommitSingleRowSuccess() throws Exception {
+    Assert.assertNull(prewriteSingleRow());
+    commitSingleRow();
+    checkCommitRowSuccess(COLUMN.getTableName(), PRIMARY_ROW);
+  }
+  
+  @Test
+  public void testCommitSingleRowFail() throws Exception {
+    prewriteSingleRow();
+    eraseLock(COLUMN, prewriteTs);
+    try {
+      commitSingleRow();
+      Assert.fail();
+    } catch (LockCleanedException e) {}
+    for (ColumnCoordinate columnCoordinate : new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER }) {
+      Assert.assertNull(readWrite(columnCoordinate));
+      Assert.assertNull(readDataValue(columnCoordinate, prewriteTs));
+    }
+  }
+  
+  @Test
   public void testCommitPrimaryRowFail() throws Exception {
     prewritePrimaryRow();
-    // won't commit if lock of non-primary column has been erased
+    // will commit if lock of non-primary column has been erased
     eraseLock(COLUMN_WITH_ANOTHER_FAMILY, prewriteTs);
     commitPrimaryRow();
     checkCommitRowSuccess(COLUMN.getTableName(), PRIMARY_ROW);
@@ -63,6 +92,9 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     for (ColumnCoordinate columnCoordinate : new ColumnCoordinate[] { COLUMN,
         COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER }) {
       Assert.assertNull(readWrite(columnCoordinate));
+      if (getColumnType(columnCoordinate) == Type.Put) {
+        Assert.assertNotNull(readDataValue(columnCoordinate, prewriteTs));
+      }
     }
   }
   

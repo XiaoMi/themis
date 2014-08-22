@@ -28,6 +28,7 @@ import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
+import org.mortbay.log.Log;
 
 public class ThemisCpUtil {
   // we classify themis-allowed Filters in HBase as three categories : ROWKEY_FILTER, COLUMN_FILTER and TRANSFTER_FITLER.
@@ -166,6 +167,7 @@ public class ThemisCpUtil {
   
   public static Scan constructLockAndWriteScan(Scan userScan, long startTs) throws IOException {
     Scan internalScan = new Scan(userScan);
+    internalScan.setFilter(null);
     internalScan.setFamilyMap(new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR));
     for (Entry<byte[], NavigableSet<byte[]>> entry : userScan.getFamilyMap().entrySet()) {
       for (byte[] qualifier : entry.getValue()) {
