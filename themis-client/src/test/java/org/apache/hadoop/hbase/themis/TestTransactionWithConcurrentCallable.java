@@ -47,8 +47,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
   @Test
   public void testConcurrentPrewriteSuccess() throws IOException {
     preparePrewrite();
-    transaction.concurrentPrewrite();
-    checkPrewriteRowSuccess(transaction.primary.getTableName(), transaction.primaryRow);
+    transaction.concurrentPrewriteSecondaries();
     checkPrewriteSecondariesSuccess();
   }
   
@@ -69,7 +68,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     preparePrewrite();
     writePutColumn(conflictColumn, prewriteTs + 1, commitTs + 1);
     try {
-      transaction.concurrentPrewrite();
+      transaction.concurrentPrewriteSecondaries();
       Assert.fail();
     } catch (MultiRowExceptions e) {
       waitForThreadPoolTerminated();
@@ -88,7 +87,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     conf.setInt(TransactionConstant.THEMIS_RETRY_COUNT, 0);
     preparePrewrite();
     try {
-      transaction.concurrentPrewrite();
+      transaction.concurrentPrewriteSecondaries();
       Assert.fail();
     } catch (MultiRowExceptions e) {
       waitForThreadPoolTerminated();
@@ -106,15 +105,13 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     createThreadPoolForToRejectRequest();
     Transaction.setThreadPool(this.threadPool);
     try {
-      transaction.concurrentPrewrite();
+      transaction.concurrentPrewriteSecondaries();
       Assert.fail();
     } catch (MultiRowExceptions e) {
       waitForThreadPoolTerminated();
       // the queue might be filled, can not ensure rollback successfully
-      Assert.assertEquals(2, e.getExceptions().size());
-      TableAndRow tableAndRow = new TableAndRow(ANOTHER_TABLENAME, ROW);
-      Assert.assertTrue(e.getExceptions().get(tableAndRow).getCause() instanceof RejectedExecutionException);
-      tableAndRow = new TableAndRow(TABLENAME, ANOTHER_ROW);
+      Assert.assertEquals(1, e.getExceptions().size());
+      TableAndRow tableAndRow = new TableAndRow(TABLENAME, ANOTHER_ROW);
       Assert.assertTrue(e.getExceptions().get(tableAndRow).getCause() instanceof RejectedExecutionException);
     }
   }

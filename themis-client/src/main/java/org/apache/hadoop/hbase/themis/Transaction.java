@@ -174,10 +174,12 @@ public class Transaction extends Configured implements TransactionInterface {
     }
     wallTime = wallClock.getWallTime();
     selectPrimaryAndSecondaries();
+
+    // must prewrite primary successfully before prewriting secondaries
+    prewritePrimary();
     if (enableConcurrentRpc) {
-      concurrentPrewrite();
+      concurrentPrewriteSecondaries();
     } else {
-      prewritePrimary();
       prewriteSecondaries();
     }
     // must get commitTs after doing prewrite successfully
@@ -228,9 +230,8 @@ public class Transaction extends Configured implements TransactionInterface {
     });
   }
   
-  protected void concurrentPrewrite() throws IOException {
+  protected void concurrentPrewriteSecondaries() throws IOException {
     ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
-    asyncPrewriteRowWithLockClean(calls, primary.getTableName(), primaryRow, true);
     for (int i = 0; i < secondaryRows.size(); ++i) {
       final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
       asyncPrewriteRowWithLockClean(calls, secondaryRow.getFirst(), secondaryRow.getSecond(), false);
