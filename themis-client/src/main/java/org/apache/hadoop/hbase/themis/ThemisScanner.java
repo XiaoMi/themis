@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
 
+import org.apache.hadoop.hbase.client.AbstractClientScanner;
 import org.apache.hadoop.hbase.client.ClientScanner;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
@@ -14,7 +15,7 @@ import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.util.Bytes;
 
 // scanner for range read
-public class ThemisScanner {
+public class ThemisScanner extends AbstractClientScanner {
   private final ResultScanner scanner;
   private final byte[] tableName;
   private Transaction transaction;
@@ -85,5 +86,11 @@ public class ThemisScanner {
   
   protected Scan getScan() {
     return this.scan;
+  }
+
+  @Override
+  public Result[] next(int nbRows) throws IOException {
+    // TODO implement this method
+    throw new IOException("not supported");
   }
 }
