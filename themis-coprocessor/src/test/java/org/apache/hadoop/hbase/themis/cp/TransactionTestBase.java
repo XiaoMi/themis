@@ -51,7 +51,6 @@ public class TransactionTestBase extends TestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    /*
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
     conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, ThemisScanObserver.class.getName());
@@ -61,11 +60,6 @@ public class TransactionTestBase extends TestBase {
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
     TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
     TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-    */
-    conf = HBaseConfiguration.create();
-    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
-    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
   }
 
   @AfterClass
