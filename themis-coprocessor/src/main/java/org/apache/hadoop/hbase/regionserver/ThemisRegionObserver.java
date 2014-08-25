@@ -1,20 +1,13 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
-import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -22,9 +15,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class ThemisRegionObserver extends BaseRegionObserver {
   public static final String SINGLE_ROW_PRIMARY_QUALIFIER = "_themisSingleRowPrewritePrimaryQualifier_";
   public static final String LOCK_FAMILY_DELETE = "_themisLockFamilyDelete_";
-  
-  private static final Log LOG = LogFactory.getLog(ThemisRegionObserver.class);
-  
+
   @Override
   public void prePut(final ObserverContext<RegionCoprocessorEnvironment> c, final Put put,
       final WALEdit edit, final boolean writeToWAL) throws IOException {
