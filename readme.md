@@ -124,11 +124,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
      ```
      <property>
        <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl</value>
-     </property>
-     <property>
-       <name>hbase.coprocessor.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver</value>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
      ```
 
@@ -146,7 +142,7 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 ### run example code
 
-1. currently, themis depends on hbase 0.94.11 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.11 and install in maven local repository by(in the directory of hbase 0.94.11):
+1. currently, themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
    
      mvn clean install -DskipTests -Dhadoop.profile=2.0
 
@@ -154,7 +150,7 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
      mvn clean install -DskipTests
 
-3. start a standalone HBase cluster(0.94.11 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
+3. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
 
 4. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
      
@@ -208,17 +204,20 @@ Evaluation of themisGet. Load 10g data into HBase before testing themisGet by re
 | 50            | 5000000  | 6295.83               | 5935.88              | 0.94     |
 
 
-Evaluation of themisPut. Load 10g data into HBase before testing themisPut by updating loaded rows:
+Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing themisPut. We config 256M cache size to buffer locks for transaction. 
 
-| Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-|-------------  |--------- |-----------------------|----------------------|----------|
-| 1             | 1000000  | 3658.28               | 882.63               | 0.24     |
-| 5             | 1000000  | 4005.77               | 1096.53              | 0.27     |
-| 10            | 1000000  | 5735.83               | 1376.60              | 0.24     |
-| 20            | 1000000  | 8486.28               | 1891.47              | 0.22     |
-| 50            | 1000000  | 18356.76              | 3384.32              | 0.18     |
+| Client Thread | PutCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
+|-------------  |---------- |-----------------------|----------------------|----------|
+| 1             | 3000000   | 1620.69               | 818.62               | 0.51     |
+| 5             | 10000000  | 1695.89               | 1074.13              | 0.63     |
+| 10            | 20000000  | 2057.55               | 1309.12              | 0.64     |
+| 20            | 20000000  | 2761.66               | 1902.79              | 0.69     |
+| 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
-The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
+The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is about 60% of HBase's put. For themisGet, the result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. The themisPut performance is much better compared to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
+1. In prewrite phase, we only write the lock to MemStore;  
+2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
+The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction. After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent and the transaction will fail, this won't break correctness of the algorithm.
 
 **ConcurrentThemis Result:**
 The prewrite of different rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
@@ -373,11 +372,7 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
      ```
      <property>
        <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl</value>
-     </property>
-     <property>
-       <name>hbase.coprocessor.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver</value>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
      ```
 
@@ -447,15 +442,18 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 2. themisPut对比，预写入10g数据，然后对其中的row进行更新，对比写性能。
 
-| Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-|-------------  |--------- |-----------------------|----------------------|----------|
-| 1             | 1000000  | 3658.28               | 882.63               | 0.24     |
-| 5             | 1000000  | 4005.77               | 1096.53              | 0.27     |
-| 10            | 1000000  | 5735.83               | 1376.60              | 0.24     |
-| 20            | 1000000  | 8486.28               | 1891.47              | 0.22     |
-| 50            | 1000000  | 18356.76              | 3384.32              | 0.18     |
+| Client Thread | PutCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
+|-------------  |---------- |-----------------------|----------------------|----------|
+| 1             | 3000000   | 1620.69               | 818.62               | 0.51     |
+| 5             | 10000000  | 1695.89               | 1074.13              | 0.63     |
+| 10            | 20000000  | 2057.55               | 1309.12              | 0.64     |
+| 20            | 20000000  | 2761.66               | 1902.79              | 0.69     |
+| 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
-上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
+上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，与percolator论文中的结果类似；写性能在HBase的60%左右，比percolator论文中的结果好很多。对于单column的写，我们做了以下优化：
+1. 在prewrite阶段，只写锁信息到MemStore中；
+2. 在commit阶段，如果能够读到读应的锁，删除锁并将数据和commit信息同时写入。
+使用上面的步骤，在prewrite阶段不需要写HLog，优化了写性能。在这种情况下，如果region server在prewrite阶段之后重启，commit阶段将读不到对应锁信息，事务将失败，但这对算法的正确性并没有影响。
 
 **跨行写事物并行优化后的性能**
 
