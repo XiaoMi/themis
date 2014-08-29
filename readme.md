@@ -215,8 +215,11 @@ Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing them
 | 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
 The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is about 60% of HBase's put. For themisGet, the result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. The themisPut performance is much better compared to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
+
 1. In prewrite phase, we only write the lock to MemStore;  
+
 2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
+
 The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction. After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent and the transaction will fail, this won't break correctness of the algorithm.
 
 **ConcurrentThemis Result:**
@@ -451,8 +454,11 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 | 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
 上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，与percolator论文中的结果类似；写性能在HBase的60%左右，比percolator论文中的结果好很多。对于单column的写，我们做了以下优化：
+
 1. 在prewrite阶段，只写锁信息到MemStore中；
+
 2. 在commit阶段，如果能够读到读应的锁，删除锁并将数据和commit信息同时写入。
+
 使用上面的步骤，在prewrite阶段不需要写HLog，优化了写性能。在这种情况下，如果region server在prewrite阶段之后重启，commit阶段将读不到对应锁信息，事务将失败，但这对算法的正确性并没有影响。
 
 **跨行写事物并行优化后的性能**
