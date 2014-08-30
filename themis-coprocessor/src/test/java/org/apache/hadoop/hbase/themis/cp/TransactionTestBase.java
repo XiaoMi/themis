@@ -64,6 +64,7 @@ public class TransactionTestBase extends TestBase {
     conf = HBaseConfiguration.create();
     conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
     conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
+    conf.set("ipc.socket.timeout", "5");
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
 
   }
@@ -105,9 +106,15 @@ public class TransactionTestBase extends TestBase {
   
   @After
   public void tearUp() throws IOException {
-    table.close();
-    anotherTable.close();
-    connection.close();
+    if (table != null) {
+      table.close();
+    }
+    if (anotherTable != null) {
+      anotherTable.close();
+    }
+    if (connection != null) {
+      connection.close();
+    }
   }
  
   protected void nextTransactionTs() {
