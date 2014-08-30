@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
@@ -32,7 +33,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     if (themisEnable) {
       for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
         if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName())) {
-          throw new IOException("family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING
+          throw new DoNotRetryIOException("family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING
               + "' is preserved by themis when " + THEMIS_ENABLE_KEY
               + " is true, please change your family name");
         }

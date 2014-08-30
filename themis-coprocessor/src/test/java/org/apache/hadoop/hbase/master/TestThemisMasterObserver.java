@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.master;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
@@ -46,7 +47,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     try {
       admin.createTable(tableDesc);
       Assert.fail();
-    } catch (IOException e) {
+    } catch (DoNotRetryIOException e) {
       Assert.assertTrue(e.getMessage().indexOf("is preserved by themis when THEMIS_ENABLE is true") >= 0);
     }
     
@@ -61,14 +62,5 @@ public class TestThemisMasterObserver extends TransactionTestBase {
         .contains(ColumnUtil.LOCK_FAMILY_NAME));
     deleteTable(admin, testTable);
     admin.close();
-  }
-  
-  protected void deleteTable(HBaseAdmin admin, byte[] tableName) throws IOException {
-    if (admin.tableExists(tableName)) {
-      if (admin.isTableEnabled(tableName)) {
-        admin.disableTable(tableName);
-      }
-      admin.deleteTable(tableName);
-    }
-  }
+  } 
 }

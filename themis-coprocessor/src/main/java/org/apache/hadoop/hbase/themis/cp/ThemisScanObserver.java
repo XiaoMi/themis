@@ -86,6 +86,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       Long themisStartTs = getStartTsFromAttribute(scan);
       if (themisStartTs != null) {
+        checkFamily(e.getEnvironment().getRegion(), scan);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
         ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment()
             .getRegion().getScanner(internalScan), scan.getFilter());
@@ -96,6 +97,10 @@ public class ThemisScanObserver extends BaseRegionObserver {
     } catch (Throwable ex) {
       throw new DoNotRetryIOException("themis exception in preScannerOpen", ex);
     }
+  }
+  
+  protected void checkFamily(final HRegion region, final Scan scan) throws IOException {
+    ThemisProtocolImpl.checkFamily(region, scan.getFamilies());
   }
   
   public static Long getStartTsFromAttribute(Scan scan) {

@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
@@ -16,7 +17,9 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.coprocessor.BaseEndpointCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.regionserver.HRegion;
+import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
@@ -35,6 +38,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   // TODO(cuijianwei) : read out data/lock/write column in the same region.get to improve efficiency?
   public Result themisGet(final Get get, final long startTs, final boolean ignoreLock)
       throws IOException {
+    checkFamily(get);
     // first get lock and write columns to check conflicted lock and get commitTs
     Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(get, startTs);
     HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
@@ -102,10 +106,42 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final int primaryIndex) throws IOException {
     return prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock, primaryIndex, false);
   }
+
+  protected void checkFamily(final Get get) throws IOException {
+    checkFamily(get.getFamilyMap().keySet().toArray(new byte[][]{}));
+  }
+  
+  protected void checkFamily(final List<ColumnMutation> mutations) throws IOException {
+    byte[][] families = new byte[mutations.size()][];
+    for (int i = 0; i < mutations.size(); ++i) {
+      families[i] = mutations.get(i).getFamily();
+    }
+    checkFamily(families);
+  }
+  
+  protected void checkFamily(final byte[][] families) throws IOException {
+    checkFamily(((RegionCoprocessorEnvironment) getEnvironment()).getRegion(), families);
+  }
+  
+  protected static void checkFamily(HRegion region, byte[][] families) throws IOException {
+    for (byte[] family : families) {
+      Store store = region.getStore(family);
+      if (store == null) {
+        throw new DoNotRetryIOException("family : '" + family + "' not found in table : "
+            + region.getTableDesc().getNameAsString());
+      }
+      String themisEnable = store.getFamily().getValue(ThemisMasterObserver.THEMIS_ENABLE_KEY);
+      if (themisEnable == null || !Boolean.parseBoolean(themisEnable)) {
+        throw new DoNotRetryIOException("can not access family : '" + Bytes.toString(family)
+            + "' because " + ThemisMasterObserver.THEMIS_ENABLE_KEY + " is not set");
+      }
+    }
+  }
   
   public byte[][] prewriteRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex, final boolean singleRow) throws IOException {
+    checkFamily(mutations);
     long beginTs = System.nanoTime();
     try {
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
