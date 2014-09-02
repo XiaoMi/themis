@@ -7,7 +7,6 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.coprocessor.Batch;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
@@ -23,29 +22,23 @@ public class ThemisCoprocessorClient {
     this.conn = connection;
   }
 
-  static class ResultCallback<R> implements Batch.Callback<R> {
-    R result = null;
-    public void update(byte[] region, byte[] row, R result) {
-      this.result = result;
-    }
-  }
-  
   static abstract class CoprocessorCallable<R> {
     private HConnection conn;
     private byte[] tableName;
+    private byte[] row;
     private HTableInterface table = null;
     
-    public CoprocessorCallable(HConnection conn, byte[] tableName) {
+    public CoprocessorCallable(HConnection conn, byte[] tableName, byte[] row) {
       this.conn = conn;
       this.tableName = tableName;
+      this.row = row;
     }
 
     public R run() throws IOException {
       try {
         table = conn.getTable(tableName);
-        ResultCallback<R> callback = new ResultCallback<R>();
-        invokeCoprocessor(table, callback);
-        return callback.result;
+        ThemisProtocol themisProtocol = table.coprocessorProxy(ThemisProtocol.class, row);
+        return invokeCoprocessor(themisProtocol);
       } catch (Throwable e) {
         throw new IOException(e);
       } finally {
@@ -55,8 +48,7 @@ public class ThemisCoprocessorClient {
       }
     }
     
-    public abstract void invokeCoprocessor(HTableInterface table, ResultCallback<R> callback)
-        throws Throwable;
+    public abstract R invokeCoprocessor(ThemisProtocol themisProtocol) throws Throwable;
   }
   
   public Result themisGet(final byte[] tableName, final Get get, final long startTs)
@@ -64,18 +56,17 @@ public class ThemisCoprocessorClient {
     return themisGet(tableName, get, startTs, false);
   }
   
+  protected static ThemisProtocol getThemisProtocol(HConnection conn, byte[] tableName, byte[] row)
+      throws IOException {
+    return conn.getTable(tableName).coprocessorProxy(ThemisProtocol.class, row);
+  }
+  
   public Result themisGet(final byte[] tableName, final Get get, final long startTs,
       final boolean ignoreLock) throws IOException {
-    return new CoprocessorCallable<Result>(conn, tableName) {
+    return new CoprocessorCallable<Result>(conn, tableName, get.getRow()) {
       @Override
-      public void invokeCoprocessor(HTableInterface table, ResultCallback<Result> callback)
-          throws Throwable {
-        table.coprocessorExec(ThemisProtocol.class, get.getRow(), get.getRow(),
-          new Batch.Call<ThemisProtocol, Result>() {
-            public Result call(ThemisProtocol instance) throws IOException {
-                return instance.themisGet(get, startTs, ignoreLock);
-            }
-          }, callback);
+      public Result invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.themisGet(get, startTs, ignoreLock);
       }
     }.run();
   }
@@ -89,17 +80,11 @@ public class ThemisCoprocessorClient {
   public ThemisLock prewriteRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
       final byte[] secondaryLock, final int primaryIndex) throws IOException {
-    CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName) {
+    CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName, row) {
       @Override
-      public void invokeCoprocessor(HTableInterface table, ResultCallback<byte[][]> callback)
-          throws Throwable {
-        table.coprocessorExec(ThemisProtocol.class, row, row,
-          new Batch.Call<ThemisProtocol, byte[][]>() {
-            public byte[][] call(ThemisProtocol instance) throws IOException {
-              return instance.prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock,
-                primaryIndex);
-            }
-          }, callback);
+      public byte[][] invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock,
+          primaryIndex);
       }
     };
     return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
@@ -108,17 +93,11 @@ public class ThemisCoprocessorClient {
   public ThemisLock prewriteSingleRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
       final byte[] secondaryLock, final int primaryIndex) throws IOException {
-    CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName) {
+    CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName, row) {
       @Override
-      public void invokeCoprocessor(HTableInterface table, ResultCallback<byte[][]> callback)
-          throws Throwable {
-        table.coprocessorExec(ThemisProtocol.class, row, row,
-          new Batch.Call<ThemisProtocol, byte[][]>() {
-            public byte[][] call(ThemisProtocol instance) throws IOException {
-              return instance.prewriteSingleRow(row, mutations, prewriteTs, secondaryLock, primaryLock,
-                primaryIndex);
-            }
-          }, callback);
+      public byte[][] invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.prewriteSingleRow(row, mutations, prewriteTs, secondaryLock, primaryLock,
+          primaryIndex);
       }
     };
     return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
@@ -150,16 +129,10 @@ public class ThemisCoprocessorClient {
   public void commitRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
       final int primaryIndex) throws IOException {
-    CoprocessorCallable<Boolean> callable = new CoprocessorCallable<Boolean>(conn, tableName) {
+    CoprocessorCallable<Boolean> callable = new CoprocessorCallable<Boolean>(conn, tableName, row) {
       @Override
-      public void invokeCoprocessor(HTableInterface table, ResultCallback<Boolean> callback)
-          throws Throwable {
-        table.coprocessorExec(ThemisProtocol.class, row, row,
-          new Batch.Call<ThemisProtocol, Boolean>() {
-            public Boolean call(ThemisProtocol instance) throws IOException {
-              return instance.commitRow(row, mutations, prewriteTs, commitTs, primaryIndex);
-            }
-          }, callback);
+      public Boolean invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.commitRow(row, mutations, prewriteTs, commitTs, primaryIndex);
       }
     };
     if (!callable.run()) {
@@ -177,16 +150,10 @@ public class ThemisCoprocessorClient {
   public void commitSingleRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
       final int primaryIndex) throws IOException {
-    CoprocessorCallable<Boolean> callable = new CoprocessorCallable<Boolean>(conn, tableName) {
+    CoprocessorCallable<Boolean> callable = new CoprocessorCallable<Boolean>(conn, tableName, row) {
       @Override
-      public void invokeCoprocessor(HTableInterface table, ResultCallback<Boolean> callback)
-          throws Throwable {
-        table.coprocessorExec(ThemisProtocol.class, row, row,
-          new Batch.Call<ThemisProtocol, Boolean>() {
-            public Boolean call(ThemisProtocol instance) throws IOException {
-              return instance.commitSingleRow(row, mutations, prewriteTs, commitTs, primaryIndex);
-            }
-          }, callback);
+      public Boolean invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.commitSingleRow(row, mutations, prewriteTs, commitTs, primaryIndex);
       }
     };
     if (!callable.run()) {
@@ -203,17 +170,12 @@ public class ThemisCoprocessorClient {
   
   public ThemisLock getLockAndErase(final ColumnCoordinate columnCoordinate, final long prewriteTs)
       throws IOException {
-    CoprocessorCallable<byte[]> callable = new CoprocessorCallable<byte[]>(conn, columnCoordinate.getTableName()) {
+    CoprocessorCallable<byte[]> callable = new CoprocessorCallable<byte[]>(conn,
+        columnCoordinate.getTableName(), columnCoordinate.getRow()) {
       @Override
-      public void invokeCoprocessor(HTableInterface table, ResultCallback<byte[]> callback)
-          throws Throwable {
-        table.coprocessorExec(ThemisProtocol.class, columnCoordinate.getRow(), columnCoordinate.getRow(),
-          new Batch.Call<ThemisProtocol, byte[]>() {
-            public byte[] call(ThemisProtocol instance) throws IOException {
-              return instance.getLockAndErase(columnCoordinate.getRow(), columnCoordinate.getFamily(),
-                columnCoordinate.getQualifier(), prewriteTs);
-            }
-          }, callback);
+      public byte[] invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.getLockAndErase(columnCoordinate.getRow(), columnCoordinate.getFamily(),
+          columnCoordinate.getQualifier(), prewriteTs);
       }
     };
     byte[] result = callable.run();
