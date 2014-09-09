@@ -42,7 +42,7 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     Assert.assertNull(prewriteSingleRow());
     checkPrewriteRowSuccess(TABLENAME, PRIMARY_ROW, true);
   }
-  
+
   @Test
   public void testCheckPrewriteSecondaryRowSuccess() throws Exception {
     List<ThemisLock> prewriteLocks = prewriteSecondaryRows();
@@ -51,7 +51,7 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
       checkPrewriteRowSuccess(SECONDARY_ROWS.get(i).getFirst(), SECONDARY_ROWS.get(i).getSecond());
     }
   }
-    
+
   @Test
   public void testCommitPrimaryRowSuccess() throws Exception {
     Assert.assertNull(prewritePrimaryRow());

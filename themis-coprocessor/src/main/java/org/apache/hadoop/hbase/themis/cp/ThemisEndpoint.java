@@ -7,7 +7,6 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
@@ -15,58 +14,182 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.coprocessor.BaseEndpointCoprocessor;
+import org.apache.hadoop.hbase.coprocessor.CoprocessorException;
+import org.apache.hadoop.hbase.coprocessor.CoprocessorService;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.master.ThemisMasterObserver;
+import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.protobuf.ResponseConverter;
+import org.apache.hadoop.hbase.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.Store;
+import org.apache.hadoop.hbase.regionserver.HRegion.RowLock;
 import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitRequest;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitResponse;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisGetRequest;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisPrewriteRequest;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisPrewriteResponse;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisService;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingRate;
 
 import com.google.common.collect.Lists;
+import com.google.protobuf.HBaseZeroCopyByteString;
+import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
 
-public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements ThemisProtocol {
-  private static final Log LOG = LogFactory.getLog(ThemisProtocolImpl.class);
+public class ThemisEndpoint extends ThemisService implements CoprocessorService, Coprocessor {
+  private static final Log LOG = LogFactory.getLog(ThemisEndpoint.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
-  
-  // TODO(cuijianwei) : read out data/lock/write column in the same region.get to improve efficiency?
-  public Result themisGet(final Get get, final long startTs, final boolean ignoreLock)
-      throws IOException {
-    checkFamily(get);
+  private RegionCoprocessorEnvironment env;
+  public void start(CoprocessorEnvironment env) throws IOException {
+    if (env instanceof RegionCoprocessorEnvironment) {
+      this.env = (RegionCoprocessorEnvironment) env;
+    } else {
+      throw new CoprocessorException("Must be loaded on a table region!");
+    }
+  }
+
+  public void stop(CoprocessorEnvironment env) throws IOException {
+  }
+
+  public Service getService() {
+    return this;
+  }
+
+  @Override
+  public void themisGet(RpcController controller, ThemisGetRequest request,
+      RpcCallback<org.apache.hadoop.hbase.protobuf.generated.ClientProtos.Result> callback) {
     // first get lock and write columns to check conflicted lock and get commitTs
-    Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(get, startTs);
-    HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
-    Result result = getFromRegion(region, lockAndWriteGet, null,
-      ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency);
-    Pair<List<KeyValue>, List<KeyValue>> lockAndWriteKvs = ThemisCpUtil.seperateLockAndWriteKvs(result.list());
-    List<KeyValue> lockKvs = lockAndWriteKvs.getFirst();
-    if (!ignoreLock && lockKvs.size() != 0) {
-      LOG.warn("encounter conflict lock in ThemisGet"); // need to log conflict kv?
-      // return lock columns when encounter conflict lock
-      return new Result(lockKvs);
+    try {
+      checkFamily(get);
+      Get clientGet = ProtobufUtil.toGet(request.getGet());
+      Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(clientGet, request.getStartTs());
+      HRegion region = env.getRegion();
+      Result result = getFromRegion(region, lockAndWriteGet,
+        ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency);
+      Pair<List<KeyValue>, List<KeyValue>> lockAndWriteKvs = ThemisCpUtil
+          .seperateLockAndWriteKvs(result.list());
+      List<KeyValue> lockKvs = lockAndWriteKvs.getFirst();
+      ClientProtos.Result clientResult = null;
+      if (!request.getIgnoreLock() && lockKvs.size() != 0) {
+        LOG.warn("encounter conflict lock in ThemisGet"); // need to log conflict kv?
+        // return lock columns when encounter conflict lock
+        clientResult = ProtobufUtil.toResult(new Result(lockKvs));
+      } else {
+        List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(lockAndWriteKvs.getSecond());
+        if (putKvs.size() == 0) {
+          clientResult = ProtobufUtil.toResult(new Result());
+        } else {
+          Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, clientGet.getFilter());
+          clientResult = ProtobufUtil.toResult(getFromRegion(region, dataGet,
+            ThemisCpStatistics.getThemisCpStatistics().getDataLatency));
+        }
+      }
+      // TODO : put this out of the try-catch block?
+      callback.run(clientResult);
+    } catch (IOException e) {
+      LOG.error("themisGet fail", e);
+      // Call ServerRpcController#getFailedOn() to retrieve this IOException at client side.
+      ResponseConverter.setControllerException(controller, e);
     }
-    List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(lockAndWriteKvs.getSecond());
-    if (putKvs.size() == 0) {
-      return new Result();
-    }
-    Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, get.getFilter());
-    return getFromRegion(region, dataGet, null,
-      ThemisCpStatistics.getThemisCpStatistics().getDataLatency);
   }
   
-  protected Result getFromRegion(HRegion region, Get get, Integer lockId,
-      MetricsTimeVaryingRate latency) throws IOException {
+  protected Result getFromRegion(HRegion region, Get get, MetricsTimeVaryingRate latency)
+      throws IOException {
     long beginTs = System.nanoTime();
     try {
-      return region.get(get, lockId);
+      // TODO : do not need lock?
+      return region.get(get);
     } finally {
       ThemisCpStatistics.updateLatency(latency, beginTs);
+    }
+  }
+
+  @Override
+  public void commitRow(RpcController controller, ThemisCommitRequest request,
+      RpcCallback<ThemisCommitResponse> callback) {
+    try {
+      boolean result = commitRow(request.getRow().toByteArray(),
+        ColumnMutation.toColumnMutations(request.getMutationsList()), request.getPrewriteTs(),
+        request.getCommitTs(), request.getPrimaryIndex());
+      ThemisCommitResponse.Builder builder = ThemisCommitResponse.newBuilder();
+      builder.setResult(result);
+      callback.run(builder.build());
+    } catch(IOException e) {
+      LOG.error("commitRow fail", e);
+      ResponseConverter.setControllerException(controller, e);
+    }
+  }
+
+  @Override
+  public void commitSingleRow(RpcController controller, ThemisCommitRequest request,
+      RpcCallback<ThemisCommitResponse> callback) {
+    try {
+      boolean result = commitSingleRow(request.getRow().toByteArray(),
+        ColumnMutation.toColumnMutations(request.getMutationsList()), request.getPrewriteTs(),
+        request.getCommitTs(), request.getPrimaryIndex());
+      ThemisCommitResponse.Builder builder = ThemisCommitResponse.newBuilder();
+      builder.setResult(result);
+      callback.run(builder.build());
+    } catch(IOException e) {
+      LOG.error("commitRow fail", e);
+      ResponseConverter.setControllerException(controller, e);
+    }
+  }
+
+  @Override
+  public void getLockAndErase(RpcController controller, EraseLockRequest request,
+      RpcCallback<EraseLockResponse> callback) {
+    try {
+      byte[] lock = getLockAndErase(request.getRow().toByteArray(), request.getFamily()
+          .toByteArray(), request.getColumn().toByteArray(), request.getPrewriteTs());
+      EraseLockResponse.Builder builder = EraseLockResponse.newBuilder();
+      builder.setLock(HBaseZeroCopyByteString.wrap(lock == null ? HConstants.EMPTY_BYTE_ARRAY : lock));
+      callback.run(builder.build());
+    } catch(IOException e) {
+      LOG.error("getLockAndErase fail", e);
+      ResponseConverter.setControllerException(controller, e);
+    }
+  }
+
+  @Override
+  public void prewriteRow(RpcController controller, ThemisPrewriteRequest request,
+      RpcCallback<ThemisPrewriteResponse> callback) {
+    prewriteRow(controller, request, callback, false);
+  }
+
+  @Override
+  public void prewriteSingleRow(RpcController controller, ThemisPrewriteRequest request,
+      RpcCallback<ThemisPrewriteResponse> callback) {
+    prewriteRow(controller, request, callback, true);
+  }
+  
+  protected void prewriteRow(RpcController controller, ThemisPrewriteRequest request,
+      RpcCallback<ThemisPrewriteResponse> callback, boolean isSingleRow) {
+    try {
+      byte[][] prewriteResult = prewriteRow(request.getRow().toByteArray(),
+        ColumnMutation.toColumnMutations(request.getMutationsList()), request.getPrewriteTs(),
+        request.getSecondaryLock().toByteArray(), request.getPrimaryLock().toByteArray(),
+        request.getPrimaryIndex(), isSingleRow);
+      ThemisPrewriteResponse.Builder builder = ThemisPrewriteResponse.newBuilder();
+      // TODO : is it correct not setting result when return null
+      if (prewriteResult != null) {
+        for (byte[] element : prewriteResult) {
+          builder.addResult(HBaseZeroCopyByteString.wrap(element));
+        }
+      }
+      callback.run(builder.build());
+    } catch (IOException e) {
+      LOG.error("prewrite fail", e);
+      ResponseConverter.setControllerException(controller, e);
     }
   }
   
@@ -76,17 +199,17 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       this.row = row;
     }
     
-    public abstract R doMutation(HRegion region, Integer lid) throws IOException;
+    public abstract R doMutation(HRegion region, RowLock rowLock) throws IOException;
     
     public R run() throws IOException {
-      HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
-      Integer lid = region.getLock(null, row, true);
+      HRegion region = env.getRegion();
+      RowLock rowLock = region.getRowLock(row);
       // wait for all previous transactions to complete (with lock held)
       // region.getMVCC().completeMemstoreInsert(region.getMVCC().beginMemstoreInsert());
       try {
-        return doMutation(region, lid);
+        return doMutation(region, rowLock);
       } finally {
-        region.releaseRowLock(lid);
+        rowLock.release();
       }
     }
   }
@@ -95,7 +218,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       throws IOException {
     // primaryIndex must be -1 when lockBytes is null, while primaryIndex must not be -1
     // when lockBytse is not null
-    if ((lockBytes == null && primaryIndex != -1) || (lockBytes != null && primaryIndex == -1)) {
+    if (((lockBytes == null || lockBytes.length == 0) && primaryIndex != -1)
+        || ((lockBytes != null && lockBytes.length != 0) && primaryIndex == -1)) {
       throw new IOException("primaryLock is inconsistent with primaryIndex, primaryLock="
           + ThemisLock.parseFromByte(lockBytes) + ", primaryIndex=" + primaryIndex);
     }
@@ -146,12 +270,12 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     try {
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
-        public byte[][] doMutation(HRegion region, Integer lid) throws IOException {
+        public byte[][] doMutation(HRegion region, RowLock rowLock) throws IOException {
           // firstly, check conflict for each column
           // TODO : check one row one time to improve efficiency?
           for (ColumnMutation mutation : mutations) {
             // TODO : make sure, won't encounter a lock with the same timestamp
-            byte[][] conflict = checkPrewriteConflict(region, row, lid, mutation, prewriteTs);
+            byte[][] conflict = checkPrewriteConflict(region, row, mutation, prewriteTs);
             if (conflict != null) {
               return conflict;
             }
@@ -218,19 +342,19 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   // check lock conflict and new write conflict. return null if no conflicts encountered; otherwise,
   // the first byte[] return the bytes of timestamp which is newer than prewriteTs, the secondary
   // byte[] will return the conflict lock if encounters lock conflict
-  protected byte[][] checkPrewriteConflict(HRegion region, byte[] row, Integer lid,
-      Column column, long prewriteTs) throws IOException {
+  protected byte[][] checkPrewriteConflict(HRegion region, byte[] row, Column column,
+      long prewriteTs) throws IOException {
     Column lockColumn = ColumnUtil.getLockColumn(column);
     // check no lock exist
     Get get = new Get(row).addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
-    Result result = getFromRegion(region, get, lid,
+    Result result = getFromRegion(region, get,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadLockLatency);
     byte[] existLockBytes = result.isEmpty() ? null : result.list().get(0).getValue();
     // check no newer write exist
     get = new Get(row);
     ThemisCpUtil.addWriteColumnToGet(column, get);
     get.setTimeRange(prewriteTs, Long.MAX_VALUE);
-    result = getFromRegion(region, get, lid,
+    result = getFromRegion(region, get,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadWriteLatency);
     Long newerWriteTs = result.isEmpty() ? null : result.list().get(0).getTimestamp();
     byte[][] conflict = judgePrewriteConflict(column, existLockBytes, newerWriteTs);
@@ -259,7 +383,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     }
     return null;
   }
-  
+
   public boolean commitRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final long commitTs, final int primaryIndex) throws IOException {
     return commitRow(row, mutations, prewriteTs, commitTs, primaryIndex, false);
@@ -271,11 +395,11 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     long beginTs = System.nanoTime();
     try {
       return new MutationCallable<Boolean>(row) {
-        public Boolean doMutation(HRegion region, Integer lid) throws IOException {
+        public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {
             // can't commit the transaction if the primary lock has been erased
             ColumnMutation mutation = mutations.get(primaryIndex);
-            byte[] lockBytes = readLockBytes(region, row, lid, mutation, prewriteTs,
+            byte[] lockBytes = readLockBytes(region, row, mutation, prewriteTs,
               ThemisCpStatistics.getThemisCpStatistics().commitPrimaryReadLatency);
             if (lockBytes == null) {
               LOG.warn("primary lock erased, tableName="
@@ -285,7 +409,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
             }
             // TODO : for single-row, sanity check secondary lock must hold
           }
-          doCommitMutations(region, row, lid, mutations, prewriteTs, commitTs, singleRow);
+          doCommitMutations(region, row, mutations, prewriteTs, commitTs, singleRow);
           return true;
         }
       }.run();
@@ -301,13 +425,13 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   }
 
   // erase lock and put write column
-  protected void doCommitMutations(HRegion region, byte[] row, Integer lid,
-      List<ColumnMutation> mutations, long prewriteTs, long commitTs) throws IOException {
-    doCommitMutations(region, row, lid, mutations, prewriteTs, commitTs, false);
+  protected void doCommitMutations(HRegion region, byte[] row, List<ColumnMutation> mutations,
+      long prewriteTs, long commitTs) throws IOException {
+    doCommitMutations(region, row, mutations, prewriteTs, commitTs, false);
   }
   
-  protected void doCommitMutations(HRegion region, byte[] row, Integer lid,
-      List<ColumnMutation> mutations, long prewriteTs, long commitTs, boolean singleRow)
+  protected void doCommitMutations(HRegion region, byte[] row, List<ColumnMutation> mutations,
+      long prewriteTs, long commitTs, boolean singleRow)
       throws IOException {
     List<Mutation> rowMutations = new ArrayList<Mutation>();
     for (ColumnMutation mutation : mutations) {
@@ -336,20 +460,20 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     mutateToRegion(region, rowMutations, ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
   }
   
-  protected byte[] readLockBytes(HRegion region, byte[] row, Integer lid, Column column,
-      long prewriteTs, MetricsTimeVaryingRate latency) throws IOException {
+  protected byte[] readLockBytes(HRegion region, byte[] row, Column column, long prewriteTs,
+      MetricsTimeVaryingRate latency) throws IOException {
     Column lockColumn = ColumnUtil.getLockColumn(column);
     Get get = new Get(row).addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
     get.setTimeStamp(prewriteTs);
-    Result result = getFromRegion(region, get, lid, latency);
+    Result result = getFromRegion(region, get, latency);
     return result.isEmpty() ? null : result.list().get(0).getValue();
   }
 
   public byte[] getLockAndErase(final byte[] row, final byte[] family, final byte[] qualifier,
       final long prewriteTs) throws IOException {
     return new MutationCallable<byte[]>(row) {
-      public byte[] doMutation(HRegion region, Integer lid) throws IOException {
-        byte[] lockBytes = readLockBytes(region, row, lid, new Column(family, qualifier),
+      public byte[] doMutation(HRegion region, RowLock rowLock) throws IOException {
+        byte[] lockBytes = readLockBytes(region, row, new Column(family, qualifier),
           prewriteTs, ThemisCpStatistics.getThemisCpStatistics().getLockAndEraseReadLatency);
         if (lockBytes == null) {
           return null;

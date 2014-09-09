@@ -26,7 +26,7 @@ public class ThemisPut extends ThemisMutation {
   // must specify both the family and qualifier when add mutation
   public ThemisPut add(byte[] family, byte[] qualifier, byte[] value) throws IOException {
     checkContainingPreservedColumn(family, qualifier);
-    this.put.add(family, qualifier, Long.MIN_VALUE, value);
+    this.put.add(family, qualifier, 0l, value);
     return this;
   }
   

@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.themis.TestBase;
 import org.junit.Test;
 
 public class TestThemisRead extends TestBase {
+  /*
   @Test
   public void testSetFilter() throws IOException {
     ThemisRead[] readers = new ThemisRead[] { new ThemisGet(ROW), new ThemisScan() };
@@ -42,5 +43,5 @@ public class TestThemisRead extends TestBase {
       reader.setFilter(filterList);
       Assert.assertEquals(FilterList.class.getName(), reader.getFilter().getClass().getName());
     }
-  }
+  }*/
 }

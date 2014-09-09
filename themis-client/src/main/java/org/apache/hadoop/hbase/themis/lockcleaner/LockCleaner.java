@@ -22,8 +22,8 @@ import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
-import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
+import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -43,10 +43,10 @@ public class LockCleaner {
   private HConnection conn;
   private int retry;
   private int pause;
-  private final ThemisCoprocessorClient cpClient;
+  private final ThemisEndpointClient cpClient;
   
   public LockCleaner(Configuration conf, HConnection conn, WallClock wallClock,
-      WorkerRegister register, ThemisCoprocessorClient cpClient) throws IOException {
+      WorkerRegister register, ThemisEndpointClient cpClient) throws IOException {
     this.conn = conn;
     this.wallClock = wallClock;
     this.register = register;

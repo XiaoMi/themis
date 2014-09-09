@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.themis.columns.Column;
@@ -34,7 +35,8 @@ public class ColumnTimestampFilter extends FilterBase {
     });
   }
   
-  public ReturnCode filterKeyValue(KeyValue v) {
+  @Override
+  public ReturnCode filterKeyValue(Cell v) {
     if (curColumnIdx == -1) {
       sortColumnsTs();
       curColumnIdx = 0;

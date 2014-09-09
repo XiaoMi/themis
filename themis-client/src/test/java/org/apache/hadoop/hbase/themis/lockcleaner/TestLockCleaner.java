@@ -17,15 +17,13 @@ import org.apache.hadoop.hbase.themis.TransactionConstant;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
-import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil;
+import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
-import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
-import org.apache.hadoop.hbase.themis.lockcleaner.LockCleaner;
-import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Test;
@@ -34,13 +32,13 @@ import org.mockito.Mockito;
 import com.google.common.collect.Lists;
 
 public class TestLockCleaner extends ClientTestBase {
-  protected ThemisCoprocessorClient cpClient;
+  protected ThemisEndpointClient cpClient;
   protected LockCleaner lockCleaner;
   @Override
   public void initEnv() throws IOException {
     super.initEnv();
     setConfigForLockCleaner(conf);
-    cpClient = new ThemisCoprocessorClient(connection);
+    cpClient = new ThemisEndpointClient(connection);
     lockCleaner = new LockCleaner(conf, connection, mockClock, mockRegister, cpClient);
   }
   
@@ -341,8 +339,9 @@ public class TestLockCleaner extends ClientTestBase {
       try {
         invokeTryToCleanLock(lc, cleanLocks);
       } catch (IOException e) {
-        Assert.assertTrue(e.getCause() instanceof RetriesExhaustedException);
         admin.enableTable(TABLENAME);
+        e.printStackTrace();
+        Assert.assertTrue(e.getCause() instanceof RetriesExhaustedException);
         checkPrewriteColumnSuccess(COLUMN);
       } finally {
         admin.close();

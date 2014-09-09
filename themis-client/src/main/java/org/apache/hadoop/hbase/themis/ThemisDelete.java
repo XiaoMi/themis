@@ -26,7 +26,7 @@ public class ThemisDelete extends ThemisMutation {
   // must specify both the family and qualifier when add mutation
   public ThemisDelete deleteColumn(byte [] family, byte [] qualifier) throws IOException {
     checkContainingPreservedColumn(family, qualifier);
-    this.delete.deleteColumns(family, qualifier, Long.MIN_VALUE);
+    this.delete.deleteColumns(family, qualifier, 0l);
     return this;
   }
   

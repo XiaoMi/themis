@@ -17,6 +17,7 @@ import org.apache.hadoop.hbase.filter.ColumnCountGetFilter;
 import org.apache.hadoop.hbase.filter.ColumnRangeFilter;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterList;
+import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.FilterList.Operator;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
@@ -59,17 +60,17 @@ public class TestThemisCpUtil extends TestBase {
     ThemisCpUtil.processFilters(null, counter);
     Assert.assertEquals(0, counter.concreteFilterCount);
     counter = new FiltersCounter();
-    ThemisCpUtil.processFilters(new ColumnRangeFilter(), counter);
+    ThemisCpUtil.processFilters(new ColumnRangeFilter(ANOTHER_QUALIFIER, true, QUALIFIER, true), counter);
     Assert.assertEquals(1, counter.concreteFilterCount);
     counter = new FiltersCounter();
     FilterList filterList = new FilterList();
-    filterList.addFilter(new ColumnRangeFilter());
-    filterList.addFilter(new ColumnCountGetFilter());
+    filterList.addFilter(new ColumnRangeFilter(ANOTHER_QUALIFIER, true, QUALIFIER, true));
+    filterList.addFilter(new ColumnCountGetFilter(1));
     ThemisCpUtil.processFilters(filterList, counter);
     Assert.assertEquals(2, counter.concreteFilterCount);
     // test process filterlist operator
     counter = new ConcreteFiltersCounter();
-    ThemisCpUtil.processFilters(new ColumnRangeFilter(), counter);
+    ThemisCpUtil.processFilters(new ColumnRangeFilter(ANOTHER_QUALIFIER, true, QUALIFIER, true), counter);
     Assert.assertEquals(1, counter.concreteFilterCount);
     counter = new ConcreteFiltersCounter();
     ThemisCpUtil.processFilters(filterList, counter);
@@ -84,21 +85,21 @@ public class TestThemisCpUtil extends TestBase {
     Assert.assertNull(sourceGet.getFilter());
     Assert.assertNull(dstGet.getFilter());
     // can not move filter, no rowkey filter
-    Filter expected = new SingleColumnValueFilter();
+    Filter expected = new SingleColumnValueFilter(FAMILY, QUALIFIER, CompareOp.EQUAL, VALUE);
     sourceGet.setFilter(expected);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     Assert.assertEquals(expected, sourceGet.getFilter());
     Assert.assertNull(dstGet.getFilter());
     // can not move filter, has operation=MUST_PASS_ONE
     FilterList filters = new FilterList(Operator.MUST_PASS_ONE);
-    filters.addFilter(new SingleColumnValueFilter());
-    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new SingleColumnValueFilter(FAMILY, QUALIFIER, CompareOp.EQUAL, VALUE));
+    filters.addFilter(new PrefixFilter(ROW));
     sourceGet.setFilter(filters);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     Assert.assertEquals(filters, sourceGet.getFilter());
     Assert.assertNull(dstGet.getFilter());
     // move filter, concrete rowkey filter
-    expected = new PrefixFilter();
+    expected = new PrefixFilter(ROW);
     sourceGet.setFilter(expected);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     Assert.assertEquals(0, ((FilterList)sourceGet.getFilter()).getFilters().size());
@@ -106,8 +107,8 @@ public class TestThemisCpUtil extends TestBase {
     Assert.assertEquals(expected, ((FilterList)dstGet.getFilter()).getFilters().get(0));
     // move filter, filterlist with MUST_PASS_ALL
     filters = new FilterList();
-    filters.addFilter(new SingleColumnValueFilter());
-    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new SingleColumnValueFilter(FAMILY, QUALIFIER, CompareOp.EQUAL, VALUE));
+    filters.addFilter(new PrefixFilter(ROW));
     sourceGet.setFilter(filters);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     FilterList sourceFilter = (FilterList)sourceGet.getFilter();
@@ -142,7 +143,7 @@ public class TestThemisCpUtil extends TestBase {
     putKvs.add(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS + 10 , COMMIT_TS + 10));
     Get get = ThemisCpUtil.constructDataGetByPutKvs(putKvs, null);
     checkConstructedDataGet(putKvs, null, get);
-    Filter filter = new SingleColumnValueFilter();
+    Filter filter = new SingleColumnValueFilter(FAMILY, QUALIFIER, CompareOp.EQUAL, VALUE);
     get = ThemisCpUtil.constructDataGetByPutKvs(putKvs, filter);
     checkConstructedDataGet(putKvs, filter, get);
   }

@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
+import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.MultiRowExceptions;
@@ -53,7 +54,7 @@ public class Transaction extends Configured implements TransactionInterface {
   private WallClock wallClock;
   protected long wallTime;
   private WorkerRegister register;
-  protected WrappedCoprocessorClient cpClient;
+  protected ThemisEndpointClient cpClient;
   protected long startTs;
   protected long commitTs;
   protected ColumnMutationCache mutationCache;

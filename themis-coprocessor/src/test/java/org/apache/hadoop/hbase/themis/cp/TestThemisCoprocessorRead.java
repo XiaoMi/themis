@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.yarn.webapp.hamlet.HamletSpec._;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -218,7 +219,7 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     result = cpClient.themisGet(TABLENAME, get, prewriteTs);
     Assert.assertEquals(2, result.list().size());
   }
-  
+
   @Test
   public void testColumnTimestampFilterInGet() throws IOException {
     commitOneColumn(COLUMN, Type.Put, prewriteTs, commitTs);

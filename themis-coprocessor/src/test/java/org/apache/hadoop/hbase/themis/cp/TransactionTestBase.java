@@ -39,7 +39,7 @@ import org.junit.BeforeClass;
 public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_RETRY_COUNT = 2;
   public static final int TEST_LOCK_CLEAN_PAUSE = 200;
-  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
+//  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   
   protected HConnection connection;
   protected HTableInterface table;
@@ -51,10 +51,11 @@ public class TransactionTestBase extends TestBase {
   protected static long prewriteTs;
   protected static long wallTime;
   protected static long commitTs;
-  protected ThemisCoprocessorClient cpClient;
-  
+  protected ThemisEndpointClient cpClient;
+
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
+    /*
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
     conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
@@ -64,22 +65,17 @@ public class TransactionTestBase extends TestBase {
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
-    HBaseAdmin admin = new HBaseAdmin(conf);
-    for (byte[] tableName : new byte[][]{TABLENAME, ANOTHER_TABLENAME}) {
-      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
-      for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY}) {
-        HColumnDescriptor columnDesc = new HColumnDescriptor(family);
-        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-        tableDesc.addFamily(columnDesc);
-      }
-      admin.createTable(tableDesc);
-    }
-    admin.close();
+    TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+    TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+    */
+    conf = HBaseConfiguration.create();
+    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    TEST_UTIL.shutdownMiniCluster();
+//    TEST_UTIL.shutdownMiniCluster();
   }
   
   @Before
@@ -88,7 +84,7 @@ public class TransactionTestBase extends TestBase {
     table = connection.getTable(TABLENAME);
     anotherTable = connection.getTable(ANOTHER_TABLENAME);
     deleteOldDataAndUpdateTs();
-    cpClient = new ThemisCoprocessorClient(connection);
+    cpClient = new ThemisEndpointClient(connection);
   }
   
   protected void deleteOldDataAndUpdateTs() throws IOException {
@@ -200,7 +196,7 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void writeDeleteColumn(ColumnCoordinate c, long prewriteTs, long commitTs) throws IOException {
-    ColumnCoordinate deleteColumn = new ColumnCoordinate(c.getTableName(), c.getRow(), ColumnUtil.getPutColumn(c));
+    ColumnCoordinate deleteColumn = new ColumnCoordinate(c.getTableName(), c.getRow(), ColumnUtil.getDeleteColumn(c));
     writeWriteColumnInternal(deleteColumn, prewriteTs, commitTs);
   }
   

@@ -2,8 +2,8 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <hadoop.version>2.0.0-alpha</hadoop.version>
-    <hbase.version>0.94.21</hbase.version>
+    <hadoop.version>2.2.0</hadoop.version>
+    <hbase.version>0.96.2</hbase.version>
     <themis.version>1.0-SNAPSHOT</themis.version>
   </properties>
 
@@ -24,11 +24,20 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.xiaomi.infra</groupId>
+      <artifactId>themis-protocol</artifactId>
+      <version>${themis.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase</artifactId>
+      <artifactId>hbase-server</artifactId>
       <version>${hbase.version}</version>
       <scope>provided</scope>
       <exclusions>
+        <exclusion>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-core</artifactId>
+        </exclusion>
         <exclusion>
           <groupId>org.apache.thrift</groupId>
           <artifactId>libthrift</artifactId>
@@ -61,10 +70,16 @@
     </dependency>
     <dependency>
       <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase</artifactId>
+      <artifactId>hbase-server</artifactId>
       <version>${hbase.version}</version>
       <classifier>tests</classifier>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>

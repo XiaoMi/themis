@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <properties>
+    <hbase.version>0.96.2</hbase.version>
+  </properties>
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+      <artifactId>themis</artifactId>
+      <groupId>com.xiaomi.infra</groupId>
+      <version>1.0-SNAPSHOT</version>
+      <relativePath>../</relativePath>
+  </parent>
+
+  <artifactId>themis-protocol</artifactId>
+  <name>Themis - Protocol</name>
+  <description>Protobuf protocol classes used by Themis to communicate.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-protocol</artifactId>
+      <version>${hbase.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>2.5.0</version>
+    </dependency>
+  </dependencies>
+  
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-site-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <!-- Make a jar and put the sources in the jar -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+      </plugin>
+      <plugin>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <!-- Always skip the second part executions, since we only run simple unit tests in this module -->
+          <executions>
+              <execution>
+                  <id>secondPartTestsExecution</id>
+                  <phase>test</phase>
+                  <goals>
+                      <goal>test</goal>
+                  </goals>
+                  <configuration>
+                      <skip>true</skip>
+                  </configuration>
+              </execution>
+          </executions>
+      </plugin>
+     </plugins>
+  </build>
+
+  <profiles>
+      <!-- Skip the tests in this module -->
+      <profile>
+          <id>skip-rpc-tests</id>
+          <activation>
+              <property>
+                  <name>skip-rpc-tests</name>
+              </property>
+          </activation>
+          <properties>
+              <surefire.skipFirstPart>true</surefire.skipFirstPart>
+          </properties>
+      </profile>
+      <profile>
+        <id>compile-protobuf</id>
+        <activation>
+          <property>
+            <name>compile-protobuf</name>
+          </property>
+        </activation>
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>org.apache.hadoop</groupId>
+              <artifactId>hadoop-maven-plugins</artifactId>
+              <executions>
+                <execution>
+                  <id>compile-protoc</id>
+                  <phase>generate-sources</phase>
+                  <goals>
+                    <goal>protoc</goal>
+                  </goals>
+                  <configuration>
+                    <protocVersion>2.5.0</protocVersion>
+                    <imports>
+                      <param>${basedir}/src/main/protobuf</param>
+                      <param>/home/cuijianwei/work/git/community/hbase/hbase-protocol/src/main/protobuf</param>
+                    </imports>
+                    <source>
+                      <directory>${basedir}/src/main/protobuf</directory>
+                      <includes>
+                        <include>Themis.proto</include>
+                      </includes>
+                    </source>
+                    <!--<output>${project.build.directory}/generated-sources/java</output>-->
+                   <output>${basedir}/src/main/java/</output>
+                  </configuration>
+                </execution>
+              </executions>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
+  </profiles>
+</project>

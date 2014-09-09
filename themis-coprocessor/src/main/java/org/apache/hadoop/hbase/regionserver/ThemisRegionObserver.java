@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
@@ -15,10 +16,10 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class ThemisRegionObserver extends BaseRegionObserver {
   public static final String SINGLE_ROW_PRIMARY_QUALIFIER = "_themisSingleRowPrewritePrimaryQualifier_";
   public static final String LOCK_FAMILY_DELETE = "_themisLockFamilyDelete_";
-
+  
   @Override
   public void prePut(final ObserverContext<RegionCoprocessorEnvironment> c, final Put put,
-      final WALEdit edit, final boolean writeToWAL) throws IOException {
+      final WALEdit edit, final Durability durability) throws IOException {
     byte[] primaryQualifier = put.getAttribute(SINGLE_ROW_PRIMARY_QUALIFIER);
     if (primaryQualifier != null) {
       HRegion region = c.getEnvironment().getRegion();
@@ -28,7 +29,7 @@ public class ThemisRegionObserver extends BaseRegionObserver {
             "contain no-lock family kvs when do prewrite for single row transaction, put=" + put);
       }
 
-      Store lockStore = region.getStore(ColumnUtil.LOCK_FAMILY_NAME);
+      HStore lockStore = (HStore)region.getStore(ColumnUtil.LOCK_FAMILY_NAME);
       long addedSize = 0;
       
       // we must make sure all the kvs of lock family be written to memstore at the same time,

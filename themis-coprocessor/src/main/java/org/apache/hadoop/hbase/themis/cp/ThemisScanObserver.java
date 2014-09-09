@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Get;
@@ -17,9 +18,9 @@ import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
-import org.apache.hadoop.hbase.regionserver.metrics.SchemaMetrics;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
+
 
 public class ThemisScanObserver extends BaseRegionObserver {
   public static final String TRANSACTION_START_TS = "_themisTransationStartTs_";
@@ -27,11 +28,12 @@ public class ThemisScanObserver extends BaseRegionObserver {
   
   protected static boolean next(HRegion region, final ThemisServerScanner s,
       List<Result> results, int limit) throws IOException {
-    List<KeyValue> values = new ArrayList<KeyValue>();
+    List<Cell> values = new ArrayList<Cell>();
     for (int i = 0; i < limit;) {
-      boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE);
+      // TODO : use next or nextRaw ?
+      boolean moreRows = s.next(values);
       if (!values.isEmpty()) {
-        Result result = new Result(values);
+        Result result = Result.create(values);
         Pair<List<KeyValue>, List<KeyValue>> pResult = ThemisCpUtil.seperateLockAndWriteKvs(result.list());
         List<KeyValue> lockKvs = pResult.getFirst();
         if (lockKvs.size() == 0) {
@@ -39,7 +41,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
           // should ignore rows which only contain delete columns
           if (putKvs.size() > 0) {
             Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, s.getDataColumnFilter());
-            Result dataResult = region.get(dataGet, null);
+            Result dataResult = region.get(dataGet);
             if (!dataResult.isEmpty()) {
               results.add(dataResult);
               ++i;
