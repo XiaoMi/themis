@@ -4045,15 +4045,15 @@ public final class ThemisProtos {
      */
     com.google.protobuf.ByteString getFamily();
 
-    // required bytes column = 3;
+    // required bytes qualifier = 3;
     /**
-     * <code>required bytes column = 3;</code>
+     * <code>required bytes qualifier = 3;</code>
      */
-    boolean hasColumn();
+    boolean hasQualifier();
     /**
-     * <code>required bytes column = 3;</code>
+     * <code>required bytes qualifier = 3;</code>
      */
-    com.google.protobuf.ByteString getColumn();
+    com.google.protobuf.ByteString getQualifier();
 
     // required uint64 prewriteTs = 4;
     /**
@@ -4128,7 +4128,7 @@ public final class ThemisProtos {
             }
             case 26: {
               bitField0_ |= 0x00000004;
-              column_ = input.readBytes();
+              qualifier_ = input.readBytes();
               break;
             }
             case 32: {
@@ -4208,20 +4208,20 @@ public final class ThemisProtos {
       return family_;
     }
 
-    // required bytes column = 3;
-    public static final int COLUMN_FIELD_NUMBER = 3;
-    private com.google.protobuf.ByteString column_;
+    // required bytes qualifier = 3;
+    public static final int QUALIFIER_FIELD_NUMBER = 3;
+    private com.google.protobuf.ByteString qualifier_;
     /**
-     * <code>required bytes column = 3;</code>
+     * <code>required bytes qualifier = 3;</code>
      */
-    public boolean hasColumn() {
+    public boolean hasQualifier() {
       return ((bitField0_ & 0x00000004) == 0x00000004);
     }
     /**
-     * <code>required bytes column = 3;</code>
+     * <code>required bytes qualifier = 3;</code>
      */
-    public com.google.protobuf.ByteString getColumn() {
-      return column_;
+    public com.google.protobuf.ByteString getQualifier() {
+      return qualifier_;
     }
 
     // required uint64 prewriteTs = 4;
@@ -4243,7 +4243,7 @@ public final class ThemisProtos {
     private void initFields() {
       row_ = com.google.protobuf.ByteString.EMPTY;
       family_ = com.google.protobuf.ByteString.EMPTY;
-      column_ = com.google.protobuf.ByteString.EMPTY;
+      qualifier_ = com.google.protobuf.ByteString.EMPTY;
       prewriteTs_ = 0L;
     }
     private byte memoizedIsInitialized = -1;
@@ -4259,7 +4259,7 @@ public final class ThemisProtos {
         memoizedIsInitialized = 0;
         return false;
       }
-      if (!hasColumn()) {
+      if (!hasQualifier()) {
         memoizedIsInitialized = 0;
         return false;
       }
@@ -4281,7 +4281,7 @@ public final class ThemisProtos {
         output.writeBytes(2, family_);
       }
       if (((bitField0_ & 0x00000004) == 0x00000004)) {
-        output.writeBytes(3, column_);
+        output.writeBytes(3, qualifier_);
       }
       if (((bitField0_ & 0x00000008) == 0x00000008)) {
         output.writeUInt64(4, prewriteTs_);
@@ -4305,7 +4305,7 @@ public final class ThemisProtos {
       }
       if (((bitField0_ & 0x00000004) == 0x00000004)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(3, column_);
+          .computeBytesSize(3, qualifier_);
       }
       if (((bitField0_ & 0x00000008) == 0x00000008)) {
         size += com.google.protobuf.CodedOutputStream
@@ -4344,10 +4344,10 @@ public final class ThemisProtos {
         result = result && getFamily()
             .equals(other.getFamily());
       }
-      result = result && (hasColumn() == other.hasColumn());
-      if (hasColumn()) {
-        result = result && getColumn()
-            .equals(other.getColumn());
+      result = result && (hasQualifier() == other.hasQualifier());
+      if (hasQualifier()) {
+        result = result && getQualifier()
+            .equals(other.getQualifier());
       }
       result = result && (hasPrewriteTs() == other.hasPrewriteTs());
       if (hasPrewriteTs()) {
@@ -4375,9 +4375,9 @@ public final class ThemisProtos {
         hash = (37 * hash) + FAMILY_FIELD_NUMBER;
         hash = (53 * hash) + getFamily().hashCode();
       }
-      if (hasColumn()) {
-        hash = (37 * hash) + COLUMN_FIELD_NUMBER;
-        hash = (53 * hash) + getColumn().hashCode();
+      if (hasQualifier()) {
+        hash = (37 * hash) + QUALIFIER_FIELD_NUMBER;
+        hash = (53 * hash) + getQualifier().hashCode();
       }
       if (hasPrewriteTs()) {
         hash = (37 * hash) + PREWRITETS_FIELD_NUMBER;
@@ -4496,7 +4496,7 @@ public final class ThemisProtos {
         bitField0_ = (bitField0_ & ~0x00000001);
         family_ = com.google.protobuf.ByteString.EMPTY;
         bitField0_ = (bitField0_ & ~0x00000002);
-        column_ = com.google.protobuf.ByteString.EMPTY;
+        qualifier_ = com.google.protobuf.ByteString.EMPTY;
         bitField0_ = (bitField0_ & ~0x00000004);
         prewriteTs_ = 0L;
         bitField0_ = (bitField0_ & ~0x00000008);
@@ -4539,7 +4539,7 @@ public final class ThemisProtos {
         if (((from_bitField0_ & 0x00000004) == 0x00000004)) {
           to_bitField0_ |= 0x00000004;
         }
-        result.column_ = column_;
+        result.qualifier_ = qualifier_;
         if (((from_bitField0_ & 0x00000008) == 0x00000008)) {
           to_bitField0_ |= 0x00000008;
         }
@@ -4566,8 +4566,8 @@ public final class ThemisProtos {
         if (other.hasFamily()) {
           setFamily(other.getFamily());
         }
-        if (other.hasColumn()) {
-          setColumn(other.getColumn());
+        if (other.hasQualifier()) {
+          setQualifier(other.getQualifier());
         }
         if (other.hasPrewriteTs()) {
           setPrewriteTs(other.getPrewriteTs());
@@ -4585,7 +4585,7 @@ public final class ThemisProtos {
           
           return false;
         }
-        if (!hasColumn()) {
+        if (!hasQualifier()) {
           
           return false;
         }
@@ -4687,38 +4687,38 @@ public final class ThemisProtos {
         return this;
       }
 
-      // required bytes column = 3;
-      private com.google.protobuf.ByteString column_ = com.google.protobuf.ByteString.EMPTY;
+      // required bytes qualifier = 3;
+      private com.google.protobuf.ByteString qualifier_ = com.google.protobuf.ByteString.EMPTY;
       /**
-       * <code>required bytes column = 3;</code>
+       * <code>required bytes qualifier = 3;</code>
        */
-      public boolean hasColumn() {
+      public boolean hasQualifier() {
         return ((bitField0_ & 0x00000004) == 0x00000004);
       }
       /**
-       * <code>required bytes column = 3;</code>
+       * <code>required bytes qualifier = 3;</code>
        */
-      public com.google.protobuf.ByteString getColumn() {
-        return column_;
+      public com.google.protobuf.ByteString getQualifier() {
+        return qualifier_;
       }
       /**
-       * <code>required bytes column = 3;</code>
+       * <code>required bytes qualifier = 3;</code>
        */
-      public Builder setColumn(com.google.protobuf.ByteString value) {
+      public Builder setQualifier(com.google.protobuf.ByteString value) {
         if (value == null) {
     throw new NullPointerException();
   }
   bitField0_ |= 0x00000004;
-        column_ = value;
+        qualifier_ = value;
         onChanged();
         return this;
       }
       /**
-       * <code>required bytes column = 3;</code>
+       * <code>required bytes qualifier = 3;</code>
        */
-      public Builder clearColumn() {
+      public Builder clearQualifier() {
         bitField0_ = (bitField0_ & ~0x00000004);
-        column_ = getDefaultInstance().getColumn();
+        qualifier_ = getDefaultInstance().getQualifier();
         onChanged();
         return this;
       }
@@ -4770,13 +4770,13 @@ public final class ThemisProtos {
   public interface EraseLockResponseOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
 
-    // required bytes lock = 1;
+    // optional bytes lock = 1;
     /**
-     * <code>required bytes lock = 1;</code>
+     * <code>optional bytes lock = 1;</code>
      */
     boolean hasLock();
     /**
-     * <code>required bytes lock = 1;</code>
+     * <code>optional bytes lock = 1;</code>
      */
     com.google.protobuf.ByteString getLock();
   }
@@ -4876,17 +4876,17 @@ public final class ThemisProtos {
     }
 
     private int bitField0_;
-    // required bytes lock = 1;
+    // optional bytes lock = 1;
     public static final int LOCK_FIELD_NUMBER = 1;
     private com.google.protobuf.ByteString lock_;
     /**
-     * <code>required bytes lock = 1;</code>
+     * <code>optional bytes lock = 1;</code>
      */
     public boolean hasLock() {
       return ((bitField0_ & 0x00000001) == 0x00000001);
     }
     /**
-     * <code>required bytes lock = 1;</code>
+     * <code>optional bytes lock = 1;</code>
      */
     public com.google.protobuf.ByteString getLock() {
       return lock_;
@@ -4900,10 +4900,6 @@ public final class ThemisProtos {
       byte isInitialized = memoizedIsInitialized;
       if (isInitialized != -1) return isInitialized == 1;
 
-      if (!hasLock()) {
-        memoizedIsInitialized = 0;
-        return false;
-      }
       memoizedIsInitialized = 1;
       return true;
     }
@@ -5139,10 +5135,6 @@ public final class ThemisProtos {
       }
 
       public final boolean isInitialized() {
-        if (!hasLock()) {
-          
-          return false;
-        }
         return true;
       }
 
@@ -5165,22 +5157,22 @@ public final class ThemisProtos {
       }
       private int bitField0_;
 
-      // required bytes lock = 1;
+      // optional bytes lock = 1;
       private com.google.protobuf.ByteString lock_ = com.google.protobuf.ByteString.EMPTY;
       /**
-       * <code>required bytes lock = 1;</code>
+       * <code>optional bytes lock = 1;</code>
        */
       public boolean hasLock() {
         return ((bitField0_ & 0x00000001) == 0x00000001);
       }
       /**
-       * <code>required bytes lock = 1;</code>
+       * <code>optional bytes lock = 1;</code>
        */
       public com.google.protobuf.ByteString getLock() {
         return lock_;
       }
       /**
-       * <code>required bytes lock = 1;</code>
+       * <code>optional bytes lock = 1;</code>
        */
       public Builder setLock(com.google.protobuf.ByteString value) {
         if (value == null) {
@@ -5192,7 +5184,7 @@ public final class ThemisProtos {
         return this;
       }
       /**
-       * <code>required bytes lock = 1;</code>
+       * <code>optional bytes lock = 1;</code>
        */
       public Builder clearLock() {
         bitField0_ = (bitField0_ & ~0x00000001);
@@ -5854,21 +5846,21 @@ public final class ThemisProtos {
       "ommitRequest\022\013\n\003row\030\001 \002(\014\022\030\n\tmutations\030\002" +
       " \003(\0132\005.Cell\022\022\n\nprewriteTs\030\003 \002(\004\022\020\n\010commi",
       "tTs\030\004 \002(\004\022\024\n\014primaryIndex\030\005 \002(\005\"&\n\024Themi" +
-      "sCommitResponse\022\016\n\006result\030\001 \002(\010\"S\n\020Erase" +
+      "sCommitResponse\022\016\n\006result\030\001 \002(\010\"V\n\020Erase" +
       "LockRequest\022\013\n\003row\030\001 \002(\014\022\016\n\006family\030\002 \002(\014" +
-      "\022\016\n\006column\030\003 \002(\014\022\022\n\nprewriteTs\030\004 \002(\004\"!\n\021" +
-      "EraseLockResponse\022\014\n\004lock\030\001 \002(\0142\362\002\n\rThem" +
-      "isService\022\'\n\tthemisGet\022\021.ThemisGetReques" +
-      "t\032\007.Result\022>\n\013prewriteRow\022\026.ThemisPrewri" +
-      "teRequest\032\027.ThemisPrewriteResponse\022D\n\021pr" +
-      "ewriteSingleRow\022\026.ThemisPrewriteRequest\032" +
-      "\027.ThemisPrewriteResponse\0228\n\tcommitRow\022\024.",
-      "ThemisCommitRequest\032\025.ThemisCommitRespon" +
-      "se\022>\n\017commitSingleRow\022\024.ThemisCommitRequ" +
-      "est\032\025.ThemisCommitResponse\0228\n\017getLockAnd" +
-      "Erase\022\021.EraseLockRequest\032\022.EraseLockResp" +
-      "onseBC\n+org.apache.hadoop.hbase.themis.c" +
-      "p.generatedB\014ThemisProtosH\001\210\001\001\240\001\001"
+      "\022\021\n\tqualifier\030\003 \002(\014\022\022\n\nprewriteTs\030\004 \002(\004\"" +
+      "!\n\021EraseLockResponse\022\014\n\004lock\030\001 \001(\0142\362\002\n\rT" +
+      "hemisService\022\'\n\tthemisGet\022\021.ThemisGetReq" +
+      "uest\032\007.Result\022>\n\013prewriteRow\022\026.ThemisPre" +
+      "writeRequest\032\027.ThemisPrewriteResponse\022D\n" +
+      "\021prewriteSingleRow\022\026.ThemisPrewriteReque" +
+      "st\032\027.ThemisPrewriteResponse\0228\n\tcommitRow",
+      "\022\024.ThemisCommitRequest\032\025.ThemisCommitRes" +
+      "ponse\022>\n\017commitSingleRow\022\024.ThemisCommitR" +
+      "equest\032\025.ThemisCommitResponse\0228\n\017getLock" +
+      "AndErase\022\021.EraseLockRequest\032\022.EraseLockR" +
+      "esponseBC\n+org.apache.hadoop.hbase.themi" +
+      "s.cp.generatedB\014ThemisProtosH\001\210\001\001\240\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -5910,7 +5902,7 @@ public final class ThemisProtos {
           internal_static_EraseLockRequest_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_EraseLockRequest_descriptor,
-              new java.lang.String[] { "Row", "Family", "Column", "PrewriteTs", });
+              new java.lang.String[] { "Row", "Family", "Qualifier", "PrewriteTs", });
           internal_static_EraseLockResponse_descriptor =
             getDescriptor().getMessageTypes().get(6);
           internal_static_EraseLockResponse_fieldAccessorTable = new

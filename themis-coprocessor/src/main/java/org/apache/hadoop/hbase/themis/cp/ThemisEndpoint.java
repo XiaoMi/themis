@@ -222,6 +222,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   
   public byte[][] prewriteRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
+<<<<<<< HEAD
       final int primaryIndex) throws IOException {
     return prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock, primaryIndex, false);
   }
@@ -260,9 +261,9 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   public byte[][] prewriteRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex, final boolean singleRow) throws IOException {
-    checkFamily(mutations);
     long beginTs = System.nanoTime();
     try {
+      checkFamily(mutations);
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
         public byte[][] doMutation(HRegion region, RowLock rowLock) throws IOException {
@@ -315,12 +316,6 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       ThemisCpStatistics.updateLatency(
         ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs);
     }
-  }
-  
-  public byte[][] prewriteSingleRow(final byte[] row, final List<ColumnMutation> mutations,
-      final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
-      final int primaryIndex) throws IOException {
-    return prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock, primaryIndex, true);
   }
   
   protected void mutateToRegion(HRegion region, List<Mutation> mutations,
@@ -380,11 +375,6 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   }
 
   public boolean commitRow(final byte[] row, final List<ColumnMutation> mutations,
-      final long prewriteTs, final long commitTs, final int primaryIndex) throws IOException {
-    return commitRow(row, mutations, prewriteTs, commitTs, primaryIndex, false);
-  }
-  
-  public boolean commitRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final long commitTs, final int primaryIndex, final boolean singleRow)
       throws IOException {
     long beginTs = System.nanoTime();
@@ -412,17 +402,6 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       ThemisCpStatistics.updateLatency(
         ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs);
     }
-  }
-  
-  public boolean commitSingleRow(final byte[] row, final List<ColumnMutation> mutations,
-      final long prewriteTs, final long commitTs, final int primaryIndex) throws IOException {
-    return commitRow(row, mutations, prewriteTs, commitTs, primaryIndex, true);
-  }
-
-  // erase lock and put write column
-  protected void doCommitMutations(HRegion region, byte[] row, List<ColumnMutation> mutations,
-      long prewriteTs, long commitTs) throws IOException {
-    doCommitMutations(region, row, mutations, prewriteTs, commitTs, false);
   }
   
   protected void doCommitMutations(HRegion region, byte[] row, List<ColumnMutation> mutations,

@@ -41,12 +41,12 @@ message ThemisCommitResponse {
 message EraseLockRequest {
   required bytes row = 1;
   required bytes family = 2;
-  required bytes column = 3;
+  required bytes qualifier = 3;
   required uint64 prewriteTs = 4;
 }
 
 message EraseLockResponse {
-  required bytes lock = 1;
+  optional bytes lock = 1;
 }
 
 service ThemisService {

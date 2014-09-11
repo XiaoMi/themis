@@ -109,42 +109,18 @@ public class ThemisEndpointClient {
   public ThemisLock prewriteRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
       final byte[] secondaryLock, final int primaryIndex) throws IOException {
-    CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName, row) {
-      @Override
-      public byte[][] invokeCoprocessor(Stub instance) throws Throwable {
-        ThemisPrewriteRequest.Builder builder = ThemisPrewriteRequest.newBuilder();
-        builder.setRow(HBaseZeroCopyByteString.wrap(row));
-        for (ColumnMutation mutation : mutations) {
-          builder.addMutations(ColumnMutation.toCell(mutation));
-        }
-        builder.setPrewriteTs(prewriteTs);
-        builder.setPrimaryLock(HBaseZeroCopyByteString
-            .wrap(primaryLock == null ? HConstants.EMPTY_BYTE_ARRAY : primaryLock));
-        builder.setSecondaryLock(HBaseZeroCopyByteString
-            .wrap(secondaryLock == null ? HConstants.EMPTY_BYTE_ARRAY : secondaryLock));
-        builder.setPrimaryIndex(primaryIndex);
-        ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<ThemisPrewriteResponse> rpcCallback = new BlockingRpcCallback<ThemisPrewriteResponse>();
-        instance.prewriteRow(controller, builder.build(), rpcCallback);
-        checkRpcException(controller);
-        List<ByteString> pbResult = rpcCallback.get().getResultList();
-        if (pbResult.size() == 0) {
-          return null;
-        } else {
-          byte[][] results = new byte[pbResult.size()][];
-          for (int i = 0; i < pbResult.size(); ++i) {
-            results[i] = pbResult.get(i).toByteArray();
-          }
-          return results;
-        }
-      }
-    };
-    return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
+    return prewriteRow(tableName, row, mutations, prewriteTs, primaryLock, secondaryLock, primaryIndex, false);
   }
 
   public ThemisLock prewriteSingleRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
       final byte[] secondaryLock, final int primaryIndex) throws IOException {
+    return prewriteRow(tableName, row, mutations, prewriteTs, primaryLock, secondaryLock, primaryIndex, true);
+  }
+
+  protected ThemisLock prewriteRow(final byte[] tableName, final byte[] row,
+      final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
+      final byte[] secondaryLock, final int primaryIndex, final boolean isSingleRow) throws IOException {
     CoprocessorCallable<byte[][]> callable = new CoprocessorCallable<byte[][]>(conn, tableName, row) {
       @Override
       public byte[][] invokeCoprocessor(Stub instance) throws Throwable {
@@ -161,7 +137,11 @@ public class ThemisEndpointClient {
         builder.setPrimaryIndex(primaryIndex);
         ServerRpcController controller = new ServerRpcController();
         BlockingRpcCallback<ThemisPrewriteResponse> rpcCallback = new BlockingRpcCallback<ThemisPrewriteResponse>();
-        instance.prewriteSingleRow(controller, builder.build(), rpcCallback);
+        if (isSingleRow) {
+          instance.prewriteSingleRow(controller, builder.build(), rpcCallback);
+        } else {
+          instance.prewriteRow(controller, builder.build(), rpcCallback);
+        }
         checkRpcException(controller);
         List<ByteString> pbResult = rpcCallback.get().getResultList();
         if (pbResult.size() == 0) {
@@ -177,7 +157,7 @@ public class ThemisEndpointClient {
     };
     return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
   }
-
+  
   protected ThemisLock judgePerwriteResultRow(byte[] tableName, byte[] row,
       byte[][] prewriteResult, long prewriteTs) throws IOException {
     if (prewriteResult != null) {
