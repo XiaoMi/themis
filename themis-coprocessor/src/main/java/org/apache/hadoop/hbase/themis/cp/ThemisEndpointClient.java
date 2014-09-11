@@ -46,7 +46,7 @@ public class ThemisEndpointClient {
     private byte[] tableName;
     private byte[] row;
     private HTableInterface table = null;
-    
+
     public CoprocessorCallable(HConnection conn, byte[] tableName, byte[] row) {
       this.conn = conn;
       this.tableName = tableName;
@@ -57,7 +57,7 @@ public class ThemisEndpointClient {
       try {
         table = conn.getTable(tableName);
         CoprocessorRpcChannel channel = table.coprocessorService(row);
-        Stub stub = (Stub)ProtobufUtil.newServiceStub(ThemisProtos.ThemisService.class, channel);
+        Stub stub = (Stub) ProtobufUtil.newServiceStub(ThemisProtos.ThemisService.class, channel);
         return invokeCoprocessor(stub);
       } catch (Throwable e) {
         throw new IOException(e);
@@ -67,15 +67,21 @@ public class ThemisEndpointClient {
         }
       }
     }
-    
+
     public abstract R invokeCoprocessor(Stub stub) throws Throwable;
   }
-  
+
   public Result themisGet(final byte[] tableName, final Get get, final long startTs)
       throws IOException {
     return themisGet(tableName, get, startTs, false);
   }
-  
+
+  protected static void checkRpcException(ServerRpcController controller) throws IOException {
+    if (controller.getFailedOn() != null) {
+      throw controller.getFailedOn();
+    }
+  }
+
   public Result themisGet(final byte[] tableName, final Get get, final long startTs,
       final boolean ignoreLock) throws IOException {
     return new CoprocessorCallable<Result>(conn, tableName, get.getRow()) {
@@ -86,24 +92,20 @@ public class ThemisEndpointClient {
         builder.setStartTs(startTs);
         builder.setIgnoreLock(ignoreLock);
         ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<ClientProtos.Result> rpcCallback =
-            new BlockingRpcCallback<ClientProtos.Result>();
+        BlockingRpcCallback<ClientProtos.Result> rpcCallback = new BlockingRpcCallback<ClientProtos.Result>();
         instance.themisGet(controller, builder.build(), rpcCallback);
-        if (controller.getFailedOn() != null) {
-          throw controller.getFailedOn();
-        }
-        // TODO : check exception
+        checkRpcException(controller);
         return ProtobufUtil.toResult(rpcCallback.get());
       }
     }.run();
   }
-  
+
   public ThemisLock prewriteSecondaryRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] secondaryLock)
       throws IOException {
     return prewriteRow(tableName, row, mutations, prewriteTs, null, secondaryLock, -1);
   }
-  
+
   public ThemisLock prewriteRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
       final byte[] secondaryLock, final int primaryIndex) throws IOException {
@@ -122,16 +124,11 @@ public class ThemisEndpointClient {
             .wrap(secondaryLock == null ? HConstants.EMPTY_BYTE_ARRAY : secondaryLock));
         builder.setPrimaryIndex(primaryIndex);
         ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<ThemisPrewriteResponse> rpcCallback =
-            new BlockingRpcCallback<ThemisPrewriteResponse>();
-        // TODO : check exception
+        BlockingRpcCallback<ThemisPrewriteResponse> rpcCallback = new BlockingRpcCallback<ThemisPrewriteResponse>();
         instance.prewriteRow(controller, builder.build(), rpcCallback);
-        if (controller.getFailedOn() != null) {
-          throw controller.getFailedOn();
-        }
-        List<ByteString> pbResult = rpcCallback.get() == null ? null : rpcCallback.get()
-            .getResultList();
-        if (pbResult == null || pbResult.size() == 0) {
+        checkRpcException(controller);
+        List<ByteString> pbResult = rpcCallback.get().getResultList();
+        if (pbResult.size() == 0) {
           return null;
         } else {
           byte[][] results = new byte[pbResult.size()][];
@@ -144,7 +141,7 @@ public class ThemisEndpointClient {
     };
     return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
   }
-  
+
   public ThemisLock prewriteSingleRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
       final byte[] secondaryLock, final int primaryIndex) throws IOException {
@@ -163,15 +160,11 @@ public class ThemisEndpointClient {
             .wrap(secondaryLock == null ? HConstants.EMPTY_BYTE_ARRAY : secondaryLock));
         builder.setPrimaryIndex(primaryIndex);
         ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<ThemisPrewriteResponse> rpcCallback =
-            new BlockingRpcCallback<ThemisPrewriteResponse>();
+        BlockingRpcCallback<ThemisPrewriteResponse> rpcCallback = new BlockingRpcCallback<ThemisPrewriteResponse>();
         instance.prewriteSingleRow(controller, builder.build(), rpcCallback);
-        if (controller.getFailedOn() != null) {
-          throw controller.getFailedOn();
-        }
+        checkRpcException(controller);
         List<ByteString> pbResult = rpcCallback.get().getResultList();
-        // TODO : is this correct?
-        if (pbResult == null || pbResult.size() == 0) {
+        if (pbResult.size() == 0) {
           return null;
         } else {
           byte[][] results = new byte[pbResult.size()][];
@@ -184,7 +177,7 @@ public class ThemisEndpointClient {
     };
     return judgePerwriteResultRow(tableName, row, callable.run(), prewriteTs);
   }
-  
+
   protected ThemisLock judgePerwriteResultRow(byte[] tableName, byte[] row,
       byte[][] prewriteResult, long prewriteTs) throws IOException {
     if (prewriteResult != null) {
@@ -194,20 +187,21 @@ public class ThemisEndpointClient {
             + prewriteTs + ", commitTs=" + commitTs);
       } else {
         ThemisLock lock = ThemisLock.parseFromByte(prewriteResult[1]);
-        ColumnCoordinate column = new ColumnCoordinate(tableName, row, prewriteResult[2], prewriteResult[3]);
+        ColumnCoordinate column = new ColumnCoordinate(tableName, row, prewriteResult[2],
+            prewriteResult[3]);
         lock.setColumn(column);
         return lock;
       }
     }
     return null;
   }
-  
+
   public void commitSecondaryRow(final byte[] tableName, final byte[] row,
       List<ColumnMutation> mutations, final long prewriteTs, final long commitTs)
       throws IOException {
     commitRow(tableName, row, mutations, prewriteTs, commitTs, -1);
   }
-  
+
   public void commitRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
       final int primaryIndex) throws IOException {
@@ -223,12 +217,9 @@ public class ThemisEndpointClient {
         builder.setCommitTs(commitTs);
         builder.setPrimaryIndex(primaryIndex);
         ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<ThemisCommitResponse> rpcCallback =
-            new BlockingRpcCallback<ThemisCommitResponse>();
+        BlockingRpcCallback<ThemisCommitResponse> rpcCallback = new BlockingRpcCallback<ThemisCommitResponse>();
         instance.commitRow(controller, builder.build(), rpcCallback);
-        if (controller.getFailedOn() != null) {
-          throw controller.getFailedOn();
-        }
+        checkRpcException(controller);
         return rpcCallback.get().getResult();
       }
     };
@@ -238,12 +229,12 @@ public class ThemisEndpointClient {
       } else {
         ColumnMutation primaryMutation = mutations.get(primaryIndex);
         throw new LockCleanedException("lock has been cleaned, column="
-            + new ColumnCoordinate(tableName, row, primaryMutation.getFamily(), primaryMutation.getQualifier())
-            + ", prewriteTs=" + prewriteTs);
+            + new ColumnCoordinate(tableName, row, primaryMutation.getFamily(),
+                primaryMutation.getQualifier()) + ", prewriteTs=" + prewriteTs);
       }
     }
   }
-  
+
   public void commitSingleRow(final byte[] tableName, final byte[] row,
       final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
       final int primaryIndex) throws IOException {
@@ -259,12 +250,9 @@ public class ThemisEndpointClient {
         builder.setCommitTs(commitTs);
         builder.setPrimaryIndex(primaryIndex);
         ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<ThemisCommitResponse> rpcCallback =
-            new BlockingRpcCallback<ThemisCommitResponse>();
+        BlockingRpcCallback<ThemisCommitResponse> rpcCallback = new BlockingRpcCallback<ThemisCommitResponse>();
         instance.commitSingleRow(controller, builder.build(), rpcCallback);
-        if (controller.getFailedOn() != null) {
-          throw controller.getFailedOn();
-        }
+        checkRpcException(controller);
         return rpcCallback.get().getResult();
       }
     };
@@ -274,12 +262,12 @@ public class ThemisEndpointClient {
       } else {
         ColumnMutation primaryMutation = mutations.get(primaryIndex);
         throw new LockCleanedException("lock has been cleaned, column="
-            + new ColumnCoordinate(tableName, row, primaryMutation.getFamily(), primaryMutation.getQualifier())
-            + ", prewriteTs=" + prewriteTs);
+            + new ColumnCoordinate(tableName, row, primaryMutation.getFamily(),
+                primaryMutation.getQualifier()) + ", prewriteTs=" + prewriteTs);
       }
     }
   }
- 
+
   public ThemisLock getLockAndErase(final ColumnCoordinate columnCoordinate, final long prewriteTs)
       throws IOException {
     CoprocessorCallable<byte[]> callable = new CoprocessorCallable<byte[]>(conn,
@@ -289,20 +277,15 @@ public class ThemisEndpointClient {
         EraseLockRequest.Builder builder = EraseLockRequest.newBuilder();
         builder.setRow(HBaseZeroCopyByteString.wrap(columnCoordinate.getRow()));
         builder.setFamily(HBaseZeroCopyByteString.wrap(columnCoordinate.getFamily()));
-        // TODO : rename to setQualifier
-        builder.setColumn(HBaseZeroCopyByteString.wrap(columnCoordinate.getQualifier()));
+        builder.setQualifier(HBaseZeroCopyByteString.wrap(columnCoordinate.getQualifier()));
         builder.setPrewriteTs(prewriteTs);
         ServerRpcController controller = new ServerRpcController();
-        BlockingRpcCallback<EraseLockResponse> rpcCallback =
-            new BlockingRpcCallback<EraseLockResponse>();
+        BlockingRpcCallback<EraseLockResponse> rpcCallback = new BlockingRpcCallback<EraseLockResponse>();
         instance.getLockAndErase(controller, builder.build(), rpcCallback);
-        if (controller.getFailedOn() != null) {
-          throw controller.getFailedOn();
-        }
-        byte[] result = rpcCallback.get().getLock().toByteArray();
-        return result.length == 0 ? null : result;
+        checkRpcException(controller);
+        return rpcCallback.get().hasLock() ? rpcCallback.get().getLock().toByteArray() : null;
       }
-    };  
+    };
     byte[] result = callable.run();
     return result == null ? null : ThemisLock.parseFromByte(result);
   }

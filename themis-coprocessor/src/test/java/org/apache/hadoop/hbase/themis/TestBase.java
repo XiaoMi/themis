@@ -16,9 +16,9 @@ import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
-import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
+import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.io.Writable;
@@ -196,5 +196,5 @@ public class TestBase {
     expect.write(new DataOutputStream(byteOutStream));
     ByteArrayInputStream byteInStream = new ByteArrayInputStream(byteOutStream.toByteArray());
     actual.readFields(new DataInputStream(byteInStream));
-  }
+  }  
 }

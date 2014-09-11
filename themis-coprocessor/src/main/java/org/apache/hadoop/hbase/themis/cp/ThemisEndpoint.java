@@ -68,6 +68,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   public void themisGet(RpcController controller, ThemisGetRequest request,
       RpcCallback<org.apache.hadoop.hbase.protobuf.generated.ClientProtos.Result> callback) {
     // first get lock and write columns to check conflicted lock and get commitTs
+    ClientProtos.Result clientResult = ProtobufUtil.toResult(new Result());
     try {
       checkFamily(get);
       Get clientGet = ProtobufUtil.toGet(request.getGet());
@@ -78,35 +79,30 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       Pair<List<KeyValue>, List<KeyValue>> lockAndWriteKvs = ThemisCpUtil
           .seperateLockAndWriteKvs(result.list());
       List<KeyValue> lockKvs = lockAndWriteKvs.getFirst();
-      ClientProtos.Result clientResult = null;
       if (!request.getIgnoreLock() && lockKvs.size() != 0) {
         LOG.warn("encounter conflict lock in ThemisGet"); // need to log conflict kv?
         // return lock columns when encounter conflict lock
         clientResult = ProtobufUtil.toResult(new Result(lockKvs));
       } else {
         List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(lockAndWriteKvs.getSecond());
-        if (putKvs.size() == 0) {
-          clientResult = ProtobufUtil.toResult(new Result());
-        } else {
+        if (putKvs.size() != 0) {
           Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, clientGet.getFilter());
           clientResult = ProtobufUtil.toResult(getFromRegion(region, dataGet,
             ThemisCpStatistics.getThemisCpStatistics().getDataLatency));
         }
       }
-      // TODO : put this out of the try-catch block?
-      callback.run(clientResult);
     } catch (IOException e) {
       LOG.error("themisGet fail", e);
       // Call ServerRpcController#getFailedOn() to retrieve this IOException at client side.
       ResponseConverter.setControllerException(controller, e);
     }
+    callback.run(clientResult);
   }
   
   protected Result getFromRegion(HRegion region, Get get, MetricsTimeVaryingRate latency)
       throws IOException {
     long beginTs = System.nanoTime();
     try {
-      // TODO : do not need lock?
       return region.get(get);
     } finally {
       ThemisCpStatistics.updateLatency(latency, beginTs);
@@ -116,48 +112,47 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   @Override
   public void commitRow(RpcController controller, ThemisCommitRequest request,
       RpcCallback<ThemisCommitResponse> callback) {
-    try {
-      boolean result = commitRow(request.getRow().toByteArray(),
-        ColumnMutation.toColumnMutations(request.getMutationsList()), request.getPrewriteTs(),
-        request.getCommitTs(), request.getPrimaryIndex());
-      ThemisCommitResponse.Builder builder = ThemisCommitResponse.newBuilder();
-      builder.setResult(result);
-      callback.run(builder.build());
-    } catch(IOException e) {
-      LOG.error("commitRow fail", e);
-      ResponseConverter.setControllerException(controller, e);
-    }
+    commitRow(controller, request, callback, false);
   }
 
   @Override
   public void commitSingleRow(RpcController controller, ThemisCommitRequest request,
       RpcCallback<ThemisCommitResponse> callback) {
+    commitRow(controller, request, callback, true);
+  }
+  
+  protected void commitRow(RpcController controller, ThemisCommitRequest request,
+      RpcCallback<ThemisCommitResponse> callback, boolean isSingleRow) {
+    boolean result = false;
     try {
-      boolean result = commitSingleRow(request.getRow().toByteArray(),
+      result = commitRow(request.getRow().toByteArray(),
         ColumnMutation.toColumnMutations(request.getMutationsList()), request.getPrewriteTs(),
-        request.getCommitTs(), request.getPrimaryIndex());
-      ThemisCommitResponse.Builder builder = ThemisCommitResponse.newBuilder();
-      builder.setResult(result);
-      callback.run(builder.build());
+        request.getCommitTs(), request.getPrimaryIndex(), isSingleRow);
     } catch(IOException e) {
       LOG.error("commitRow fail", e);
       ResponseConverter.setControllerException(controller, e);
     }
+    ThemisCommitResponse.Builder builder = ThemisCommitResponse.newBuilder();
+    builder.setResult(result);
+    callback.run(builder.build());
   }
 
   @Override
   public void getLockAndErase(RpcController controller, EraseLockRequest request,
       RpcCallback<EraseLockResponse> callback) {
+    byte[] lock = null;
     try {
-      byte[] lock = getLockAndErase(request.getRow().toByteArray(), request.getFamily()
-          .toByteArray(), request.getColumn().toByteArray(), request.getPrewriteTs());
-      EraseLockResponse.Builder builder = EraseLockResponse.newBuilder();
-      builder.setLock(HBaseZeroCopyByteString.wrap(lock == null ? HConstants.EMPTY_BYTE_ARRAY : lock));
-      callback.run(builder.build());
+      lock = getLockAndErase(request.getRow().toByteArray(), request.getFamily()
+          .toByteArray(), request.getQualifier().toByteArray(), request.getPrewriteTs());
     } catch(IOException e) {
       LOG.error("getLockAndErase fail", e);
       ResponseConverter.setControllerException(controller, e);
     }
+    EraseLockResponse.Builder builder = EraseLockResponse.newBuilder();
+    if (lock != null) {
+      builder.setLock(HBaseZeroCopyByteString.wrap(lock));
+    }
+    callback.run(builder.build());
   }
 
   @Override
@@ -174,23 +169,23 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   
   protected void prewriteRow(RpcController controller, ThemisPrewriteRequest request,
       RpcCallback<ThemisPrewriteResponse> callback, boolean isSingleRow) {
+    byte[][] prewriteResult = null;
     try {
-      byte[][] prewriteResult = prewriteRow(request.getRow().toByteArray(),
+      prewriteResult = prewriteRow(request.getRow().toByteArray(),
         ColumnMutation.toColumnMutations(request.getMutationsList()), request.getPrewriteTs(),
         request.getSecondaryLock().toByteArray(), request.getPrimaryLock().toByteArray(),
         request.getPrimaryIndex(), isSingleRow);
-      ThemisPrewriteResponse.Builder builder = ThemisPrewriteResponse.newBuilder();
-      // TODO : is it correct not setting result when return null
-      if (prewriteResult != null) {
-        for (byte[] element : prewriteResult) {
-          builder.addResult(HBaseZeroCopyByteString.wrap(element));
-        }
-      }
-      callback.run(builder.build());
     } catch (IOException e) {
       LOG.error("prewrite fail", e);
       ResponseConverter.setControllerException(controller, e);
     }
+    ThemisPrewriteResponse.Builder builder = ThemisPrewriteResponse.newBuilder();
+    if (prewriteResult != null) {
+      for (byte[] element : prewriteResult) {
+        builder.addResult(HBaseZeroCopyByteString.wrap(element));
+      }
+    }
+    callback.run(builder.build());
   }
   
   abstract class MutationCallable<R> {

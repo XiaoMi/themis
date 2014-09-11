@@ -21,7 +21,7 @@ public class ColumnTimestampFilter extends FilterBase {
   private List<Pair<Column, Long>> columnsTs = new ArrayList<Pair<Column, Long>>();
   private int curColumnIdx = -1;
   
-  // TODO(cuijianwei) : should check add deplicated column?
+  // TODO(cuijianwei) : should check add duplicated column?
   public void addColumnTimestamp(Column column, long timestamp) {
     columnsTs.add(new Pair<Column, Long>(new Column(column.getFamily(), column
         .getQualifier()), timestamp));
