@@ -6,6 +6,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.coprocessor.BaseMasterObserver;
@@ -37,6 +38,18 @@ public class ThemisMasterObserver extends BaseMasterObserver {
               + "' is preserved by themis when " + THEMIS_ENABLE_KEY
               + " is true, please change your family name");
         }
+        // make sure TTL and MaxVersion is not set by user
+        if (columnDesc.getTimeToLive() != HConstants.FOREVER) {
+          throw new DoNotRetryIOException("can not set TTL for family '"
+              + columnDesc.getNameAsString() + "' when " + THEMIS_ENABLE_KEY + " is true, TTL="
+              + columnDesc.getTimeToLive());
+        }
+        if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS) {
+          throw new DoNotRetryIOException("can not set MaxVersion for family '"
+              + columnDesc.getNameAsString() + "' when " + THEMIS_ENABLE_KEY
+              + " is true, MaxVersion=" + columnDesc.getMaxVersions());
+        }
+        columnDesc.setMaxVersions(Integer.MAX_VALUE);
       }
       desc.addFamily(createLockFamily());
       LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc.getNameAsString());
@@ -47,6 +60,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     HColumnDescriptor desc = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
     desc.setInMemory(true);
     desc.setMaxVersions(1);
+    desc.setTimeToLive(HConstants.FOREVER);
     // TODO(cuijianwei) : choose the best bloom filter type
     // desc.setBloomFilterType(BloomType.ROWCOL);
     return desc;

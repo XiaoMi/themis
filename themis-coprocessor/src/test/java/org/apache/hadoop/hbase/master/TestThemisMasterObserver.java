@@ -1,9 +1,8 @@
 package org.apache.hadoop.hbase.master;
 
-import java.io.IOException;
-
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
@@ -59,7 +58,38 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     tableDesc.addFamily(columnDesc);
     admin.createTable(tableDesc);
     Assert.assertTrue(admin.getTableDescriptor(testTable).getFamiliesKeys()
-        .contains(ColumnUtil.LOCK_FAMILY_NAME));
+      .contains(ColumnUtil.LOCK_FAMILY_NAME));
+    HColumnDescriptor lockDesc = admin.getTableDescriptor(testTable).getFamily(ColumnUtil.LOCK_FAMILY_NAME);
+    Assert.assertTrue(lockDesc.isInMemory());
+    Assert.assertEquals(1, lockDesc.getMaxVersions());
+    Assert.assertEquals(HConstants.FOREVER, lockDesc.getTimeToLive());
+    lockDesc = admin.getTableDescriptor(testTable).getFamily(testFamily);
+    Assert.assertEquals(Integer.MAX_VALUE, lockDesc.getMaxVersions());
+    Assert.assertEquals(HConstants.FOREVER, lockDesc.getTimeToLive());
+    // exception when set MaxVersion
+    deleteTable(admin, testTable);
+    tableDesc = new HTableDescriptor(testTable);
+    columnDesc = new HColumnDescriptor(testFamily);
+    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+    columnDesc.setMaxVersions(1);
+    tableDesc.addFamily(columnDesc);
+    try {
+      admin.createTable(tableDesc);
+    } catch (DoNotRetryIOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("can not set MaxVersion for family") >= 0);
+    }
+    deleteTable(admin, testTable);
+    // exception when set TTL
+    tableDesc = new HTableDescriptor(testTable);
+    columnDesc = new HColumnDescriptor(testFamily);
+    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+    columnDesc.setTimeToLive(60 * 1000);
+    tableDesc.addFamily(columnDesc);
+    try {
+      admin.createTable(tableDesc);
+    } catch (DoNotRetryIOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("can not set TTL for family") >= 0);
+    }
     deleteTable(admin, testTable);
     admin.close();
   } 
