@@ -167,7 +167,6 @@ public class TestThemisScanner extends ClientTestBase {
     checkReadColumnResultWithTs(scanner.next(), COLUMN, prewriteTs - 2);
     checkReadColumnResultWithTs(scanner.next(), COLUMN_WITH_ZZ_ROW, prewriteTs - 2);
     checkAndCloseScanner(scanner);
-    scanner.close();
   }
   
   @Test
