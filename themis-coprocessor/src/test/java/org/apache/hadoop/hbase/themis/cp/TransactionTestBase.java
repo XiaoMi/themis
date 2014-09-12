@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -65,11 +64,17 @@ public class TransactionTestBase extends TestBase {
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
-    TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-    TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-//    conf = HBaseConfiguration.create();
-//    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-//    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    for (byte[] tableName : new byte[][]{TABLENAME, ANOTHER_TABLENAME}) {
+      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
+      for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY}) {
+        HColumnDescriptor columnDesc = new HColumnDescriptor(family);
+        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+        tableDesc.addFamily(columnDesc);
+      }
+      admin.createTable(tableDesc);
+    }
+    admin.close();
   }
 
   @AfterClass
