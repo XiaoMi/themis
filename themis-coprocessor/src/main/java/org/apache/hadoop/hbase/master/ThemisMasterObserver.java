@@ -44,7 +44,8 @@ public class ThemisMasterObserver extends BaseMasterObserver {
               + columnDesc.getNameAsString() + "' when " + THEMIS_ENABLE_KEY + " is true, TTL="
               + columnDesc.getTimeToLive());
         }
-        if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS) {
+        if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS
+            && columnDesc.getMaxVersions() != Integer.MAX_VALUE) {
           throw new DoNotRetryIOException("can not set MaxVersion for family '"
               + columnDesc.getNameAsString() + "' when " + THEMIS_ENABLE_KEY
               + " is true, MaxVersion=" + columnDesc.getMaxVersions());
