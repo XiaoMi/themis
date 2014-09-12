@@ -126,9 +126,14 @@ Themis client will manage the users's mutations by row and invoke methods of The
        <name>hbase.coprocessor.user.region.classes</name>
        <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
+
      ```
 
-3. For tables need themis, create a family 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
+3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor in table create script. 
 
 ### depends themis-client
 
@@ -142,7 +147,7 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 ### run example code
 
-1. currently, themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
+1. the master branch depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
    
      mvn clean install -DskipTests -Dhadoop.profile=2.0
 
@@ -239,12 +244,10 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 
 ## Future Works
 
-1. Optimize the write performance for single-row transaction. The persistent lock is not needed to write to HLog for single-row transaction.
-2. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
-3. Create themis-needed family and set attributes automactically when user creates a table for themis.
-4. A normal way to clear expired data for thmeis.
-5. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
-6. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
+1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
+2. A normal way to clear expired data for thmeis.
+3. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
+4. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
 
 ---
 
@@ -377,9 +380,13 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
        <name>hbase.coprocessor.user.region.classes</name>
        <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
      ```
 
-3. 对于需要使用themis的表，创建一个额外的family='L'，用来存储persistentLock，IN_MEMORY属性设置为true。
+3. 对于需要使用themis的family，需要设置THEMIS_ENABLE属性为true，建表的时候可以在family descriptor中加入"CONGIG => {'THEMIS_ENABLE', 'true'}"。
 
 ### Themis客户端
 需要在使用Themis的项目的pom中引入themis-client的依赖：
@@ -482,9 +489,7 @@ TransactionSize是事务的行数，我们关注使用并发后的相对性能�
 
 ## 将来的工作
 
-1. 写性能优化。对于单行事物，prewrite阶段锁信息的写入可以不落HLog。
-2. RegionServer内存优化。可以将已经删除的Lock信息从MemStore中清掉，确保RegionServer内存中只有当前正在执行的事务。
-3. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
-4. 清理过期数据。
-5. 读出当前事务未提交的写。对于当前事务，会将server端已提交的事务与本事务还没有commit的写进行合并，提供更合理的Snapshot。
-6. 更有效的解决锁冲突。client向zookeeper注册，通过是否在zookeeper丢锁判定client是否退出，帮助更快的清理锁。
+1. RegionServer内存优化。可以将已经删除的Lock信息从MemStore中清掉，确保RegionServer内存中只有当前正在执行的事务。
+2. 清理过期数据。
+3. 读出当前事务未提交的写。对于当前事务，会将server端已提交的事务与本事务还没有commit的写进行合并，提供更合理的Snapshot。
+4. 更有效的解决锁冲突。client向zookeeper注册，通过是否在zookeeper丢锁判定client是否退出，帮助更快的清理锁。
