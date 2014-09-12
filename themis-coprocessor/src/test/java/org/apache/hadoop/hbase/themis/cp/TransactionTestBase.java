@@ -5,18 +5,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver;
+import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
@@ -53,13 +57,24 @@ public class TransactionTestBase extends TestBase {
   public static void setUpBeforeClass() throws Exception {
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
-    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, ThemisScanObserver.class.getName());
+    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
+      ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
+    conf.setStrings(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, ThemisMasterObserver.class.getName());
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
-    TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-    TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    for (byte[] tableName : new byte[][]{TABLENAME, ANOTHER_TABLENAME}) {
+      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
+      for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY}) {
+        HColumnDescriptor columnDesc = new HColumnDescriptor(family);
+        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+        tableDesc.addFamily(columnDesc);
+      }
+      admin.createTable(tableDesc);
+    }
+    admin.close();
   }
 
   @AfterClass
@@ -99,9 +114,15 @@ public class TransactionTestBase extends TestBase {
   
   @After
   public void tearUp() throws IOException {
-    table.close();
-    anotherTable.close();
-    connection.close();
+    if (table != null) {
+      table.close();
+    }
+    if (anotherTable != null) {
+      anotherTable.close();
+    }
+    if (connection != null) {
+      connection.close();
+    }
   }
  
   protected void nextTransactionTs() {
@@ -371,5 +392,14 @@ public class TransactionTestBase extends TestBase {
     prewriteSecondaryRows();
     commitPrimaryRow();
     commitSecondaryRow();
+  }
+  
+  protected void deleteTable(HBaseAdmin admin, byte[] tableName) throws IOException {
+    if (admin.tableExists(tableName)) {
+      if (admin.isTableEnabled(tableName)) {
+        admin.disableTable(tableName);
+      }
+      admin.deleteTable(tableName);
+    }
   }
 }

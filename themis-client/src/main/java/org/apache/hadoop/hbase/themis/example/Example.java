@@ -11,6 +11,7 @@ import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ThemisDelete;
 import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.apache.hadoop.hbase.themis.ThemisPut;
@@ -38,12 +39,8 @@ public class Example {
       if (!admin.tableExists(TABLENAME)) {
         HTableDescriptor tableDesc = new HTableDescriptor(TABLENAME);
         HColumnDescriptor themisCF = new HColumnDescriptor(FAMILY);
-        themisCF.setMaxVersions(Integer.MAX_VALUE);
+        themisCF.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
         tableDesc.addFamily(themisCF);
-        HColumnDescriptor lockCF = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
-        lockCF.setMaxVersions(1);
-        lockCF.setInMemory(true);
-        tableDesc.addFamily(lockCF);
         admin.createTable(tableDesc);
       } else {
         System.out.println(Bytes.toString(TABLENAME) + " exist, please check the schema of the table");
@@ -62,7 +59,7 @@ public class Example {
     conf = HBaseConfiguration.create();
     HConnection connection = HConnectionManager.createConnection(conf);
     // will create 'ThemisTable' for test, the corresponding shell command is:
-    // create 'ThemisTable', {NAME=>'ThemisCF', VERSIONS => '2147483647'}, {NAME => 'L', 'IN_MEMORY' => true, VERSIONS => '1'}
+    // create 'ThemisTable', {NAME=>'ThemisCF', CONFIG => {'THEMIS_ENABLE', 'true'}}
     createTable(connection);
     
     String timeStampOracleCls = conf.get(TransactionConstant.TIMESTAMP_ORACLE_CLASS_KEY,

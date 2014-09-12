@@ -3,11 +3,17 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.Collections;
 
+import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.KVComparator;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.FilterList;
@@ -18,7 +24,6 @@ import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
-import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
@@ -354,5 +359,43 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     ThemisLock lock = cpClient.getLockAndErase(COLUMN, prewriteTs);
     Assert.assertTrue(lock.equals(getLock(COLUMN)));
     Assert.assertNull(readLockBytes(COLUMN));
+  }
+  
+  @Test
+  public void testWriteNonThemisFamily() throws IOException {
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    byte[] testTable = Bytes.toBytes("test_table");
+    byte[] testFamily = Bytes.toBytes("test_family");
+
+    // create table without setting THEMIS_ENABLE
+    deleteTable(admin, testTable);
+    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
+    tableDesc.addFamily(columnDesc);
+    admin.createTable(tableDesc);
+    try {
+      Get get = new Get(ROW);
+      get.addColumn(testFamily, COLUMN.getQualifier());
+      cpClient.themisGet(testTable, get, prewriteTs);
+    } catch (IOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("can not access family") >= 0);
+    }
+    
+    HTableInterface table = null;
+    try {
+      Scan scan = new Scan();
+      scan.addColumn(testFamily, COLUMN.getQualifier());
+      scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
+      table = connection.getTable(testTable);
+      table.getScanner(scan);
+    } catch (IOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("can not access family") >= 0);
+    } finally {
+      if (table != null) {
+        table.close();
+      }
+    }
+    
+    admin.close();
   }
 }

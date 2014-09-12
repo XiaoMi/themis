@@ -5,15 +5,23 @@ import java.util.List;
 
 import junit.framework.Assert;
 
+import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.WriteConflictException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.junit.Test;
+
+import com.google.common.collect.Lists;
 
 public class TestThemisCoprocessorWrite extends TransactionTestBase {
   protected static byte[][] primaryFamilies;
@@ -182,5 +190,29 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
       invokePrewriteRow(PRIMARY_ROW, lastTs(commitTs) - 1, 2);
       Assert.fail();
     } catch (WriteConflictException e) {}
+  }
+  
+  @Test
+  public void testWriteNonThemisFamily() throws IOException {
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    byte[] testTable = Bytes.toBytes("test_table");
+    byte[] testFamily = Bytes.toBytes("test_family");
+
+    // create table without setting THEMIS_ENABLE
+    deleteTable(admin, testTable);
+    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
+    tableDesc.addFamily(columnDesc);
+    admin.createTable(tableDesc);
+    try {
+      ColumnMutation mutation = new ColumnMutation(new Column(testFamily, COLUMN.getQualifier()),
+          Type.Put, VALUE);
+      cpClient.prewriteRow(testTable, PRIMARY_ROW.getRow(), Lists.newArrayList(mutation), prewriteTs,
+        ThemisLock.toByte(getLock(COLUMN)), getSecondaryLockBytes(), 2);
+    } catch (IOException e) {
+      e.printStackTrace();
+      Assert.assertTrue(e.getMessage().indexOf("can not access family") >= 0);
+    }
+    admin.close();
   }
 }
