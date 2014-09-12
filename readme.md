@@ -124,11 +124,16 @@ Themis client will manage the users's mutations by row and invoke methods of The
      ```
      <property>
        <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisEndpoint,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
+     <property>
+       <name>hbase.coprocessor.master.classes</name>
+       <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
+               
      ```
 
-3. For tables need themis, create a family 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
+3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "METADATA => {'THEMIS_ENABLE', 'true'}" to the family descriptor in table create script. 
 
 ### depends themis-client
 
@@ -142,15 +147,15 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 ### run example code
 
-1. currently, themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
+1. this branch depends on hbase 0.98.5 with hadoop.version=2.2.0. We need download source code of hbase 0.98.5 and install in maven local repository by(in the directory of hbase 0.98.5):
    
-     mvn clean install -DskipTests -Dhadoop.profile=2.0
+     mvn clean install -DskipTests -P hadoop-2.0
 
 2. install themis in maven local repository(in the directory of themis):
 
      mvn clean install -DskipTests
 
-3. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
+3. start a standalone HBase cluster(0.98.5 with hadoop.version=2.2.0) and make sure themis-coprocessor is loaded as above steps.
 
 4. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
      
@@ -377,9 +382,14 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
        <name>hbase.coprocessor.user.region.classes</name>
        <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
+     <property>
+       <name>hbase.coprocessor.master.classes</name>
+       <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
+
      ```
 
-3. 对于需要使用themis的表，创建一个额外的family='L'，用来存储persistentLock，IN_MEMORY属性设置为true。
+3. 对于需要使用themis的family，需要设置THEMIS_ENABLE属性为true，建表的时候可以在family descriptor中加入"CONGIG => {'THEMIS_ENABLE', 'true'}"。
 
 ### Themis客户端
 需要在使用Themis的项目的pom中引入themis-client的依赖：
