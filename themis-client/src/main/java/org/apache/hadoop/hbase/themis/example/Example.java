@@ -59,7 +59,7 @@ public class Example {
     conf = HBaseConfiguration.create();
     HConnection connection = HConnectionManager.createConnection(conf);
     // will create 'ThemisTable' for test, the corresponding shell command is:
-    // create 'ThemisTable', {NAME=>'ThemisCF', CONFIG => {'THEMIS_ENABLE', 'true'}}
+    // create 'ThemisTable', {NAME=>'ThemisCF', METADATA => {'THEMIS_ENABLE', 'true'}}
     createTable(connection);
     
     String timeStampOracleCls = conf.get(TransactionConstant.TIMESTAMP_ORACLE_CLASS_KEY,
