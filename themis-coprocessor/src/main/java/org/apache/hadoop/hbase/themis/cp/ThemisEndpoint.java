@@ -50,7 +50,7 @@ import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
 
-public class ThemisEndpoint extends ThemisService implements CoprocessorService {
+public class ThemisEndpoint extends ThemisService implements CoprocessorService, Coprocessor {
   private static final Log LOG = LogFactory.getLog(ThemisEndpoint.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
   private RegionCoprocessorEnvironment env;

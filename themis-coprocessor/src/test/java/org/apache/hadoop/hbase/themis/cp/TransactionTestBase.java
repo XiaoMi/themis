@@ -40,7 +40,7 @@ import org.junit.BeforeClass;
 public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_RETRY_COUNT = 2;
   public static final int TEST_LOCK_CLEAN_PAUSE = 200;
-//  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
+  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   
   protected HConnection connection;
   protected HTableInterface table;
@@ -56,27 +56,25 @@ public class TransactionTestBase extends TestBase {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    /*
     conf = TEST_UTIL.getConfiguration();
-    conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
-    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
+    conf.setStrings("hbase.coprocessor.user.region.classes", ThemisEndpoint.class.getName(),
       ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
-    conf.setStrings(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, ThemisMasterObserver.class.getName());
+    conf.setStrings(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY,
+      ThemisMasterObserver.class.getName());
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
     TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
     TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-    */
-    conf = HBaseConfiguration.create();
-    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+//    conf = HBaseConfiguration.create();
+//    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+//    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-//    TEST_UTIL.shutdownMiniCluster();
+    TEST_UTIL.shutdownMiniCluster();
   }
   
   @Before
