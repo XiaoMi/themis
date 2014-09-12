@@ -51,13 +51,13 @@ public class ThemisRegionObserver extends BaseRegionObserver {
               + Bytes.toString(primaryQualifier) + ", put=" + put);
         }
 
-        kvs.get(primaryIndex).setMemstoreTS(0); // visible by any read
+        kvs.get(primaryIndex).setMvccVersion(0); // visible by any read
         addedSize += lockStore.memstore.add(kvs.get(primaryIndex));
 
         // then, we write secondaries' locks
         for (int i = 0; i < kvs.size(); ++i) {
           if (i != primaryIndex) {
-            kvs.get(i).setMemstoreTS(0);
+            kvs.get(i).setMvccVersion(0);
             addedSize += lockStore.memstore.add(kvs.get(i));
           }
         }
