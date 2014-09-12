@@ -38,6 +38,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
           List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(pResult.getSecond());
           // should ignore rows which only contain delete columns
           if (putKvs.size() > 0) {
+            // TODO : check there must corresponding data columns by commit column
             Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, s.getDataColumnFilter());
             Result dataResult = region.get(dataGet, null);
             if (!dataResult.isEmpty()) {

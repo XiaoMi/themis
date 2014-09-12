@@ -56,6 +56,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       return new Result();
     }
     Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, get.getFilter());
+    // TODO : check there must corresponding data columns by commit column
     return getFromRegion(region, dataGet, null,
       ThemisCpStatistics.getThemisCpStatistics().getDataLatency);
   }

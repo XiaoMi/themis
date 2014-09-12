@@ -200,7 +200,7 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void writeDeleteColumn(ColumnCoordinate c, long prewriteTs, long commitTs) throws IOException {
-    ColumnCoordinate deleteColumn = new ColumnCoordinate(c.getTableName(), c.getRow(), ColumnUtil.getPutColumn(c));
+    ColumnCoordinate deleteColumn = new ColumnCoordinate(c.getTableName(), c.getRow(), ColumnUtil.getDeleteColumn(c));
     writeWriteColumnInternal(deleteColumn, prewriteTs, commitTs);
   }
   
