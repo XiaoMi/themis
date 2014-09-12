@@ -7,6 +7,9 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.Coprocessor;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
+import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
@@ -17,11 +20,13 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorException;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorService;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.ResponseConverter;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegion.RowLock;
+import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
@@ -45,10 +50,11 @@ import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
 
-public class ThemisEndpoint extends ThemisService implements CoprocessorService, Coprocessor {
+public class ThemisEndpoint extends ThemisService implements CoprocessorService {
   private static final Log LOG = LogFactory.getLog(ThemisEndpoint.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
   private RegionCoprocessorEnvironment env;
+  
   public void start(CoprocessorEnvironment env) throws IOException {
     if (env instanceof RegionCoprocessorEnvironment) {
       this.env = (RegionCoprocessorEnvironment) env;
@@ -70,8 +76,8 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     // first get lock and write columns to check conflicted lock and get commitTs
     ClientProtos.Result clientResult = ProtobufUtil.toResult(new Result());
     try {
-      checkFamily(get);
       Get clientGet = ProtobufUtil.toGet(request.getGet());
+      checkFamily(clientGet);
       Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(clientGet, request.getStartTs());
       HRegion region = env.getRegion();
       Result result = getFromRegion(region, lockAndWriteGet,
@@ -220,13 +226,6 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     }
   }
   
-  public byte[][] prewriteRow(final byte[] row, final List<ColumnMutation> mutations,
-      final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
-<<<<<<< HEAD
-      final int primaryIndex) throws IOException {
-    return prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock, primaryIndex, false);
-  }
-
   protected void checkFamily(final Get get) throws IOException {
     checkFamily(get.getFamilyMap().keySet().toArray(new byte[][]{}));
   }
@@ -240,7 +239,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   }
   
   protected void checkFamily(final byte[][] families) throws IOException {
-    checkFamily(((RegionCoprocessorEnvironment) getEnvironment()).getRegion(), families);
+    checkFamily(env.getRegion(), families);
   }
   
   protected static void checkFamily(HRegion region, byte[][] families) throws IOException {
@@ -379,6 +378,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       throws IOException {
     long beginTs = System.nanoTime();
     try {
+      checkFamily(mutations);
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {

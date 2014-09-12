@@ -102,7 +102,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
   }
   
   protected void checkFamily(final HRegion region, final Scan scan) throws IOException {
-    ThemisProtocolImpl.checkFamily(region, scan.getFamilies());
+    ThemisEndpoint.checkFamily(region, scan.getFamilies());
   }
   
   public static Long getStartTsFromAttribute(Scan scan) {
