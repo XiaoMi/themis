@@ -3,7 +3,6 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.Collections;
 
-import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
@@ -13,6 +12,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -397,5 +398,92 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     }
     
     admin.close();
+  }
+  
+  public static long getExpiredTimestampForRead(TransactionTTL transactionTTL, long currentMs,
+      boolean useChronosTs) {
+    if (useChronosTs) {
+      return transactionTTL.getExpiredTsForReadByCommitColumn(currentMs);
+    } else {
+      return transactionTTL.getExpiredMsForReadByCommitColumn(currentMs);
+    }
+  }
+  
+  @Test
+  public void testExpiredGet() throws IOException {
+    for (boolean useChronosTs : new boolean[] { true, false }) {
+      TransactionTTL transactionTTL = new TransactionTTL(conf);
+      // won't expired
+      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      Get get = new Get(ROW);
+      get.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
+      cpClient.themisGet(TABLENAME, get, prewriteTs);
+
+      // make sure this transaction will be expired
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      try {
+        cpClient.themisGet(TABLENAME, get, prewriteTs);
+        Assert.fail();
+      } catch (IOException e) {
+        Assert.assertTrue(e.getMessage().indexOf("Expired Read Transaction") >= 0);
+      }
+    }
+  }
+  
+  @Test
+  public void testExpiredScan() throws IOException {
+    prewritePrimaryRow();
+    commitPrimaryRow();
+    for (boolean useChronosTs : new boolean[] { false, true }) {
+      TransactionTTL transactionTTL = new TransactionTTL(conf);
+      // won't expired
+      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      Scan scan = new Scan();
+      scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
+      scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
+      ResultScanner scanner = getTable(TABLENAME).getScanner(scan);
+      scanner.next();
+      scanner.close();
+      scanner = null;
+      
+      // make sure this transaction will be expired
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      scan = new Scan();
+      scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
+      scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
+      try {
+        scanner = getTable(TABLENAME).getScanner(scan);
+        Assert.fail();
+      } catch (IOException e) {
+        Assert.assertTrue(e.getMessage().indexOf("Expired Read Transaction") >= 0);
+      } finally {
+        if (scanner != null) {
+          scanner.close();
+        }
+      }
+      
+      // getScanner won't expired, next will
+      currentMs = System.currentTimeMillis() + 3 * 1000; // assume the rpc will be completed in 3 seconds
+      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      scan = new Scan();
+      scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
+      scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
+      scanner = getTable(TABLENAME).getScanner(scan);
+      Threads.sleep(5000); // to cause the read expired
+      try {
+        scanner.next();
+        Assert.fail();
+      } catch (IOException e) {
+        Assert.assertTrue(e.getMessage().indexOf("Expired Read Transaction") >= 0);
+      } finally {
+        if (scanner != null) {
+          scanner.close();
+        }
+      }
+    }
   }
 }

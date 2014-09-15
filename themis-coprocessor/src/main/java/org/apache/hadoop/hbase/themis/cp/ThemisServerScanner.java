@@ -10,19 +10,21 @@ import org.apache.hadoop.hbase.regionserver.RegionScanner;
 
 // themis scanner wrapper for RegionScanner which will be created by ThemisScanObserver
 public class ThemisServerScanner implements RegionScanner {
-  private Filter dataColumnFilter;
-  private RegionScanner scanner;
+  private final Filter dataColumnFilter;
+  private final RegionScanner scanner;
+  private final long startTs;
   
   public Filter getDataColumnFilter() {
     return dataColumnFilter;
   }
 
-  public ThemisServerScanner(RegionScanner scanner) {
-    this(scanner, null);
+  public ThemisServerScanner(RegionScanner scanner, long startTs) {
+    this(scanner, startTs, null);
   }
   
-  public ThemisServerScanner(RegionScanner scanner, Filter dataColumnFilter) {
+  public ThemisServerScanner(RegionScanner scanner, long startTs, Filter dataColumnFilter) {
     this.scanner = scanner;
+    this.startTs = startTs;
     this.dataColumnFilter = dataColumnFilter;
   }
   
@@ -68,5 +70,9 @@ public class ThemisServerScanner implements RegionScanner {
 
   public boolean reseek(byte[] row) throws IOException {
     return scanner.reseek(row);
+  }
+
+  public long getStartTs() {
+    return startTs;
   }
 }

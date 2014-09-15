@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
@@ -24,6 +25,7 @@ import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.exception.TransactionExpiredException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -34,11 +36,19 @@ import com.google.common.collect.Lists;
 public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements ThemisProtocol {
   private static final Log LOG = LogFactory.getLog(ThemisProtocolImpl.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
+  private TransactionTTL transactionTTL;
+  
+  @Override
+  public void start(CoprocessorEnvironment env) {
+    super.start(env);
+    transactionTTL = new TransactionTTL(env.getConfiguration());
+  }
   
   // TODO(cuijianwei) : read out data/lock/write column in the same region.get to improve efficiency?
   public Result themisGet(final Get get, final long startTs, final boolean ignoreLock)
       throws IOException {
     checkFamily(get);
+    checkReadTTL(transactionTTL, System.currentTimeMillis(), startTs);
     // first get lock and write columns to check conflicted lock and get commitTs
     Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(get, startTs);
     HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
@@ -102,6 +112,28 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     }
   }
   
+  public static void checkReadTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+      throws TransactionExpiredException {
+    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
+        .getExpiredMsForReadByCommitColumn(currentMs) : transactionTTL
+        .getExpiredTsForReadByCommitColumn(currentMs);
+    if (startTs < expiredTimestamp) {
+      throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
+          + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs);
+    }
+  }
+  
+  public static void checkWriteTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+      throws TransactionExpiredException {
+    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
+        .getExpiredMsForWrite(currentMs) : transactionTTL.getExpiredTsForWrite(currentMs);
+    if (startTs < expiredTimestamp) {
+      throw new TransactionExpiredException(
+          "Expired Write Transaction, write transaction start Ts:" + startTs + ", expired Ts:"
+              + expiredTimestamp + ", currentMs=" + currentMs);
+    }
+  }
+  
   public byte[][] prewriteRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex) throws IOException {
@@ -144,6 +176,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final int primaryIndex, final boolean singleRow) throws IOException {
     checkFamily(mutations);
     long beginTs = System.nanoTime();
+    checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
     try {
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
@@ -270,6 +303,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final long prewriteTs, final long commitTs, final int primaryIndex, final boolean singleRow)
       throws IOException {
     long beginTs = System.nanoTime();
+    checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
     try {
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, Integer lid) throws IOException {

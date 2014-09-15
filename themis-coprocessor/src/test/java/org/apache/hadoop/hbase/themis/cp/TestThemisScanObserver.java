@@ -19,7 +19,7 @@ public class TestThemisScanObserver extends TestBase {
     }
     
     try {
-      observer.preScannerNext(null, new ThemisServerScanner(null), null, 0, false);
+      observer.preScannerNext(null, new ThemisServerScanner(null, 0), null, 0, false);
       Assert.fail();
     } catch (IOException e) {
       Assert.assertTrue(e.getCause() instanceof NullPointerException);
