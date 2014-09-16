@@ -20,6 +20,7 @@ public class TransactionTTL {
       DEFAULT_THEMIS_READ_TRANSACTION_TTL) * 1000;
     writeTransactionTTL = conf.getInt(THEMIS_WRITE_TRANSACTION_TTL_KEY,
       DEFAULT_THEMIS_WRITE_TRANSACTION_TTL) * 1000;
+    // TODO : must make sure readTransactionTTL < writeTransactionTTL and writeTransactionTTL == lockTTL?
     transactionTTLTimeError = conf.getInt(THEMIS_TRANSACTION_TTL_TIME_ERROR_KEY,
       DEFAULT_THEMIS_TRANSACTION_TTL_TIME_ERROR) * 1000;
   }

@@ -229,12 +229,12 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     for (boolean useChronosTs : new boolean[] { true, false }) {
       TransactionTTL transactionTTL = new TransactionTTL(conf);
       // won't expired
-      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      long currentMs = System.currentTimeMillis() + transactionTTL.writeTransactionTTL;
       prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
       prewritePrimaryRow();
 
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError;
       prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
       try {
         prewritePrimaryRow();

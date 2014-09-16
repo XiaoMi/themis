@@ -189,6 +189,7 @@ public class TestLockCleaner extends ClientTestBase {
 
   @Test
   public void testCleanLockFromPrimary() throws IOException {
+    // must set column before cleanLock
     ThemisLock from = getLock(COLUMN);
     // primary lock exist
     writeLockAndData(COLUMN);

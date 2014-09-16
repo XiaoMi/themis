@@ -1,5 +1,8 @@
 package org.apache.hadoop.hbase.master;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -9,9 +12,13 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver.ExpiredTimestampCalculator;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
+import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.zookeeper.ZKUtil;
+import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -99,23 +106,82 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   }
   
   @Test
-  public void testExpiredTimestampCalculator() {
+  public void testExpiredTimestampCalculator() throws Exception {
+    // TODO : polish this unit test
+    ThemisMasterObserver masterObserver = new ThemisMasterObserver();
     Configuration conf = HBaseConfiguration.create();
-    TransactionTTL ttl = new TransactionTTL(conf);
-    // test chronos timestamp
-    ExpiredTimestampCalculator calculator = new ExpiredTimestampCalculator(ttl,
-        ThemisMasterObserver.CHRONOS_TIMESTAMP, 1000, null);
-    calculator.chore();
-    long currentExpiredTs = ttl.getExpiredTsForReadByDataColumn(System.currentTimeMillis());
-    long minos = ttl.toMs(currentExpiredTs - calculator.getCurrentExpiredTs());
-    Assert.assertTrue(minos >= 0 && minos < 1000);
+    masterObserver.transactionTTL = new TransactionTTL(conf);
     
-    // test ms
-    calculator = new ExpiredTimestampCalculator(ttl, ThemisMasterObserver.MS_TIMESTAMP, 1000,
+    // test chronos timestamp
+    masterObserver.timestampType = ThemisMasterObserver.CHRONOS_TIMESTAMP;
+    ExpiredTimestampCalculator calculator = masterObserver.new ExpiredTimestampCalculator(1000,
         null);
-    calculator.chore();
-    currentExpiredTs = ttl.getExpiredMsForReadByDataColumn(System.currentTimeMillis());
-    minos = ttl.toMs(currentExpiredTs - calculator.getCurrentExpiredTs());
+    calculator.computeExpiredTs();
+    long currentExpiredTs = masterObserver.transactionTTL.getExpiredTsForReadByDataColumn(System
+        .currentTimeMillis());
+    long minos = masterObserver.transactionTTL.toMs(currentExpiredTs
+        - calculator.getCurrentExpiredTs());
     Assert.assertTrue(minos >= 0 && minos < 1000);
+
+    // test ms
+    masterObserver.timestampType = ThemisMasterObserver.MS_TIMESTAMP;
+    calculator = masterObserver.new ExpiredTimestampCalculator(1000, null);
+    calculator.computeExpiredTs();
+    currentExpiredTs = masterObserver.transactionTTL.getExpiredMsForReadByDataColumn(System
+        .currentTimeMillis());
+    minos = masterObserver.transactionTTL.toMs(currentExpiredTs - calculator.getCurrentExpiredTs());
+    Assert.assertTrue(minos >= 0 && minos < 1000);
+  }
+  
+  @Test
+  public void testSetExpiredTsToZk() throws Exception {
+    long ts = System.currentTimeMillis() - 10l * 86400 * 1000;
+    ThemisMasterObserver masterObserver = new ThemisMasterObserver();
+    Configuration conf = HBaseConfiguration.create();
+    masterObserver.zk = new ZooKeeperWatcher(conf, "test", null, true);
+    masterObserver.themisExpiredTsZNodePath = ThemisMasterObserver.getThemisExpiredTsZNodePath(masterObserver.zk);
+    masterObserver.setExpiredTsToZk(ts);
+    Assert.assertEquals(ts, ThemisMasterObserver.getThemisExpiredTsFromZk(masterObserver.zk));
+    
+    // test get data from not-exist path
+    Assert.assertEquals(Long.MIN_VALUE,
+      ThemisMasterObserver.getThemisExpiredTsFromZk(masterObserver.zk,
+        masterObserver.themisExpiredTsZNodePath + "/" + System.currentTimeMillis()));
+    masterObserver.zk.close();
+  }
+  
+  @Test
+  public void testGetThemisTables() throws IOException {
+    List<String> themisTableNames = ThemisMasterObserver.getThemisTables(connection);
+    Assert.assertTrue(themisTableNames.contains(Bytes.toString(TABLENAME)));
+    Assert.assertTrue(themisTableNames.contains(Bytes.toString(ANOTHER_TABLENAME)));
+  }
+  
+  @Test
+  public void testCleanTimeExpiredLock() throws IOException {
+    ThemisMasterObserver masterObserver = new ThemisMasterObserver();
+    masterObserver.connection = connection;
+    masterObserver.cpClient = new ThemisCoprocessorClient(connection);
+    masterObserver.lockCleaner = new ServerLockCleaner(masterObserver.connection,
+        masterObserver.cpClient);
+    writeLockAndData(COLUMN, prewriteTs);
+    writeLockAndData(COLUMN_WITH_ANOTHER_TABLE, prewriteTs + 1);
+    // won't clear lock
+    masterObserver.cleanLockBeforeTimestamp(prewriteTs);
+    checkPrewriteColumnSuccess(COLUMN, prewriteTs);
+    checkPrewriteColumnSuccess(COLUMN_WITH_ANOTHER_TABLE, prewriteTs + 1);
+    
+    // will clear lock of one COLUMN
+    masterObserver.cleanLockBeforeTimestamp(prewriteTs + 1);
+    Assert.assertNull(readLockBytes(COLUMN, prewriteTs));
+    checkPrewriteColumnSuccess(COLUMN_WITH_ANOTHER_TABLE, prewriteTs + 1);
+    
+    // will clear locks for both COLUMNs
+    writeLockAndData(COLUMN, prewriteTs + 1);
+    masterObserver.cleanLockBeforeTimestamp(prewriteTs + 2);
+    Assert.assertNull(readLockBytes(COLUMN, prewriteTs + 1));
+    Assert.assertNull(readLockBytes(COLUMN_WITH_ANOTHER_TABLE, prewriteTs + 1));
+    
+    writeLockAndData(COLUMN, prewriteTs + 100);
   }
 }

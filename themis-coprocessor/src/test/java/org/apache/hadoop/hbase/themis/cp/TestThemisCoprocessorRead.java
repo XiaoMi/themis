@@ -411,17 +411,17 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
   
   @Test
   public void testExpiredGet() throws IOException {
-    for (boolean useChronosTs : new boolean[] { true, false }) {
+    for (boolean useChronosTs : new boolean[] { false, true }) {
       TransactionTTL transactionTTL = new TransactionTTL(conf);
       // won't expired
-      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      long currentMs = System.currentTimeMillis() + transactionTTL.writeTransactionTTL;
       prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
       Get get = new Get(ROW);
       get.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
       cpClient.themisGet(TABLENAME, get, prewriteTs);
 
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError;
       prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
       try {
         cpClient.themisGet(TABLENAME, get, prewriteTs);
@@ -436,10 +436,10 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
   public void testExpiredScan() throws IOException {
     prewritePrimaryRow();
     commitPrimaryRow();
-    for (boolean useChronosTs : new boolean[] { false, true }) {
+    for (boolean useChronosTs : new boolean[] { true, false }) {
       TransactionTTL transactionTTL = new TransactionTTL(conf);
       // won't expired
-      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      long currentMs = System.currentTimeMillis() + transactionTTL.writeTransactionTTL;
       prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
       Scan scan = new Scan();
       scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
@@ -450,7 +450,7 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
       scanner = null;
       
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError;
       prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
       scan = new Scan();
       scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());

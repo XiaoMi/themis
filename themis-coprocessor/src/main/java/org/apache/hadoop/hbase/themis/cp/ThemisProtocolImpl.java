@@ -175,8 +175,9 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex, final boolean singleRow) throws IOException {
     checkFamily(mutations);
+    // TODO : use ms enough?
     long beginTs = System.nanoTime();
-    checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
+    checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
     try {
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
@@ -303,7 +304,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final long prewriteTs, final long commitTs, final int primaryIndex, final boolean singleRow)
       throws IOException {
     long beginTs = System.nanoTime();
-    checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
+    checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
     try {
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, Integer lid) throws IOException {
