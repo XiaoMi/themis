@@ -114,6 +114,7 @@ public class ThemisCoprocessorClient {
         ThemisLock lock = ThemisLock.parseFromByte(prewriteResult[1]);
         ColumnCoordinate column = new ColumnCoordinate(tableName, row, prewriteResult[2], prewriteResult[3]);
         lock.setColumn(column);
+        lock.setLockExpired(Bytes.toBoolean(prewriteResult[4]));
         return lock;
       }
     }
@@ -180,5 +181,15 @@ public class ThemisCoprocessorClient {
     };
     byte[] result = callable.run();
     return result == null ? null : ThemisLock.parseFromByte(result);
+  }
+  
+  public boolean isLockExpired(final byte[] tableName, final byte[] row, final long timestamp)
+      throws IOException {
+    return new CoprocessorCallable<Boolean>(conn, tableName, row) {
+      @Override
+      public Boolean invokeCoprocessor(ThemisProtocol instance) throws Throwable {
+        return instance.isLockExpired(timestamp);
+      }
+    }.run();
   }
 }

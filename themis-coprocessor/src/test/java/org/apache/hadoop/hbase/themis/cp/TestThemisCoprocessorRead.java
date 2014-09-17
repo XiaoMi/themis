@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
+import org.apache.zookeeper.Transaction;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -476,6 +477,19 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
           scanner.close();
         }
       }
+    }
+  }
+  
+  @Test
+  public void testIsLockExpired() throws IOException {
+    if (TEST_UTIL != null) {
+      TransactionTTL.init(conf);
+      long ts = TransactionTTL.getExpiredTimestampForWrite(System.currentTimeMillis()
+          + TransactionTTL.transactionTTLTimeError);
+      Assert.assertFalse(cpClient.isLockExpired(TABLENAME, ROW, ts));
+      ts = TransactionTTL.getExpiredTimestampForWrite(System.currentTimeMillis()
+        - TransactionTTL.transactionTTLTimeError);
+      Assert.assertTrue(cpClient.isLockExpired(TABLENAME, ROW, ts));
     }
   }
 }

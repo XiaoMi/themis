@@ -29,6 +29,8 @@ public class ThemisStatistics implements Updater {
   public final MetricsTimeVaryingLong cleanLockFailCount = new MetricsTimeVaryingLong("cleanLockFailCount", registry);
   public final MetricsTimeVaryingLong cleanLockByEraseCount = new MetricsTimeVaryingLong("cleanLockWithEraseCount", registry);
   public final MetricsTimeVaryingLong cleanLockByCommitCount = new MetricsTimeVaryingLong("cleanLockWithCommitCount", registry);
+  public final MetricsTimeVaryingRate isLockExpiredLatency = new MetricsTimeVaryingRate("isLockExpiredLatency", registry);
+  
   // metrics for remote timestamp server 
   public final MetricsTimeVaryingRate batchSizeOfTimestampRequest = new MetricsTimeVaryingRate("batchSizeOfTimestampRequest", registry);
   public final MetricsTimeVaryingRate remoteTimestampRequestLatency = new MetricsTimeVaryingRate("remoteTimestampRequestLatency", registry);
@@ -52,6 +54,7 @@ public class ThemisStatistics implements Updater {
     cleanLockFailCount.pushMetric(metricsRecord);
     cleanLockByEraseCount.pushMetric(metricsRecord);
     cleanLockByCommitCount.pushMetric(metricsRecord);
+    isLockExpiredLatency.pushMetric(metricsRecord);
     getScannerLatency.pushMetric(metricsRecord);
     batchSizeOfTimestampRequest.pushMetric(metricsRecord);
     remoteTimestampRequestLatency.pushMetric(metricsRecord);

@@ -157,6 +157,19 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     conflict = invokePrewriteRow(PRIMARY_ROW, prewriteTs - 1, 2);
     Assert.assertNotNull(conflict);
     Assert.assertTrue(getLock(COLUMN).equals(conflict));
+    
+    // test expired lock
+    if (TEST_UTIL != null) {
+      TransactionTTL.init(conf);
+      truncateTable(TABLENAME);
+      long writeTs = TransactionTTL.getExpiredTimestampForWrite(System.currentTimeMillis()
+          - TransactionTTL.transactionTTLTimeError);
+      writeLockAndData(COLUMN, writeTs);
+      conflict = invokePrewriteRow(PRIMARY_ROW, commitTs, 2);
+      Assert.assertNotNull(conflict);
+      Assert.assertTrue(getLock(COLUMN, writeTs).equals(conflict));
+      Assert.assertTrue(conflict.isLockExpired());
+    }
   }
   
   @Test

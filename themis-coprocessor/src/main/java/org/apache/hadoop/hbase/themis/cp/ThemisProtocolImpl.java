@@ -257,6 +257,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     Result result = getFromRegion(region, get, lid,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadLockLatency);
     byte[] existLockBytes = result.isEmpty() ? null : result.list().get(0).getValue();
+    boolean lockExpired = existLockBytes == null ? false : isLockExpired(result.list().get(0)
+        .getTimestamp());
     // check no newer write exist
     get = new Get(row);
     ThemisCpUtil.addWriteColumnToGet(column, get);
@@ -264,7 +266,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     result = getFromRegion(region, get, lid,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadWriteLatency);
     Long newerWriteTs = result.isEmpty() ? null : result.list().get(0).getTimestamp();
-    byte[][] conflict = judgePrewriteConflict(column, existLockBytes, newerWriteTs);
+    byte[][] conflict = judgePrewriteConflict(column, existLockBytes, newerWriteTs, lockExpired);
     if (conflict != null) {
       LOG.warn("encounter conflict when prewrite, tableName="
           + Bytes.toString(region.getTableDesc().getName()) + ", row=" + Bytes.toString(row)
@@ -273,7 +275,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     return conflict;
   }
   
-  protected byte[][] judgePrewriteConflict(Column column, byte[] existLockBytes, Long newerWriteTs) {
+  protected byte[][] judgePrewriteConflict(Column column, byte[] existLockBytes, Long newerWriteTs,
+      boolean lockExpired) {
     if (newerWriteTs != null || existLockBytes != null) {
       newerWriteTs = newerWriteTs == null ? 0 : newerWriteTs;
       existLockBytes = existLockBytes == null ? new byte[0] : existLockBytes;
@@ -286,7 +289,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       }
       // we also return the conflict family and qualifier, then the client could know which column
       // encounter conflict when prewriting by row
-      return new byte[][]{Bytes.toBytes(newerWriteTs), existLockBytes, family, qualifier};
+      return new byte[][] { Bytes.toBytes(newerWriteTs), existLockBytes, family, qualifier,
+          Bytes.toBytes(lockExpired) };
     }
     return null;
   }
@@ -400,5 +404,12 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   
   public static void setLockFamilyDelete(final Delete delete) {
     delete.setAttribute(ThemisRegionObserver.LOCK_FAMILY_DELETE, Bytes.toBytes(true));
+  }
+
+  public boolean isLockExpired(long lockTimestamp) throws IOException {
+    long currentMs = System.currentTimeMillis();
+    System.out.println("###debug, lockTimestamp=" + lockTimestamp + ", currentMs=" + currentMs
+        + ", expiredTs=" + TransactionTTL.getExpiredTimestampForWrite(currentMs));
+    return lockTimestamp < TransactionTTL.getExpiredTimestampForWrite(currentMs);
   }
 }

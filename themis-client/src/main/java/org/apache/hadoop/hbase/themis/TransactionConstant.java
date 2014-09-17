@@ -12,8 +12,6 @@ public class TransactionConstant {
   public static final int DEFAULT_THEMIS_RETRY_COUNT = 1;
   public static final String THEMIS_PAUSE = "themis.pause";
   public static final int DEFAULT_THEMIS_PAUSE = 100;
-  public static final String THEMIS_LOCK_TTL_KEY = "themis.lock.ttl";
-  public static final int DEFAULT_THEMIS_LOCK_TTL = 10 * 1000; // 10 seconds
   public static final String THEMIS_ENABLE_CONCURRENT_RPC = "themis.enable.concurrent.rpc";
   
   // constants for timestamp oracle
