@@ -41,41 +41,6 @@ public class ClientTestBase extends TransactionTestBase {
     return new KeyValue(c.getRow(), c.getFamily(), c.getQualifier(), ts, type, VALUE);
   }
   
-  protected void checkCommitSecondariesSuccess() throws IOException {
-    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
-      checkCommitColumnSuccess(columnCoordinate);
-    }
-  }
-  
-  protected void checkSecondariesRollback() throws IOException {
-    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
-      checkColumnRollback(columnCoordinate);
-    }
-  }
-  
-  protected void checkRollbackForSingleRow() throws IOException {
-    for (ColumnCoordinate columnCoordinate : PRIMARY_ROW_COLUMNS) {
-      checkColumnRollback(columnCoordinate);
-    }
-  }
-  
-  protected void checkColumnRollback(ColumnCoordinate columnCoordinate) throws IOException {
-    Assert.assertNull(readLockBytes(columnCoordinate));
-    Assert.assertNull(readPut(columnCoordinate));
-    Assert.assertNull(readDelete(columnCoordinate));
-  }
-  
-  protected void checkTransactionRollback() throws IOException {
-    for (ColumnCoordinate columnCoordinate : TRANSACTION_COLUMNS) {
-      checkColumnRollback(columnCoordinate);
-    }
-  }
-  
-  public void checkTransactionCommitSuccess() throws IOException {
-    checkCommitRowSuccess(TABLENAME, PRIMARY_ROW);
-    checkCommitSecondariesSuccess();
-  }
-
   protected ThemisGet getThemisGet(ColumnCoordinate c) throws IOException {
     return new ThemisGet(c.getRow()).addColumn(c.getFamily(), c.getQualifier());
   }
