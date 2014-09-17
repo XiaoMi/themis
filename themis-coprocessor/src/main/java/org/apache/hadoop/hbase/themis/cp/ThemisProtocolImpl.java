@@ -36,19 +36,18 @@ import com.google.common.collect.Lists;
 public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements ThemisProtocol {
   private static final Log LOG = LogFactory.getLog(ThemisProtocolImpl.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
-  private TransactionTTL transactionTTL;
   
   @Override
   public void start(CoprocessorEnvironment env) {
     super.start(env);
-    transactionTTL = new TransactionTTL(env.getConfiguration());
+    TransactionTTL.init(env.getConfiguration());
   }
   
   // TODO(cuijianwei) : read out data/lock/write column in the same region.get to improve efficiency?
   public Result themisGet(final Get get, final long startTs, final boolean ignoreLock)
       throws IOException {
     checkFamily(get);
-    checkReadTTL(transactionTTL, System.currentTimeMillis(), startTs);
+    checkReadTTL(System.currentTimeMillis(), startTs);
     // first get lock and write columns to check conflicted lock and get commitTs
     Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(get, startTs);
     HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
@@ -112,21 +111,18 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     }
   }
   
-  public static void checkReadTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+  public static void checkReadTTL(long currentMs, long startTs)
       throws TransactionExpiredException {
-    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
-        .getExpiredMsForReadByCommitColumn(currentMs) : transactionTTL
-        .getExpiredTsForReadByCommitColumn(currentMs);
-    if (startTs < expiredTimestamp) {
+    long expiredTimestamp = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
+    if (startTs < TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs)) {
       throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
           + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs);
     }
   }
   
-  public static void checkWriteTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+  public static void checkWriteTTL(long currentMs, long startTs)
       throws TransactionExpiredException {
-    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
-        .getExpiredMsForWrite(currentMs) : transactionTTL.getExpiredTsForWrite(currentMs);
+    long expiredTimestamp = TransactionTTL.getExpiredTimestampForWrite(currentMs);
     if (startTs < expiredTimestamp) {
       throw new TransactionExpiredException(
           "Expired Write Transaction, write transaction start Ts:" + startTs + ", expired Ts:"
@@ -177,7 +173,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     checkFamily(mutations);
     // TODO : use ms enough?
     long beginTs = System.nanoTime();
-    checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
+    checkWriteTTL(System.currentTimeMillis(), prewriteTs);
     try {
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
@@ -304,7 +300,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final long prewriteTs, final long commitTs, final int primaryIndex, final boolean singleRow)
       throws IOException {
     long beginTs = System.nanoTime();
-    checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
+    checkWriteTTL(System.currentTimeMillis(), prewriteTs);
     try {
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, Integer lid) throws IOException {

@@ -400,29 +400,20 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     admin.close();
   }
   
-  public static long getExpiredTimestampForRead(TransactionTTL transactionTTL, long currentMs,
-      boolean useChronosTs) {
-    if (useChronosTs) {
-      return transactionTTL.getExpiredTsForReadByCommitColumn(currentMs);
-    } else {
-      return transactionTTL.getExpiredMsForReadByCommitColumn(currentMs);
-    }
-  }
-  
   @Test
   public void testExpiredGet() throws IOException {
-    for (boolean useChronosTs : new boolean[] { false, true }) {
-      TransactionTTL transactionTTL = new TransactionTTL(conf);
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
       // won't expired
-      long currentMs = System.currentTimeMillis() + transactionTTL.writeTransactionTTL;
-      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      long currentMs = System.currentTimeMillis() + TransactionTTL.writeTransactionTTL;
+      prewriteTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
       Get get = new Get(ROW);
       get.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
       cpClient.themisGet(TABLENAME, get, prewriteTs);
 
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError;
-      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      currentMs = System.currentTimeMillis() - TransactionTTL.transactionTTLTimeError;
+      prewriteTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
       try {
         cpClient.themisGet(TABLENAME, get, prewriteTs);
         Assert.fail();
@@ -434,13 +425,13 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
   
   @Test
   public void testExpiredScan() throws IOException {
-    prewritePrimaryRow();
-    commitPrimaryRow();
-    for (boolean useChronosTs : new boolean[] { true, false }) {
-      TransactionTTL transactionTTL = new TransactionTTL(conf);
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
+      prewritePrimaryRow();
+      commitPrimaryRow();
       // won't expired
-      long currentMs = System.currentTimeMillis() + transactionTTL.writeTransactionTTL;
-      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      long currentMs = System.currentTimeMillis() + TransactionTTL.writeTransactionTTL;
+      prewriteTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
       Scan scan = new Scan();
       scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
       scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
@@ -448,10 +439,10 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
       scanner.next();
       scanner.close();
       scanner = null;
-      
+
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError;
-      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      currentMs = System.currentTimeMillis() - TransactionTTL.transactionTTLTimeError;
+      prewriteTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
       scan = new Scan();
       scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
       scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
@@ -465,10 +456,11 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
           scanner.close();
         }
       }
-      
+
       // getScanner won't expired, next will
-      currentMs = System.currentTimeMillis() + 3 * 1000; // assume the rpc will be completed in 3 seconds
-      prewriteTs = getExpiredTimestampForRead(transactionTTL, currentMs, useChronosTs);
+      currentMs = System.currentTimeMillis() + 3 * 1000; // assume the rpc will be completed in 3
+                                                         // seconds
+      prewriteTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
       scan = new Scan();
       scan.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
       scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));

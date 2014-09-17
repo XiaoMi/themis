@@ -39,107 +39,113 @@ public class TestThemisRegionObserver extends TransactionTestBase {
   
   @Test
   public void testPreFlushScannerOpen() throws Exception {
-    ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
-    HBaseAdmin admin = new HBaseAdmin(connection);
-    
-    prewriteTestDataForPreFlushAndPreCompact();
-    // no zk path
-    ZKUtil.deleteNodeFailSilent(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk));
-    admin.flush(TABLENAME);
-    Assert.assertEquals(6, getRowByScan().size());
-    deleteOldDataAndUpdateTs();
-    
-    // invalid value of cleanTs
-    prewriteTestDataForPreFlushAndPreCompact();
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-    admin.flush(TABLENAME);
-    Assert.assertEquals(6, getRowByScan().size());
-    deleteOldDataAndUpdateTs();
-    
-    // cleanTs is too new
-    prewriteTestDataForPreFlushAndPreCompact();
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(prewriteTs + 1)));
-    admin.flush(TABLENAME);
-    Assert.assertEquals(6, getRowByScan().size());
-    deleteOldDataAndUpdateTs();
-    
-    // clean old data
-    prewriteTestDataForPreFlushAndPreCompact();
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(prewriteTs + 5)));
-    admin.flush(TABLENAME);
-    Result result = getRowByScan();
-    Assert.assertEquals(3, result.size());
-    Assert.assertArrayEquals(QUALIFIER, result.list().get(0).getQualifier());
-    Column deleteColumn = ColumnUtil.getDeleteColumn(new Column(result.list().get(0).getFamily(),
-        result.list().get(0).getQualifier()));
-    Assert.assertArrayEquals(deleteColumn.getQualifier(), result.list().get(1).getQualifier());
-    Column putColumn = ColumnUtil.getPutColumn(new Column(result.list().get(0).getFamily(),
-      result.list().get(0).getQualifier()));
-    Assert.assertArrayEquals(putColumn.getQualifier(), result.list().get(2).getQualifier());
-    deleteOldDataAndUpdateTs();
-    
-    admin.close();
-    zk.close();    
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
+      ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
+      HBaseAdmin admin = new HBaseAdmin(connection);
+
+      prewriteTestDataForPreFlushAndPreCompact();
+      // no zk path
+      ZKUtil.deleteNodeFailSilent(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk));
+      admin.flush(TABLENAME);
+      Assert.assertEquals(6, getRowByScan().size());
+      deleteOldDataAndUpdateTs();
+
+      // invalid value of cleanTs
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
+      admin.flush(TABLENAME);
+      Assert.assertEquals(6, getRowByScan().size());
+      deleteOldDataAndUpdateTs();
+
+      // cleanTs is too new
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(prewriteTs + 1)));
+      admin.flush(TABLENAME);
+      Assert.assertEquals(6, getRowByScan().size());
+      deleteOldDataAndUpdateTs();
+
+      // clean old data
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(prewriteTs + 5)));
+      admin.flush(TABLENAME);
+      Result result = getRowByScan();
+      Assert.assertEquals(3, result.size());
+      Assert.assertArrayEquals(QUALIFIER, result.list().get(0).getQualifier());
+      Column deleteColumn = ColumnUtil.getDeleteColumn(new Column(result.list().get(0).getFamily(),
+          result.list().get(0).getQualifier()));
+      Assert.assertArrayEquals(deleteColumn.getQualifier(), result.list().get(1).getQualifier());
+      Column putColumn = ColumnUtil.getPutColumn(new Column(result.list().get(0).getFamily(),
+          result.list().get(0).getQualifier()));
+      Assert.assertArrayEquals(putColumn.getQualifier(), result.list().get(2).getQualifier());
+      deleteOldDataAndUpdateTs();
+
+      admin.close();
+      zk.close();
+    }
   }
   
   @Test
   public void preCompactScannerOpen() throws Exception {
-    ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
-    HBaseAdmin admin = new HBaseAdmin(connection);
-    
-    prewriteTestDataForPreFlushAndPreCompact();
-    // no zk path
-    ZKUtil.deleteNodeFailSilent(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk));
-    admin.flush(TABLENAME);
-    admin.compact(TABLENAME);
-    Threads.sleep(5000); // wait compaction complete
-    Assert.assertEquals(6, getRowByScan().size());
-    deleteOldDataAndUpdateTs();
-    
-    // invalid value of cleanTs
-    prewriteTestDataForPreFlushAndPreCompact();
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-    admin.flush(TABLENAME);
-    admin.compact(TABLENAME);
-    Threads.sleep(5000); // wait compaction complete
-    Assert.assertEquals(6, getRowByScan().size());
-    deleteOldDataAndUpdateTs();
-    
-    // cleanTs is too new
-    prewriteTestDataForPreFlushAndPreCompact();
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(prewriteTs + 1)));
-    admin.flush(TABLENAME);
-    admin.compact(TABLENAME);
-    Threads.sleep(5000); // wait compaction complete
-    Assert.assertEquals(6, getRowByScan().size());
-    deleteOldDataAndUpdateTs();
-    
-    // clean old data
-    prewriteTestDataForPreFlushAndPreCompact();
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-    admin.flush(TABLENAME); // cleanTs is invalid when flush
-    ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
-      Bytes.toBytes(String.valueOf(prewriteTs + 5)));
-    admin.compact(TABLENAME); // cleanTs is valid when compact
-    Threads.sleep(5000); // wait compaction complete
-    Result result = getRowByScan();
-    Assert.assertEquals(3, result.size());
-    Assert.assertArrayEquals(QUALIFIER, result.list().get(0).getQualifier());
-    Column deleteColumn = ColumnUtil.getDeleteColumn(new Column(result.list().get(0).getFamily(),
-        result.list().get(0).getQualifier()));
-    Assert.assertArrayEquals(deleteColumn.getQualifier(), result.list().get(1).getQualifier());
-    Column putColumn = ColumnUtil.getPutColumn(new Column(result.list().get(0).getFamily(),
-      result.list().get(0).getQualifier()));
-    Assert.assertArrayEquals(putColumn.getQualifier(), result.list().get(2).getQualifier());
-    deleteOldDataAndUpdateTs();
-    
-    admin.close();
-    zk.close();    
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
+      ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
+      HBaseAdmin admin = new HBaseAdmin(connection);
+
+      prewriteTestDataForPreFlushAndPreCompact();
+      // no zk path
+      ZKUtil.deleteNodeFailSilent(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk));
+      admin.flush(TABLENAME);
+      admin.compact(TABLENAME);
+      Threads.sleep(5000); // wait compaction complete
+      Assert.assertEquals(6, getRowByScan().size());
+      deleteOldDataAndUpdateTs();
+
+      // invalid value of cleanTs
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
+      admin.flush(TABLENAME);
+      admin.compact(TABLENAME);
+      Threads.sleep(5000); // wait compaction complete
+      Assert.assertEquals(6, getRowByScan().size());
+      deleteOldDataAndUpdateTs();
+
+      // cleanTs is too new
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(prewriteTs + 1)));
+      admin.flush(TABLENAME);
+      admin.compact(TABLENAME);
+      Threads.sleep(5000); // wait compaction complete
+      Assert.assertEquals(6, getRowByScan().size());
+      deleteOldDataAndUpdateTs();
+
+      // clean old data
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
+      admin.flush(TABLENAME); // cleanTs is invalid when flush
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(prewriteTs + 5)));
+      admin.compact(TABLENAME); // cleanTs is valid when compact
+      Threads.sleep(5000); // wait compaction complete
+      Result result = getRowByScan();
+      Assert.assertEquals(3, result.size());
+      Assert.assertArrayEquals(QUALIFIER, result.list().get(0).getQualifier());
+      Column deleteColumn = ColumnUtil.getDeleteColumn(new Column(result.list().get(0).getFamily(),
+          result.list().get(0).getQualifier()));
+      Assert.assertArrayEquals(deleteColumn.getQualifier(), result.list().get(1).getQualifier());
+      Column putColumn = ColumnUtil.getPutColumn(new Column(result.list().get(0).getFamily(),
+          result.list().get(0).getQualifier()));
+      Assert.assertArrayEquals(putColumn.getQualifier(), result.list().get(2).getQualifier());
+      deleteOldDataAndUpdateTs();
+
+      admin.close();
+      zk.close();
+    }
   }
 }

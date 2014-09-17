@@ -30,6 +30,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -42,7 +43,7 @@ import org.junit.BeforeClass;
 public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_RETRY_COUNT = 2;
   public static final int TEST_LOCK_CLEAN_PAUSE = 200;
-  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
+  protected static HBaseTestingUtility TEST_UTIL;
   
   protected HConnection connection;
   protected HTableInterface table;
@@ -58,13 +59,17 @@ public class TransactionTestBase extends TestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    /*
+    TEST_UTIL = new HBaseTestingUtility();
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
     conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
       ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
     conf.setStrings(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, ThemisMasterObserver.class.getName());
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
+    // timestampBase will increase by 100 each test which will cause the prewriteTs/commitTs is small
+    // than real timestamp, so that set TransactionWriteTTL to 1 hour to avoid this situation
+    conf.setInt(TransactionTTL.THEMIS_WRITE_TRANSACTION_TTL_KEY, 3600);
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
@@ -79,16 +84,22 @@ public class TransactionTestBase extends TestBase {
       admin.createTable(tableDesc);
     }
     admin.close();
-    */
+    TransactionTTL.init(conf);
+    
+    /*
     conf = HBaseConfiguration.create();
+    // must make sure the side-side have the same config
+    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
     conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
     conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine"); 
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); 
+    TransactionTTL.init(conf);
+    */
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-//    TEST_UTIL.shutdownMiniCluster();
+    TEST_UTIL.shutdownMiniCluster();
   }
   
   @Before

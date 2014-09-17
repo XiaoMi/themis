@@ -215,27 +215,21 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     admin.close();
   }
   
-  public static long getExpiredTimestampForWrite(TransactionTTL transactionTTL, long currentMs,
-      boolean useChronosTime) {
-    if (useChronosTime) {
-      return transactionTTL.getExpiredTsForWrite(currentMs);
-    } else {
-      return transactionTTL.getExpiredMsForWrite(currentMs);
-    }
-  }
-  
   @Test
   public void testTransactionExpiredWhenPrewrite() throws IOException {
-    for (boolean useChronosTs : new boolean[] { true, false }) {
-      TransactionTTL transactionTTL = new TransactionTTL(conf);
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
+      // remove old family delete
+      truncateTable(TABLENAME);
       // won't expired
-      long currentMs = System.currentTimeMillis() + transactionTTL.writeTransactionTTL;
-      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      long currentMs = System.currentTimeMillis() + TransactionTTL.writeTransactionTTL;
+      prewriteTs = TransactionTTL.getExpiredTimestampForWrite(currentMs);
       prewritePrimaryRow();
-
+      checkPrewriteRowSuccess(TABLENAME, PRIMARY_ROW);
+      
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError;
-      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      currentMs = System.currentTimeMillis() - TransactionTTL.transactionTTLTimeError;
+      prewriteTs = TransactionTTL.getExpiredTimestampForWrite(currentMs);
       try {
         prewritePrimaryRow();
         Assert.fail();
@@ -249,17 +243,20 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
   
   @Test
   public void testTransactionExpiredWhenCommit() throws IOException {
-    for (boolean useChronosTs : new boolean[] { true, false }) {
-      TransactionTTL transactionTTL = new TransactionTTL(conf);
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
+      // remove old family delete
+      truncateTable(TABLENAME);
       // won't expired
-      long currentMs = System.currentTimeMillis() + 60 * 1000;
-      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      long currentMs = System.currentTimeMillis() + TransactionTTL.writeTransactionTTL;
+      prewriteTs = TransactionTTL.getExpiredTimestampForWrite(currentMs);
       Assert.assertNull(prewritePrimaryRow());
+      checkPrewriteRowSuccess(TABLENAME, PRIMARY_ROW);
       commitPrimaryRow();
 
       // make sure this transaction will be expired
-      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
-      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      currentMs = System.currentTimeMillis() - TransactionTTL.transactionTTLTimeError;
+      prewriteTs = TransactionTTL.getExpiredTimestampForWrite(currentMs);
       try {
         commitPrimaryRow();
         Assert.fail();

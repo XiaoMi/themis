@@ -25,11 +25,10 @@ import org.apache.hadoop.hbase.util.Pair;
 public class ThemisScanObserver extends BaseRegionObserver {
   public static final String TRANSACTION_START_TS = "_themisTransationStartTs_";
   private static final Log LOG = LogFactory.getLog(ThemisScanObserver.class);
-  private TransactionTTL transactionTTL;
   
   @Override
   public void start(CoprocessorEnvironment e) throws IOException {
-    transactionTTL = new TransactionTTL(e.getConfiguration());
+    TransactionTTL.init(e.getConfiguration());
   }
   
   protected static boolean next(HRegion region, final ThemisServerScanner s,
@@ -75,7 +74,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       if (s instanceof ThemisServerScanner) {
         ThemisServerScanner pScanner = (ThemisServerScanner)s;
-        ThemisProtocolImpl.checkReadTTL(transactionTTL, System.currentTimeMillis(), pScanner.getStartTs());
+        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), pScanner.getStartTs());
         HRegion region = e.getEnvironment().getRegion();
         boolean more = next(region, pScanner, results, limit);
         e.bypass();
@@ -96,7 +95,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
       Long themisStartTs = getStartTsFromAttribute(scan);
       if (themisStartTs != null) {
         checkFamily(e.getEnvironment().getRegion(), scan);
-        ThemisProtocolImpl.checkReadTTL(transactionTTL, System.currentTimeMillis(), themisStartTs);
+        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), themisStartTs);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
         ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment()
             .getRegion().getScanner(internalScan), themisStartTs, scan.getFilter());

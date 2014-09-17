@@ -41,9 +41,6 @@ import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 public class ThemisMasterObserver extends BaseMasterObserver {
   private static final Log LOG = LogFactory.getLog(ThemisMasterObserver.class);
 
-  public static final String THEMIS_TIMESTAMP_TYPE_KEY = "themis.timestamp.type";
-  public static final String CHRONOS_TIMESTAMP = "chronos";
-  public static final String MS_TIMESTAMP = "ms";
   public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
   public static final String THEMIS_ENABLE_KEY = "THEMIS_ENABLE";
   public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_ENABLE_KEY = "themis.expired.timestamp.calculate.enable";
@@ -53,8 +50,6 @@ public class ThemisMasterObserver extends BaseMasterObserver {
 
   protected int expiredTsCalculatePeriod;
   protected Chore themisExpiredTsCalculator;
-  protected TransactionTTL transactionTTL;
-  protected String timestampType;
   protected ZooKeeperWatcher zk;
   protected String themisExpiredTsZNodePath;
   protected HConnection connection;
@@ -152,16 +147,11 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     cpClient = new ThemisCoprocessorClient(connection);
     lockCleaner = new ServerLockCleaner(connection, cpClient);
     
-    timestampType = ctx.getConfiguration().get(THEMIS_TIMESTAMP_TYPE_KEY, CHRONOS_TIMESTAMP);
-    if (!timestampType.equals(CHRONOS_TIMESTAMP) && !timestampType.equals(MS_TIMESTAMP)) {
-      throw new IOException("timestamp type must be '" + CHRONOS_TIMESTAMP + "' or '"
-          + MS_TIMESTAMP + "', but is '" + timestampType + "'");
-    }
-    transactionTTL = new TransactionTTL(ctx.getConfiguration());
+    TransactionTTL.init(ctx.getConfiguration());
     String expiredTsCalculatePeriodStr = ctx.getConfiguration()
         .get(THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY);
     if (expiredTsCalculatePeriodStr == null) {
-      expiredTsCalculatePeriod = transactionTTL.readTransactionTTL / 1000;
+      expiredTsCalculatePeriod = TransactionTTL.readTransactionTTL / 1000;
     } else {
       expiredTsCalculatePeriod = Integer.parseInt(expiredTsCalculatePeriodStr);
     }
@@ -170,7 +160,8 @@ public class ThemisMasterObserver extends BaseMasterObserver {
         ctx.getMasterServices());
     Threads.setDaemonThreadRunning(themisExpiredTsCalculator.getThread());
     LOG.info("successfully start thread to compute the expired timestamp for themis table, timestampType="
-        + timestampType + ", calculatorPeriod=" + expiredTsCalculatePeriod + ", zkPath=" + themisExpiredTsZNodePath);
+        + TransactionTTL.timestampType + ", calculatorPeriod=" + expiredTsCalculatePeriod + ", zkPath="
+        + themisExpiredTsZNodePath);
   }
   
   class ExpiredTimestampCalculator extends Chore {
@@ -180,19 +171,12 @@ public class ThemisMasterObserver extends BaseMasterObserver {
       super("ThemisExpiredTimestampCalculator", p, service);
     }
     
-    protected void computeExpiredTs() {
-      long currentMs = System.currentTimeMillis();
-      if (timestampType.equals(CHRONOS_TIMESTAMP)) {
-        currentExpiredTs = transactionTTL.getExpiredTsForReadByDataColumn(currentMs);
-      } else {
-        currentExpiredTs = transactionTTL.getExpiredMsForReadByDataColumn(currentMs);
-      }
-      LOG.info("computed expired timestamp for themis, currentExpiredTs=" + currentExpiredTs);
-    }
-    
     @Override
     protected void chore() {
-      computeExpiredTs();
+      long currentMs = System.currentTimeMillis();
+      currentExpiredTs = TransactionTTL.getExpiredTimestampForReadByDataColumn(currentMs);
+      LOG.info("computed expired timestamp for themis, currentExpiredTs=" + currentExpiredTs
+          + ", currentMs=" + currentMs);
       try {
         cleanLockBeforeTimestamp(currentExpiredTs);
         setExpiredTsToZk(currentExpiredTs);
