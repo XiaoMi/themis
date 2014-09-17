@@ -1,5 +1,7 @@
 package org.apache.hadoop.hbase.themis.cp;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.themis.TestBase;
@@ -9,7 +11,7 @@ import org.junit.Test;
 
 public class TestTransactionTTL extends TestBase {
   @Test
-  public void testToMs() {
+  public void testToMs() throws IOException {
     TransactionTTL.init(HBaseConfiguration.create());
     long ms = TransactionTTL.toMs(369778447744761856l);
     Assert.assertTrue(ms < System.currentTimeMillis());
@@ -17,7 +19,7 @@ public class TestTransactionTTL extends TestBase {
   }
   
   @Test
-  public void testGetExpiredTime() {
+  public void testGetExpiredTime() throws IOException {
     Configuration conf = HBaseConfiguration.create();
     
     conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());

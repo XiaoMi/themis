@@ -1,5 +1,7 @@
 package org.apache.hadoop.hbase.themis.cp;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configuration;
 
 public class TransactionTTL {
@@ -21,15 +23,22 @@ public class TransactionTTL {
     MS
   }
   
-  public static void init(Configuration conf) {
+  public static void init(Configuration conf) throws IOException {
     readTransactionTTL = conf.getInt(THEMIS_READ_TRANSACTION_TTL_KEY,
       DEFAULT_THEMIS_READ_TRANSACTION_TTL) * 1000;
     writeTransactionTTL = conf.getInt(THEMIS_WRITE_TRANSACTION_TTL_KEY,
       DEFAULT_THEMIS_WRITE_TRANSACTION_TTL) * 1000;
-    // TODO : must make sure readTransactionTTL < writeTransactionTTL and writeTransactionTTL == lockTTL?
     transactionTTLTimeError = conf.getInt(THEMIS_TRANSACTION_TTL_TIME_ERROR_KEY,
       DEFAULT_THEMIS_TRANSACTION_TTL_TIME_ERROR) * 1000;
     timestampType = TimestampType.valueOf(conf.get(THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.CHRONOS.toString()));
+    if (readTransactionTTL < writeTransactionTTL + transactionTTLTimeError) {
+      throw new IOException(
+          "it is not reasonable to set readTransactionTTL just equal to writeTransactionTTL, readTransactionTTL="
+              + readTransactionTTL
+              + ", writeTransactionTTL="
+              + writeTransactionTTL
+              + ", transactionTTLTimeError=" + transactionTTLTimeError);
+    }
   }
   
   // eg. 369778447744761856 >> 18

@@ -127,9 +127,8 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   public void testCleanTimeExpiredLock() throws IOException {
     ThemisMasterObserver masterObserver = new ThemisMasterObserver();
     masterObserver.connection = connection;
-    masterObserver.cpClient = new ThemisCoprocessorClient(connection);
     masterObserver.lockCleaner = new ServerLockCleaner(masterObserver.connection,
-        masterObserver.cpClient);
+      new ThemisCoprocessorClient(connection));
     writeLockAndData(COLUMN, prewriteTs);
     writeLockAndData(COLUMN_WITH_ANOTHER_TABLE, prewriteTs + 1);
     // won't clear lock

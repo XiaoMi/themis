@@ -37,10 +37,15 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   private static final Log LOG = LogFactory.getLog(ThemisProtocolImpl.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
   
+  // TODO : won't throw IOException?
   @Override
   public void start(CoprocessorEnvironment env) {
     super.start(env);
-    TransactionTTL.init(env.getConfiguration());
+    try {
+      TransactionTTL.init(env.getConfiguration());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
   
   // TODO(cuijianwei) : read out data/lock/write column in the same region.get to improve efficiency?

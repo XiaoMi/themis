@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Put;
@@ -26,7 +27,18 @@ public class ThemisRegionObserver extends BaseRegionObserver {
   
   public static final String SINGLE_ROW_PRIMARY_QUALIFIER = "_themisSingleRowPrewritePrimaryQualifier_";
   public static final String LOCK_FAMILY_DELETE = "_themisLockFamilyDelete_";
-
+  private boolean expiredDataCleanEnable;
+  
+  @Override
+  public void start(CoprocessorEnvironment e) throws IOException {
+    super.start(e);
+    expiredDataCleanEnable = e.getConfiguration().getBoolean(
+      ThemisMasterObserver.THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true);
+    if (expiredDataCleanEnable) {
+      LOG.info("themis expired data clean enable");
+    }
+  }
+  
   @Override
   public void prePut(final ObserverContext<RegionCoprocessorEnvironment> c, final Put put,
       final WALEdit edit, final boolean writeToWAL) throws IOException {
@@ -87,7 +99,7 @@ public class ThemisRegionObserver extends BaseRegionObserver {
   public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
       final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
       throws IOException {
-    if (ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
+    if (expiredDataCleanEnable && ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
       InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.scanInfo,
         Collections.singletonList(memstoreScanner), ScanType.MINOR_COMPACT, store.getHRegion()
             .getSmallestReadPoint(), HConstants.OLDEST_TIMESTAMP);
@@ -103,7 +115,7 @@ public class ThemisRegionObserver extends BaseRegionObserver {
       final Store store, List<? extends KeyValueScanner> scanners, final ScanType scanType,
       final long earliestPutTs, final InternalScanner s, CompactionRequest request)
       throws IOException {
-    if (ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
+    if (expiredDataCleanEnable && ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
       InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.getScanInfo(),
         scanners, scanType, store.getHRegion().getSmallestReadPoint(), earliestPutTs);
       if (scanner != null) {
