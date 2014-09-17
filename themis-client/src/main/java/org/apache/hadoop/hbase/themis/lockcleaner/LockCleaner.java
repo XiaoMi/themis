@@ -38,17 +38,15 @@ import com.google.common.collect.Lists;
 public class LockCleaner {
   private static final Log LOG = LogFactory.getLog(LockCleaner.class);
   private WorkerRegister register;
-  private WallClock wallClock;
   private int lockTTL;
   private HConnection conn;
   private int retry;
   private int pause;
   private final ThemisCoprocessorClient cpClient;
   
-  public LockCleaner(Configuration conf, HConnection conn, WallClock wallClock,
-      WorkerRegister register, ThemisCoprocessorClient cpClient) throws IOException {
+  public LockCleaner(Configuration conf, HConnection conn, WorkerRegister register,
+      ThemisCoprocessorClient cpClient) throws IOException {
     this.conn = conn;
-    this.wallClock = wallClock;
     this.register = register;
     this.cpClient = cpClient;
     lockTTL = conf.getInt(TransactionConstant.THEMIS_LOCK_TTL_KEY,
@@ -65,12 +63,12 @@ public class LockCleaner {
       LOG.warn("worker, address=" + lock.getClientAddress() + " is not alive");
       return true;
     }
-    return isLockExpired(lock);
+    return false;
   }
   
-  public boolean isLockExpired(ThemisLock lock) {
-    return lock.getWallTime() + lockTTL <= wallClock.getWallTime();
-  }
+//  private boolean isLockExpired(ThemisLock lock) {
+//    return lock.getWallTime() + lockTTL <= wallClock.getWallTime();
+//  }
 
   // get primary column coordinate from conflict lock
   protected static PrimaryLock getPrimaryLockWithColumn(ThemisLock lock) {

@@ -53,12 +53,12 @@ public class TransactionTestBase extends TestBase {
   // the following ts has effect across uts
   protected static long timestampBase;
   protected static long prewriteTs;
-  protected static long wallTime;
   protected static long commitTs;
   protected ThemisCoprocessorClient cpClient;
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
+    /*
     TEST_UTIL = new HBaseTestingUtility();
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
@@ -85,8 +85,7 @@ public class TransactionTestBase extends TestBase {
     }
     admin.close();
     TransactionTTL.init(conf);
-    
-    /*
+    */
     conf = HBaseConfiguration.create();
     // must make sure the side-side have the same config
     conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
@@ -94,12 +93,13 @@ public class TransactionTestBase extends TestBase {
     conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine"); 
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); 
     TransactionTTL.init(conf);
-    */
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    TEST_UTIL.shutdownMiniCluster();
+    if (TEST_UTIL != null) {
+      TEST_UTIL.shutdownMiniCluster();
+    }
   }
   
   @Before
@@ -157,7 +157,6 @@ public class TransactionTestBase extends TestBase {
   protected void nextTransactionTs() {
     timestampBase = timestampBase == 0 ? System.currentTimeMillis() : timestampBase + 100;
     prewriteTs = timestampBase + 1;
-    wallTime = prewriteTs;
     commitTs = prewriteTs + 1;
   }
   

@@ -35,7 +35,6 @@ import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.themis.lockcleaner.LockCleaner;
-import org.apache.hadoop.hbase.themis.lockcleaner.WallClock;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.ThemisTimestamp;
@@ -50,8 +49,6 @@ public class Transaction extends Configured implements TransactionInterface {
   private ThemisTimestamp timestampOracle;
   protected LockCleaner lockCleaner;
   // wallClock will be include into lock to judge whether the transaction is expired
-  private WallClock wallClock;
-  protected long wallTime;
   private WorkerRegister register;
   protected WrappedCoprocessorClient cpClient;
   protected long startTs;
@@ -77,22 +74,21 @@ public class Transaction extends Configured implements TransactionInterface {
   
   public Transaction(Configuration conf, HConnection connection)
       throws IOException {
-    this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf), WallClock
-      .getWallTimer(conf), WorkerRegister.getWorkerRegister(conf));
+    this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf), WorkerRegister
+        .getWorkerRegister(conf));
   }
   
   protected Transaction(Configuration conf, HConnection connection,
-      BaseTimestampOracle timestampOracle, WallClock wallClock, WorkerRegister register) throws IOException {
+      BaseTimestampOracle timestampOracle, WorkerRegister register) throws IOException {
     setConf(conf);
     this.connection = connection;
     this.timestampOracle = new ThemisTimestamp(timestampOracle);
-    this.wallClock = wallClock;
     this.register = register;
     this.register.registerWorker();
     this.enableConcurrentRpc = getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
     this.cpClient = new WrappedCoprocessorClient(connection);
     // TODO : share this object?
-    this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
+    this.lockCleaner = new LockCleaner(getConf(), connection, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
@@ -173,7 +169,6 @@ public class Transaction extends Configured implements TransactionInterface {
     if (mutationCache.size() == 0) {
       return;
     }
-    wallTime = wallClock.getWallTime();
     selectPrimaryAndSecondaries();
 
     // must prewrite primary successfully before prewriting secondaries
@@ -369,7 +364,6 @@ public class Transaction extends Configured implements TransactionInterface {
   
   protected void setThemisLock(ThemisLock lock) {
     lock.setTimestamp(startTs);
-    lock.setWallTime(wallTime);
     lock.setClientAddress(register.getClientAddress());
   }
   
