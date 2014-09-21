@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -58,7 +57,6 @@ public class TransactionTestBase extends TestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    /*
     TEST_UTIL = new HBaseTestingUtility();
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
@@ -84,15 +82,6 @@ public class TransactionTestBase extends TestBase {
       admin.createTable(tableDesc);
     }
     admin.close();
-    TransactionTTL.init(conf);
-    */
-    conf = HBaseConfiguration.create();
-    // must make sure the side-side have the same config
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
-    conf.setInt(TransactionTTL.THEMIS_WRITE_TRANSACTION_TTL_KEY, 3600);
-    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine"); 
-    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); 
     TransactionTTL.init(conf);
   }
 

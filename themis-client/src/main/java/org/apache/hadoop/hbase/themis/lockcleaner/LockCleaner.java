@@ -80,6 +80,7 @@ public class LockCleaner extends ServerLockCleaner {
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
+        // TODO : get lock expired in server side when get return
         lock.setLockExpired(cpClient.isLockExpired(tableName, kv.getRow(), kv.getTimestamp()));
         locks.add(lock);
       }
