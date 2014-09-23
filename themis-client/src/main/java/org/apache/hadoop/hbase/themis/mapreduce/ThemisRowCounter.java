@@ -86,7 +86,7 @@ public class ThemisRowCounter {
       }
     }
     job.setOutputFormatClass(NullOutputFormat.class);
-    TableMapReduceUtil.initTableMapperJob(tableName, scan,
+    ThemisTableMapReduceUtil.initTableMapperJob(tableName, scan,
       RowCounterMapper.class, ImmutableBytesWritable.class, Result.class, job);
     job.setNumReduceTasks(0);
     return job;
