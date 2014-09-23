@@ -3,12 +3,15 @@ package org.apache.hadoop.hbase.themis.mapreduce;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.mapreduce.MultiTableInputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
@@ -81,5 +84,42 @@ public class ThemisTableMapReduceUtil {
   public static void addDependencyJars(Job job) throws IOException {
     TableMapReduceUtil.addDependencyJars(job);
     TableMapReduceUtil.addDependencyJars(job.getConfiguration(), ThemisCoprocessorClient.class);
+  }
+  
+  public static void initTableMapperJob(List<Scan> scans,
+      Class<? extends TableMapper> mapper,
+      Class<? extends WritableComparable> outputKeyClass,
+      Class<? extends Writable> outputValueClass, Job job) throws IOException {
+    initTableMapperJob(scans, mapper, outputKeyClass, outputValueClass, job,
+        true);
+  }
+
+  // for multi-table
+  public static void initTableMapperJob(List<Scan> scans,
+      Class<? extends TableMapper> mapper,
+      Class<? extends WritableComparable> outputKeyClass,
+      Class<? extends Writable> outputValueClass, Job job,
+      boolean addDependencyJars) throws IOException {
+    job.setInputFormatClass(MultiThemisTableInputFormat.class);
+    if (outputValueClass != null) {
+      job.setMapOutputValueClass(outputValueClass);
+    }
+    if (outputKeyClass != null) {
+      job.setMapOutputKeyClass(outputKeyClass);
+    }
+    job.setMapperClass(mapper);
+    HBaseConfiguration.addHbaseResources(job.getConfiguration());
+    List<String> scanStrings = new ArrayList<String>();
+
+    for (Scan scan : scans) {
+      scanStrings.add(convertScanToString(scan));
+    }
+    job.getConfiguration().setStrings(MultiTableInputFormat.SCANS,
+      scanStrings.toArray(new String[scanStrings.size()]));
+
+    if (addDependencyJars) {
+      addDependencyJars(job);
+    }
+    TableMapReduceUtil.initCredentials(job);
   }
 }
