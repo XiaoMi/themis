@@ -10,18 +10,26 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+import org.apache.hadoop.hbase.mapreduce.HRegionPartitioner;
 import org.apache.hadoop.hbase.mapreduce.MultiTableInputFormat;
+import org.apache.hadoop.hbase.mapreduce.MultiTableOutputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
+import org.apache.hadoop.hbase.mapreduce.TableOutputFormat;
+import org.apache.hadoop.hbase.mapreduce.TableReducer;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.OutputFormat;
 
 public class ThemisTableMapReduceUtil {
   static Log LOG = LogFactory.getLog(TableMapReduceUtil.class);
@@ -120,6 +128,69 @@ public class ThemisTableMapReduceUtil {
     if (addDependencyJars) {
       addDependencyJars(job);
     }
+    TableMapReduceUtil.initCredentials(job);
+  }
+  
+  // for reduce
+  public static void initMultiTableReducerJob(Class<? extends TableReducer> reducer,
+      Job job) throws IOException {
+    initTableReducerJob("", reducer, job, null, null, null, null, true,
+      MultiThemisTableOutputFormat.class);
+  }
+  
+  public static void initTableReducerJob(String table, Class<? extends TableReducer> reducer,
+      Job job) throws IOException {
+    initTableReducerJob(table, reducer, job, null);
+  }
+
+  public static void initTableReducerJob(String table, Class<? extends TableReducer> reducer,
+      Job job, Class partitioner) throws IOException {
+    initTableReducerJob(table, reducer, job, partitioner, null, null, null);
+  }
+
+  public static void initTableReducerJob(String table, Class<? extends TableReducer> reducer,
+      Job job, Class partitioner, String quorumAddress, String serverClass, String serverImpl)
+      throws IOException {
+    initTableReducerJob(table, reducer, job, partitioner, quorumAddress, serverClass, serverImpl,
+      true, ThemisTableOutputFormat.class);
+  }
+
+  public static void initTableReducerJob(String table, Class<? extends TableReducer> reducer,
+      Job job, Class partitioner, String quorumAddress, String serverClass, String serverImpl,
+      boolean addDependencyJars, Class<? extends OutputFormat> outputFormatClass) throws IOException {
+
+    Configuration conf = job.getConfiguration();
+    HBaseConfiguration.merge(conf, HBaseConfiguration.create(conf));
+    job.setOutputFormatClass(outputFormatClass);
+    if (reducer != null) job.setReducerClass(reducer);
+    conf.set(TableOutputFormat.OUTPUT_TABLE, table);
+    // If passed a quorum/ensemble address, pass it on to TableOutputFormat.
+    if (quorumAddress != null) {
+      // Calling this will validate the format
+      ZKUtil.transformClusterKey(quorumAddress);
+      conf.set(TableOutputFormat.QUORUM_ADDRESS, quorumAddress);
+    }
+    if (serverClass != null && serverImpl != null) {
+      conf.set(TableOutputFormat.REGION_SERVER_CLASS, serverClass);
+      conf.set(TableOutputFormat.REGION_SERVER_IMPL, serverImpl);
+    }
+    job.setOutputKeyClass(ImmutableBytesWritable.class);
+    job.setOutputValueClass(Writable.class);
+    if (partitioner == HRegionPartitioner.class) {
+      job.setPartitionerClass(HRegionPartitioner.class);
+      HTable outputTable = new HTable(conf, table);
+      int regions = outputTable.getRegionsInfo().size();
+      if (job.getNumReduceTasks() > regions) {
+        job.setNumReduceTasks(outputTable.getRegionsInfo().size());
+      }
+    } else if (partitioner != null) {
+      job.setPartitionerClass(partitioner);
+    }
+
+    if (addDependencyJars) {
+      addDependencyJars(job);
+    }
+
     TableMapReduceUtil.initCredentials(job);
   }
 }

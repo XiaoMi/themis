@@ -8,34 +8,15 @@ import java.io.IOException;
 import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.themis.ThemisPut;
 import org.apache.hadoop.hbase.themis.Transaction;
-import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.Job;
-import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category(MediumTests.class)
-public class TestThemisRowCounter extends TransactionTestBase {
-  @BeforeClass
-  public static void setUpBeforeClass() throws Exception {
-    TransactionTestBase.setUpBeforeClass();
-    if (TEST_UTIL != null) {
-      TEST_UTIL.startMiniMapReduceCluster();
-    }
-  }
-  
-  @AfterClass
-  public static void tearDownAfterClass() throws Exception {
-    TransactionTestBase.tearDownAfterClass();
-    if (TEST_UTIL != null) {
-      TEST_UTIL.shutdownMiniMapReduceCluster();
-    }
-  }
-  
+public class TestThemisRowCounter extends TestThemisMapReduceBase {
   protected void writeTestData() throws IOException {
     Transaction transaction = new Transaction(connection);
     transaction.put(
