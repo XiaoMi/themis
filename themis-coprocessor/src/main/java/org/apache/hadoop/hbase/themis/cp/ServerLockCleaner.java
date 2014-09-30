@@ -34,7 +34,7 @@ public class ServerLockCleaner {
   }
   
   // get primary column coordinate from conflict lock
-  protected static PrimaryLock getPrimaryLockWithColumn(ThemisLock lock) {
+  public static PrimaryLock getPrimaryLockWithColumn(ThemisLock lock) {
     if (lock.isPrimary()) {
       return (PrimaryLock)lock;
     } else {
@@ -58,22 +58,21 @@ public class ServerLockCleaner {
       primary = cleanResult.getSecond() == null ? primary : cleanResult.getSecond();
       // clean secondary locks
       cleanSecondaryLocks(primary, cleanResult.getFirst());
-//      ThemisStatistics.getStatistics().cleanLockSuccessCount.inc();
+      ThemisCpStatistics.getThemisCpStatistics().cleanLockSuccessCount.inc();
     } catch (IOException e) {
-//      ThemisStatistics.getStatistics().cleanLockFailCount.inc();
+      ThemisCpStatistics.getThemisCpStatistics().cleanLockFailCount.inc();
       throw e;
     } finally {
-//      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().cleanLockLatency, beginTs);
+      ThemisCpStatistics.updateLatency(ThemisCpStatistics.getThemisCpStatistics().cleanLockLatency, beginTs);
     }
   }
   
   // clean primary lock erasing lock. return commitTs if the primary has been committed by other client;
   // otherwise, return the cleaned primary lock if the lock is cleaned by this client.
-  protected Pair<Long, PrimaryLock> cleanPrimaryLock(ColumnCoordinate columnCoordinate,
+  public Pair<Long, PrimaryLock> cleanPrimaryLock(ColumnCoordinate columnCoordinate,
       long prewriteTs) throws IOException {
     // read back and erase primary lock if exist
     ThemisLock lock = cpClient.getLockAndErase(columnCoordinate, prewriteTs);
-    System.out.println("###debug, lock=" + lock);
     // make sure we must get a primary lock when there are logic errors in code
     if (lock != null && !(lock instanceof PrimaryLock)) {
       throw new ThemisFatalException("encounter no-primary lock when cleanPrimaryLock, column="
@@ -85,9 +84,9 @@ public class ServerLockCleaner {
     // commitTs = null indicates the conflicted transaction has been erased by other client; otherwise
     // the conflicted must be committed by other client.
     if (commitTs == null) {
-//      ThemisStatistics.getStatistics().cleanLockByEraseCount.inc();
+      ThemisCpStatistics.getThemisCpStatistics().cleanLockByEraseCount.inc();
     } else {
-//      ThemisStatistics.getStatistics().cleanLockByCommitCount.inc();
+      ThemisCpStatistics.getThemisCpStatistics().cleanLockByCommitCount.inc();
     }
     return new Pair<Long, PrimaryLock>(commitTs, primaryLock);
   }
@@ -114,7 +113,7 @@ public class ServerLockCleaner {
     }
   }
   
-  protected Get createGetOfWriteColumnsIndexingPrewriteTs(ColumnCoordinate columnCoordinate, long timestamp)
+  public Get createGetOfWriteColumnsIndexingPrewriteTs(ColumnCoordinate columnCoordinate, long timestamp)
       throws IOException {
     Get get = new Get(columnCoordinate.getRow());
     ThemisCpUtil.addWriteColumnToGet(columnCoordinate, get);
@@ -124,7 +123,7 @@ public class ServerLockCleaner {
   }
   
   // erase lock and data if commitTs is null; otherwise, commit it.
-  protected void cleanSecondaryLocks(PrimaryLock primaryLock, Long commitTs)
+  public void cleanSecondaryLocks(PrimaryLock primaryLock, Long commitTs)
       throws IOException {
     for (Entry<ColumnCoordinate, Type> secondary : primaryLock.getSecondaryColumns().entrySet()) {
       if (commitTs == null) {

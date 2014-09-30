@@ -364,6 +364,59 @@ public class TransactionTestBase extends TestBase {
     }
   }
   
+  protected void checkCommitSecondariesSuccess() throws IOException {
+    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
+      checkCommitColumnSuccess(columnCoordinate);
+    }
+  }
+  
+  protected void checkSecondariesRollback() throws IOException {
+    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
+  protected void checkColumnRollback(ColumnCoordinate columnCoordinate) throws IOException {
+    Assert.assertNull(readLockBytes(columnCoordinate));
+    Assert.assertNull(readPut(columnCoordinate));
+    Assert.assertNull(readDelete(columnCoordinate));
+  }
+  
+  protected void checkRollbackForSingleRow() throws IOException {
+    for (ColumnCoordinate columnCoordinate : PRIMARY_ROW_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
+  protected void checkTransactionRollback() throws IOException {
+    for (ColumnCoordinate columnCoordinate : TRANSACTION_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
+  public void checkTransactionCommitSuccess() throws IOException {
+    checkCommitRowSuccess(TABLENAME, PRIMARY_ROW);
+    checkCommitSecondariesSuccess();
+  }
+
+  protected void checkColumnsCommitSuccess(ColumnCoordinate[] columns) throws IOException {
+    for (ColumnCoordinate columnCoordinate : columns) {
+      checkCommitColumnSuccess(columnCoordinate);
+    }
+  }
+  
+  protected void checkColumnsPrewriteSuccess(ColumnCoordinate[] columns) throws IOException {
+    for (ColumnCoordinate columnCoordinate : columns) {
+      checkPrewriteColumnSuccess(columnCoordinate);
+    }
+  }
+  
+  protected void checkColumnsRallback(ColumnCoordinate[] columns) throws IOException {
+    for (ColumnCoordinate columnCoordinate : columns) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
   protected ThemisLock prewritePrimaryRow() throws IOException {
     byte[] lockBytes = ThemisLock.toByte(getLock(COLUMN));
     ThemisLock lock = cpClient.prewriteRow(COLUMN.getTableName(), PRIMARY_ROW.getRow(),

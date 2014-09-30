@@ -5,6 +5,7 @@ import org.apache.hadoop.metrics.MetricsRecord;
 import org.apache.hadoop.metrics.MetricsUtil;
 import org.apache.hadoop.metrics.Updater;
 import org.apache.hadoop.metrics.util.MetricsRegistry;
+import org.apache.hadoop.metrics.util.MetricsTimeVaryingLong;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingRate;
 
 // latency statistics for key steps of themis coprocessor
@@ -25,6 +26,13 @@ public class ThemisCpStatistics implements Updater {
   public final MetricsTimeVaryingRate getLockAndEraseReadLatency = new MetricsTimeVaryingRate("getLockAndEraseReadLatency", registry);
   public final MetricsTimeVaryingRate getLockAndEraseDeleteLatency = new MetricsTimeVaryingRate("getLockAndEraseDeleteLatency", registry);
   
+  // metrics for lock clean
+  public final MetricsTimeVaryingRate cleanLockLatency = new MetricsTimeVaryingRate("cleanLockLatency", registry);
+  public final MetricsTimeVaryingLong cleanLockSuccessCount = new MetricsTimeVaryingLong("cleanLockSuccessCount", registry);
+  public final MetricsTimeVaryingLong cleanLockFailCount = new MetricsTimeVaryingLong("cleanLockFailCount", registry);
+  public final MetricsTimeVaryingLong cleanLockByEraseCount = new MetricsTimeVaryingLong("cleanLockWithEraseCount", registry);
+  public final MetricsTimeVaryingLong cleanLockByCommitCount = new MetricsTimeVaryingLong("cleanLockWithCommitCount", registry);
+  
   public ThemisCpStatistics() {
     context = MetricsUtil.getContext("themis");
     metricsRecord = MetricsUtil.createRecord(context, "coprocessor");
@@ -43,6 +51,11 @@ public class ThemisCpStatistics implements Updater {
     commitTotalLatency.pushMetric(metricsRecord);
     getLockAndEraseReadLatency.pushMetric(metricsRecord);
     getLockAndEraseDeleteLatency.pushMetric(metricsRecord);
+    cleanLockLatency.pushMetric(metricsRecord);
+    cleanLockSuccessCount.pushMetric(metricsRecord);
+    cleanLockFailCount.pushMetric(metricsRecord);
+    cleanLockByEraseCount.pushMetric(metricsRecord);
+    cleanLockByCommitCount.pushMetric(metricsRecord);
     metricsRecord.update();
   }
 
