@@ -85,6 +85,7 @@ public class TransactionTestBase extends TestBase {
     conf = HBaseConfiguration.create();
     // must make sure the side-side have the same config
     conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
+    conf.setInt(TransactionTTL.THEMIS_WRITE_TRANSACTION_TTL_KEY, 3600);
     conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
     conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine"); 
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); 

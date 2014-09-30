@@ -43,7 +43,6 @@ public class TestLockCleaner extends ClientTestBase {
   }
   
   public static void setConfigForLockCleaner(Configuration conf) {
-    conf.setInt(TransactionConstant.THEMIS_LOCK_TTL_KEY, 100);
     conf.setInt(TransactionConstant.THEMIS_RETRY_COUNT, 2);    
   }
 
@@ -335,7 +334,7 @@ public class TestLockCleaner extends ClientTestBase {
     ThemisLock expectLock = getPrimaryLock();
     List<KeyValue> kvs = new ArrayList<KeyValue>();
     kvs.add(getLockKv(KEYVALUE, ThemisLock.toByte(expectLock)));
-    List<ThemisLock> locks = LockCleaner.constructLocks(TABLENAME, kvs);
+    List<ThemisLock> locks = LockCleaner.constructLocks(TABLENAME, kvs, cpClient);
     Assert.assertEquals(1, locks.size());
     Assert.assertTrue(expectLock.equals(locks.get(0)));
     Assert.assertTrue(COLUMN.equals(locks.get(0).getColumn()));
@@ -343,7 +342,7 @@ public class TestLockCleaner extends ClientTestBase {
     // with no-lock column, should throw exception
     kvs.add(KEYVALUE);
     try {
-      LockCleaner.constructLocks(TABLENAME, kvs);
+      LockCleaner.constructLocks(TABLENAME, kvs, cpClient);
       Assert.fail();
     } catch (ThemisFatalException e) {}
   }

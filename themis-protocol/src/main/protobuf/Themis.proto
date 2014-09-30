@@ -49,6 +49,14 @@ message EraseLockResponse {
   optional bytes lock = 1;
 }
 
+message LockExpiredRequest {
+  required uint64 timestamp = 1;
+}
+
+message LockExpiredResponse {
+  required bool expired = 1;
+}
+
 service ThemisService {
   rpc themisGet(ThemisGetRequest)
     returns (Result);
@@ -62,4 +70,6 @@ service ThemisService {
     returns (ThemisCommitResponse);
   rpc getLockAndErase(EraseLockRequest)
     returns (EraseLockResponse);
+  rpc isLockExpired(LockExpiredRequest)
+    returns (LockExpiredResponse);
 }

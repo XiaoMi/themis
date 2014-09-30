@@ -38,7 +38,6 @@ import com.google.common.collect.Lists;
 public class LockCleaner {
   private static final Log LOG = LogFactory.getLog(LockCleaner.class);
   private WorkerRegister register;
-  private int lockTTL;
   private HConnection conn;
   private int retry;
   private int pause;
@@ -49,8 +48,6 @@ public class LockCleaner {
     this.conn = conn;
     this.register = register;
     this.cpClient = cpClient;
-    lockTTL = conf.getInt(TransactionConstant.THEMIS_LOCK_TTL_KEY,
-      TransactionConstant.DEFAULT_THEMIS_LOCK_TTL);
     retry = conf.getInt(TransactionConstant.THEMIS_RETRY_COUNT,
       TransactionConstant.DEFAULT_THEMIS_RETRY_COUNT);
     pause = conf.getInt(TransactionConstant.THEMIS_PAUSE,
@@ -63,13 +60,9 @@ public class LockCleaner {
       LOG.warn("worker, address=" + lock.getClientAddress() + " is not alive");
       return true;
     }
-    return false;
+    return lock.isLockExpired();
   }
   
-//  private boolean isLockExpired(ThemisLock lock) {
-//    return lock.getWallTime() + lockTTL <= wallClock.getWallTime();
-//  }
-
   // get primary column coordinate from conflict lock
   protected static PrimaryLock getPrimaryLockWithColumn(ThemisLock lock) {
     if (lock.isPrimary()) {
@@ -197,7 +190,7 @@ public class LockCleaner {
   }
   
   public static List<ThemisLock> constructLocks(byte[] tableName,
-      List<KeyValue> lockKvs) throws IOException {
+      List<KeyValue> lockKvs, ThemisEndpointClient cpClient) throws IOException {
     List<ThemisLock> locks = new ArrayList<ThemisLock>();
     if (lockKvs != null) {
       for (KeyValue kv : lockKvs) {
@@ -210,6 +203,7 @@ public class LockCleaner {
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
+        lock.setLockExpired(cpClient.isLockExpired(tableName, kv.getRow(), kv.getTimestamp()));
         locks.add(lock);
       }
     }
@@ -217,7 +211,7 @@ public class LockCleaner {
   }
   
   public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
-    List<ThemisLock> locks = constructLocks(tableName, lockColumns);
+    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient);
     long startTs = lockColumns.get(0).getTimestamp();
     for (ThemisLock lock : locks) {
       if (tryToCleanLock(lock)) {

@@ -5204,6 +5204,890 @@ public final class ThemisProtos {
     // @@protoc_insertion_point(class_scope:EraseLockResponse)
   }
 
+  public interface LockExpiredRequestOrBuilder
+      extends com.google.protobuf.MessageOrBuilder {
+
+    // required uint64 timestamp = 1;
+    /**
+     * <code>required uint64 timestamp = 1;</code>
+     */
+    boolean hasTimestamp();
+    /**
+     * <code>required uint64 timestamp = 1;</code>
+     */
+    long getTimestamp();
+  }
+  /**
+   * Protobuf type {@code LockExpiredRequest}
+   */
+  public static final class LockExpiredRequest extends
+      com.google.protobuf.GeneratedMessage
+      implements LockExpiredRequestOrBuilder {
+    // Use LockExpiredRequest.newBuilder() to construct.
+    private LockExpiredRequest(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      super(builder);
+      this.unknownFields = builder.getUnknownFields();
+    }
+    private LockExpiredRequest(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+
+    private static final LockExpiredRequest defaultInstance;
+    public static LockExpiredRequest getDefaultInstance() {
+      return defaultInstance;
+    }
+
+    public LockExpiredRequest getDefaultInstanceForType() {
+      return defaultInstance;
+    }
+
+    private final com.google.protobuf.UnknownFieldSet unknownFields;
+    @java.lang.Override
+    public final com.google.protobuf.UnknownFieldSet
+        getUnknownFields() {
+      return this.unknownFields;
+    }
+    private LockExpiredRequest(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      initFields();
+      int mutable_bitField0_ = 0;
+      com.google.protobuf.UnknownFieldSet.Builder unknownFields =
+          com.google.protobuf.UnknownFieldSet.newBuilder();
+      try {
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            default: {
+              if (!parseUnknownField(input, unknownFields,
+                                     extensionRegistry, tag)) {
+                done = true;
+              }
+              break;
+            }
+            case 8: {
+              bitField0_ |= 0x00000001;
+              timestamp_ = input.readUInt64();
+              break;
+            }
+          }
+        }
+      } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+        throw e.setUnfinishedMessage(this);
+      } catch (java.io.IOException e) {
+        throw new com.google.protobuf.InvalidProtocolBufferException(
+            e.getMessage()).setUnfinishedMessage(this);
+      } finally {
+        this.unknownFields = unknownFields.build();
+        makeExtensionsImmutable();
+      }
+    }
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredRequest_descriptor;
+    }
+
+    protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredRequest_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.class, org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.Builder.class);
+    }
+
+    public static com.google.protobuf.Parser<LockExpiredRequest> PARSER =
+        new com.google.protobuf.AbstractParser<LockExpiredRequest>() {
+      public LockExpiredRequest parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        return new LockExpiredRequest(input, extensionRegistry);
+      }
+    };
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<LockExpiredRequest> getParserForType() {
+      return PARSER;
+    }
+
+    private int bitField0_;
+    // required uint64 timestamp = 1;
+    public static final int TIMESTAMP_FIELD_NUMBER = 1;
+    private long timestamp_;
+    /**
+     * <code>required uint64 timestamp = 1;</code>
+     */
+    public boolean hasTimestamp() {
+      return ((bitField0_ & 0x00000001) == 0x00000001);
+    }
+    /**
+     * <code>required uint64 timestamp = 1;</code>
+     */
+    public long getTimestamp() {
+      return timestamp_;
+    }
+
+    private void initFields() {
+      timestamp_ = 0L;
+    }
+    private byte memoizedIsInitialized = -1;
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized != -1) return isInitialized == 1;
+
+      if (!hasTimestamp()) {
+        memoizedIsInitialized = 0;
+        return false;
+      }
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      getSerializedSize();
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        output.writeUInt64(1, timestamp_);
+      }
+      getUnknownFields().writeTo(output);
+    }
+
+    private int memoizedSerializedSize = -1;
+    public int getSerializedSize() {
+      int size = memoizedSerializedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt64Size(1, timestamp_);
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSerializedSize = size;
+      return size;
+    }
+
+    private static final long serialVersionUID = 0L;
+    @java.lang.Override
+    protected java.lang.Object writeReplace()
+        throws java.io.ObjectStreamException {
+      return super.writeReplace();
+    }
+
+    @java.lang.Override
+    public boolean equals(final java.lang.Object obj) {
+      if (obj == this) {
+       return true;
+      }
+      if (!(obj instanceof org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest)) {
+        return super.equals(obj);
+      }
+      org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest other = (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest) obj;
+
+      boolean result = true;
+      result = result && (hasTimestamp() == other.hasTimestamp());
+      if (hasTimestamp()) {
+        result = result && (getTimestamp()
+            == other.getTimestamp());
+      }
+      result = result &&
+          getUnknownFields().equals(other.getUnknownFields());
+      return result;
+    }
+
+    private int memoizedHashCode = 0;
+    @java.lang.Override
+    public int hashCode() {
+      if (memoizedHashCode != 0) {
+        return memoizedHashCode;
+      }
+      int hash = 41;
+      hash = (19 * hash) + getDescriptorForType().hashCode();
+      if (hasTimestamp()) {
+        hash = (37 * hash) + TIMESTAMP_FIELD_NUMBER;
+        hash = (53 * hash) + hashLong(getTimestamp());
+      }
+      hash = (29 * hash) + getUnknownFields().hashCode();
+      memoizedHashCode = hash;
+      return hash;
+    }
+
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+
+    public static Builder newBuilder() { return Builder.create(); }
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder(org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest prototype) {
+      return newBuilder().mergeFrom(prototype);
+    }
+    public Builder toBuilder() { return newBuilder(this); }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * Protobuf type {@code LockExpiredRequest}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessage.Builder<Builder>
+       implements org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequestOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredRequest_descriptor;
+      }
+
+      protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredRequest_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.class, org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.Builder.class);
+      }
+
+      // Construct using org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.newBuilder()
+      private Builder() {
+        maybeForceBuilderInitialization();
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+        super(parent);
+        maybeForceBuilderInitialization();
+      }
+      private void maybeForceBuilderInitialization() {
+        if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+        }
+      }
+      private static Builder create() {
+        return new Builder();
+      }
+
+      public Builder clear() {
+        super.clear();
+        timestamp_ = 0L;
+        bitField0_ = (bitField0_ & ~0x00000001);
+        return this;
+      }
+
+      public Builder clone() {
+        return create().mergeFrom(buildPartial());
+      }
+
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredRequest_descriptor;
+      }
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest getDefaultInstanceForType() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.getDefaultInstance();
+      }
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest build() {
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest buildPartial() {
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest result = new org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest(this);
+        int from_bitField0_ = bitField0_;
+        int to_bitField0_ = 0;
+        if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
+          to_bitField0_ |= 0x00000001;
+        }
+        result.timestamp_ = timestamp_;
+        result.bitField0_ = to_bitField0_;
+        onBuilt();
+        return result;
+      }
+
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest) {
+          return mergeFrom((org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest other) {
+        if (other == org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.getDefaultInstance()) return this;
+        if (other.hasTimestamp()) {
+          setTimestamp(other.getTimestamp());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        return this;
+      }
+
+      public final boolean isInitialized() {
+        if (!hasTimestamp()) {
+          
+          return false;
+        }
+        return true;
+      }
+
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest parsedMessage = null;
+        try {
+          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          parsedMessage = (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest) e.getUnfinishedMessage();
+          throw e;
+        } finally {
+          if (parsedMessage != null) {
+            mergeFrom(parsedMessage);
+          }
+        }
+        return this;
+      }
+      private int bitField0_;
+
+      // required uint64 timestamp = 1;
+      private long timestamp_ ;
+      /**
+       * <code>required uint64 timestamp = 1;</code>
+       */
+      public boolean hasTimestamp() {
+        return ((bitField0_ & 0x00000001) == 0x00000001);
+      }
+      /**
+       * <code>required uint64 timestamp = 1;</code>
+       */
+      public long getTimestamp() {
+        return timestamp_;
+      }
+      /**
+       * <code>required uint64 timestamp = 1;</code>
+       */
+      public Builder setTimestamp(long value) {
+        bitField0_ |= 0x00000001;
+        timestamp_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>required uint64 timestamp = 1;</code>
+       */
+      public Builder clearTimestamp() {
+        bitField0_ = (bitField0_ & ~0x00000001);
+        timestamp_ = 0L;
+        onChanged();
+        return this;
+      }
+
+      // @@protoc_insertion_point(builder_scope:LockExpiredRequest)
+    }
+
+    static {
+      defaultInstance = new LockExpiredRequest(true);
+      defaultInstance.initFields();
+    }
+
+    // @@protoc_insertion_point(class_scope:LockExpiredRequest)
+  }
+
+  public interface LockExpiredResponseOrBuilder
+      extends com.google.protobuf.MessageOrBuilder {
+
+    // required bool expired = 1;
+    /**
+     * <code>required bool expired = 1;</code>
+     */
+    boolean hasExpired();
+    /**
+     * <code>required bool expired = 1;</code>
+     */
+    boolean getExpired();
+  }
+  /**
+   * Protobuf type {@code LockExpiredResponse}
+   */
+  public static final class LockExpiredResponse extends
+      com.google.protobuf.GeneratedMessage
+      implements LockExpiredResponseOrBuilder {
+    // Use LockExpiredResponse.newBuilder() to construct.
+    private LockExpiredResponse(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      super(builder);
+      this.unknownFields = builder.getUnknownFields();
+    }
+    private LockExpiredResponse(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+
+    private static final LockExpiredResponse defaultInstance;
+    public static LockExpiredResponse getDefaultInstance() {
+      return defaultInstance;
+    }
+
+    public LockExpiredResponse getDefaultInstanceForType() {
+      return defaultInstance;
+    }
+
+    private final com.google.protobuf.UnknownFieldSet unknownFields;
+    @java.lang.Override
+    public final com.google.protobuf.UnknownFieldSet
+        getUnknownFields() {
+      return this.unknownFields;
+    }
+    private LockExpiredResponse(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      initFields();
+      int mutable_bitField0_ = 0;
+      com.google.protobuf.UnknownFieldSet.Builder unknownFields =
+          com.google.protobuf.UnknownFieldSet.newBuilder();
+      try {
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            default: {
+              if (!parseUnknownField(input, unknownFields,
+                                     extensionRegistry, tag)) {
+                done = true;
+              }
+              break;
+            }
+            case 8: {
+              bitField0_ |= 0x00000001;
+              expired_ = input.readBool();
+              break;
+            }
+          }
+        }
+      } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+        throw e.setUnfinishedMessage(this);
+      } catch (java.io.IOException e) {
+        throw new com.google.protobuf.InvalidProtocolBufferException(
+            e.getMessage()).setUnfinishedMessage(this);
+      } finally {
+        this.unknownFields = unknownFields.build();
+        makeExtensionsImmutable();
+      }
+    }
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredResponse_descriptor;
+    }
+
+    protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredResponse_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.class, org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.Builder.class);
+    }
+
+    public static com.google.protobuf.Parser<LockExpiredResponse> PARSER =
+        new com.google.protobuf.AbstractParser<LockExpiredResponse>() {
+      public LockExpiredResponse parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        return new LockExpiredResponse(input, extensionRegistry);
+      }
+    };
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<LockExpiredResponse> getParserForType() {
+      return PARSER;
+    }
+
+    private int bitField0_;
+    // required bool expired = 1;
+    public static final int EXPIRED_FIELD_NUMBER = 1;
+    private boolean expired_;
+    /**
+     * <code>required bool expired = 1;</code>
+     */
+    public boolean hasExpired() {
+      return ((bitField0_ & 0x00000001) == 0x00000001);
+    }
+    /**
+     * <code>required bool expired = 1;</code>
+     */
+    public boolean getExpired() {
+      return expired_;
+    }
+
+    private void initFields() {
+      expired_ = false;
+    }
+    private byte memoizedIsInitialized = -1;
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized != -1) return isInitialized == 1;
+
+      if (!hasExpired()) {
+        memoizedIsInitialized = 0;
+        return false;
+      }
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      getSerializedSize();
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        output.writeBool(1, expired_);
+      }
+      getUnknownFields().writeTo(output);
+    }
+
+    private int memoizedSerializedSize = -1;
+    public int getSerializedSize() {
+      int size = memoizedSerializedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(1, expired_);
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSerializedSize = size;
+      return size;
+    }
+
+    private static final long serialVersionUID = 0L;
+    @java.lang.Override
+    protected java.lang.Object writeReplace()
+        throws java.io.ObjectStreamException {
+      return super.writeReplace();
+    }
+
+    @java.lang.Override
+    public boolean equals(final java.lang.Object obj) {
+      if (obj == this) {
+       return true;
+      }
+      if (!(obj instanceof org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse)) {
+        return super.equals(obj);
+      }
+      org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse other = (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse) obj;
+
+      boolean result = true;
+      result = result && (hasExpired() == other.hasExpired());
+      if (hasExpired()) {
+        result = result && (getExpired()
+            == other.getExpired());
+      }
+      result = result &&
+          getUnknownFields().equals(other.getUnknownFields());
+      return result;
+    }
+
+    private int memoizedHashCode = 0;
+    @java.lang.Override
+    public int hashCode() {
+      if (memoizedHashCode != 0) {
+        return memoizedHashCode;
+      }
+      int hash = 41;
+      hash = (19 * hash) + getDescriptorForType().hashCode();
+      if (hasExpired()) {
+        hash = (37 * hash) + EXPIRED_FIELD_NUMBER;
+        hash = (53 * hash) + hashBoolean(getExpired());
+      }
+      hash = (29 * hash) + getUnknownFields().hashCode();
+      memoizedHashCode = hash;
+      return hash;
+    }
+
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+
+    public static Builder newBuilder() { return Builder.create(); }
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder(org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse prototype) {
+      return newBuilder().mergeFrom(prototype);
+    }
+    public Builder toBuilder() { return newBuilder(this); }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * Protobuf type {@code LockExpiredResponse}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessage.Builder<Builder>
+       implements org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponseOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredResponse_descriptor;
+      }
+
+      protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredResponse_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.class, org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.Builder.class);
+      }
+
+      // Construct using org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.newBuilder()
+      private Builder() {
+        maybeForceBuilderInitialization();
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+        super(parent);
+        maybeForceBuilderInitialization();
+      }
+      private void maybeForceBuilderInitialization() {
+        if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+        }
+      }
+      private static Builder create() {
+        return new Builder();
+      }
+
+      public Builder clear() {
+        super.clear();
+        expired_ = false;
+        bitField0_ = (bitField0_ & ~0x00000001);
+        return this;
+      }
+
+      public Builder clone() {
+        return create().mergeFrom(buildPartial());
+      }
+
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.internal_static_LockExpiredResponse_descriptor;
+      }
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse getDefaultInstanceForType() {
+        return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance();
+      }
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse build() {
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse buildPartial() {
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse result = new org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse(this);
+        int from_bitField0_ = bitField0_;
+        int to_bitField0_ = 0;
+        if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
+          to_bitField0_ |= 0x00000001;
+        }
+        result.expired_ = expired_;
+        result.bitField0_ = to_bitField0_;
+        onBuilt();
+        return result;
+      }
+
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse) {
+          return mergeFrom((org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse other) {
+        if (other == org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance()) return this;
+        if (other.hasExpired()) {
+          setExpired(other.getExpired());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        return this;
+      }
+
+      public final boolean isInitialized() {
+        if (!hasExpired()) {
+          
+          return false;
+        }
+        return true;
+      }
+
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse parsedMessage = null;
+        try {
+          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          parsedMessage = (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse) e.getUnfinishedMessage();
+          throw e;
+        } finally {
+          if (parsedMessage != null) {
+            mergeFrom(parsedMessage);
+          }
+        }
+        return this;
+      }
+      private int bitField0_;
+
+      // required bool expired = 1;
+      private boolean expired_ ;
+      /**
+       * <code>required bool expired = 1;</code>
+       */
+      public boolean hasExpired() {
+        return ((bitField0_ & 0x00000001) == 0x00000001);
+      }
+      /**
+       * <code>required bool expired = 1;</code>
+       */
+      public boolean getExpired() {
+        return expired_;
+      }
+      /**
+       * <code>required bool expired = 1;</code>
+       */
+      public Builder setExpired(boolean value) {
+        bitField0_ |= 0x00000001;
+        expired_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>required bool expired = 1;</code>
+       */
+      public Builder clearExpired() {
+        bitField0_ = (bitField0_ & ~0x00000001);
+        expired_ = false;
+        onChanged();
+        return this;
+      }
+
+      // @@protoc_insertion_point(builder_scope:LockExpiredResponse)
+    }
+
+    static {
+      defaultInstance = new LockExpiredResponse(true);
+      defaultInstance.initFields();
+    }
+
+    // @@protoc_insertion_point(class_scope:LockExpiredResponse)
+  }
+
   /**
    * Protobuf service {@code ThemisService}
    */
@@ -5260,6 +6144,14 @@ public final class ThemisProtos {
           org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest request,
           com.google.protobuf.RpcCallback<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse> done);
 
+      /**
+       * <code>rpc isLockExpired(.LockExpiredRequest) returns (.LockExpiredResponse);</code>
+       */
+      public abstract void isLockExpired(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse> done);
+
     }
 
     public static com.google.protobuf.Service newReflectiveService(
@@ -5313,6 +6205,14 @@ public final class ThemisProtos {
           impl.getLockAndErase(controller, request, done);
         }
 
+        @java.lang.Override
+        public  void isLockExpired(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse> done) {
+          impl.isLockExpired(controller, request, done);
+        }
+
       };
     }
 
@@ -5347,6 +6247,8 @@ public final class ThemisProtos {
               return impl.commitSingleRow(controller, (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitRequest)request);
             case 5:
               return impl.getLockAndErase(controller, (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest)request);
+            case 6:
+              return impl.isLockExpired(controller, (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest)request);
             default:
               throw new java.lang.AssertionError("Can't get here.");
           }
@@ -5373,6 +6275,8 @@ public final class ThemisProtos {
               return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitRequest.getDefaultInstance();
             case 5:
               return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest.getDefaultInstance();
+            case 6:
+              return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.getDefaultInstance();
             default:
               throw new java.lang.AssertionError("Can't get here.");
           }
@@ -5399,6 +6303,8 @@ public final class ThemisProtos {
               return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitResponse.getDefaultInstance();
             case 5:
               return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse.getDefaultInstance();
+            case 6:
+              return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance();
             default:
               throw new java.lang.AssertionError("Can't get here.");
           }
@@ -5455,6 +6361,14 @@ public final class ThemisProtos {
         org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest request,
         com.google.protobuf.RpcCallback<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse> done);
 
+    /**
+     * <code>rpc isLockExpired(.LockExpiredRequest) returns (.LockExpiredResponse);</code>
+     */
+    public abstract void isLockExpired(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse> done);
+
     public static final
         com.google.protobuf.Descriptors.ServiceDescriptor
         getDescriptor() {
@@ -5507,6 +6421,11 @@ public final class ThemisProtos {
             com.google.protobuf.RpcUtil.<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse>specializeCallback(
               done));
           return;
+        case 6:
+          this.isLockExpired(controller, (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse>specializeCallback(
+              done));
+          return;
         default:
           throw new java.lang.AssertionError("Can't get here.");
       }
@@ -5533,6 +6452,8 @@ public final class ThemisProtos {
           return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitRequest.getDefaultInstance();
         case 5:
           return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest.getDefaultInstance();
+        case 6:
+          return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest.getDefaultInstance();
         default:
           throw new java.lang.AssertionError("Can't get here.");
       }
@@ -5559,6 +6480,8 @@ public final class ThemisProtos {
           return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitResponse.getDefaultInstance();
         case 5:
           return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse.getDefaultInstance();
+        case 6:
+          return org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance();
         default:
           throw new java.lang.AssertionError("Can't get here.");
       }
@@ -5669,6 +6592,21 @@ public final class ThemisProtos {
             org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse.class,
             org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse.getDefaultInstance()));
       }
+
+      public  void isLockExpired(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(6),
+          controller,
+          request,
+          org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.class,
+            org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance()));
+      }
     }
 
     public static BlockingInterface newBlockingStub(
@@ -5705,6 +6643,11 @@ public final class ThemisProtos {
       public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse getLockAndErase(
           com.google.protobuf.RpcController controller,
           org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse isLockExpired(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest request)
           throws com.google.protobuf.ServiceException;
     }
 
@@ -5786,6 +6729,18 @@ public final class ThemisProtos {
           org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse.getDefaultInstance());
       }
 
+
+      public org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse isLockExpired(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(6),
+          controller,
+          request,
+          org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse.getDefaultInstance());
+      }
+
     }
 
     // @@protoc_insertion_point(class_scope:ThemisService)
@@ -5826,6 +6781,16 @@ public final class ThemisProtos {
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internal_static_EraseLockResponse_fieldAccessorTable;
+  private static com.google.protobuf.Descriptors.Descriptor
+    internal_static_LockExpiredRequest_descriptor;
+  private static
+    com.google.protobuf.GeneratedMessage.FieldAccessorTable
+      internal_static_LockExpiredRequest_fieldAccessorTable;
+  private static com.google.protobuf.Descriptors.Descriptor
+    internal_static_LockExpiredResponse_descriptor;
+  private static
+    com.google.protobuf.GeneratedMessage.FieldAccessorTable
+      internal_static_LockExpiredResponse_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -5849,18 +6814,22 @@ public final class ThemisProtos {
       "sCommitResponse\022\016\n\006result\030\001 \002(\010\"V\n\020Erase" +
       "LockRequest\022\013\n\003row\030\001 \002(\014\022\016\n\006family\030\002 \002(\014" +
       "\022\021\n\tqualifier\030\003 \002(\014\022\022\n\nprewriteTs\030\004 \002(\004\"" +
-      "!\n\021EraseLockResponse\022\014\n\004lock\030\001 \001(\0142\362\002\n\rT" +
-      "hemisService\022\'\n\tthemisGet\022\021.ThemisGetReq" +
-      "uest\032\007.Result\022>\n\013prewriteRow\022\026.ThemisPre" +
-      "writeRequest\032\027.ThemisPrewriteResponse\022D\n" +
-      "\021prewriteSingleRow\022\026.ThemisPrewriteReque" +
-      "st\032\027.ThemisPrewriteResponse\0228\n\tcommitRow",
-      "\022\024.ThemisCommitRequest\032\025.ThemisCommitRes" +
-      "ponse\022>\n\017commitSingleRow\022\024.ThemisCommitR" +
-      "equest\032\025.ThemisCommitResponse\0228\n\017getLock" +
-      "AndErase\022\021.EraseLockRequest\032\022.EraseLockR" +
-      "esponseBC\n+org.apache.hadoop.hbase.themi" +
-      "s.cp.generatedB\014ThemisProtosH\001\210\001\001\240\001\001"
+      "!\n\021EraseLockResponse\022\014\n\004lock\030\001 \001(\014\"\'\n\022Lo" +
+      "ckExpiredRequest\022\021\n\ttimestamp\030\001 \002(\004\"&\n\023L" +
+      "ockExpiredResponse\022\017\n\007expired\030\001 \002(\0102\256\003\n\r" +
+      "ThemisService\022\'\n\tthemisGet\022\021.ThemisGetRe" +
+      "quest\032\007.Result\022>\n\013prewriteRow\022\026.ThemisPr" +
+      "ewriteRequest\032\027.ThemisPrewriteResponse\022D",
+      "\n\021prewriteSingleRow\022\026.ThemisPrewriteRequ" +
+      "est\032\027.ThemisPrewriteResponse\0228\n\tcommitRo" +
+      "w\022\024.ThemisCommitRequest\032\025.ThemisCommitRe" +
+      "sponse\022>\n\017commitSingleRow\022\024.ThemisCommit" +
+      "Request\032\025.ThemisCommitResponse\0228\n\017getLoc" +
+      "kAndErase\022\021.EraseLockRequest\032\022.EraseLock" +
+      "Response\022:\n\risLockExpired\022\023.LockExpiredR" +
+      "equest\032\024.LockExpiredResponseBC\n+org.apac" +
+      "he.hadoop.hbase.themis.cp.generatedB\014The" +
+      "misProtosH\001\210\001\001\240\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -5909,6 +6878,18 @@ public final class ThemisProtos {
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_EraseLockResponse_descriptor,
               new java.lang.String[] { "Lock", });
+          internal_static_LockExpiredRequest_descriptor =
+            getDescriptor().getMessageTypes().get(7);
+          internal_static_LockExpiredRequest_fieldAccessorTable = new
+            com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+              internal_static_LockExpiredRequest_descriptor,
+              new java.lang.String[] { "Timestamp", });
+          internal_static_LockExpiredResponse_descriptor =
+            getDescriptor().getMessageTypes().get(8);
+          internal_static_LockExpiredResponse_fieldAccessorTable = new
+            com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+              internal_static_LockExpiredResponse_descriptor,
+              new java.lang.String[] { "Expired", });
           return null;
         }
       };

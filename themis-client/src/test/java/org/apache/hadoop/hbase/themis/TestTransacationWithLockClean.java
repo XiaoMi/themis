@@ -24,7 +24,9 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     super.initEnv();
     createTransactionWithMock();
   }
-    
+   
+  // these lock-clean test will use ThemisLock constructed in client-side, so that
+  // won't judge lock expired in server-side and won't be affected by the TransactionTTL setting
   @Test
   public void testPrewriteRowWithLockClean() throws IOException {
     // lock will be cleaned and prewrite will success

@@ -19,7 +19,16 @@ public abstract class ThemisLock implements Writable {
   protected String clientAddress;
   protected long wallTime; // TODO : remove this field
   protected ColumnCoordinate columnCoordinate; // need not to be serialized
+  protected boolean lockExpired = false;
   
+  public boolean isLockExpired() {
+    return lockExpired;
+  }
+
+  public void setLockExpired(boolean lockExpired) {
+    this.lockExpired = lockExpired;
+  }
+
   public ColumnCoordinate getColumn() {
     return columnCoordinate;
   }

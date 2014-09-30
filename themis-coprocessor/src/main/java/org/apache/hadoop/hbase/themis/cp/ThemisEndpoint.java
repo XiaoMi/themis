@@ -39,6 +39,8 @@ import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitResp
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisGetRequest;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisPrewriteRequest;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisPrewriteResponse;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisService;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -367,6 +369,8 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     Result result = getFromRegion(region, get,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadLockLatency);
     byte[] existLockBytes = result.isEmpty() ? null : result.list().get(0).getValue();
+    boolean lockExpired = existLockBytes == null ? false : isLockExpired(result.list().get(0)
+        .getTimestamp());
     // check no newer write exist
     get = new Get(row);
     ThemisCpUtil.addWriteColumnToGet(column, get);
@@ -374,7 +378,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     result = getFromRegion(region, get,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadWriteLatency);
     Long newerWriteTs = result.isEmpty() ? null : result.list().get(0).getTimestamp();
-    byte[][] conflict = judgePrewriteConflict(column, existLockBytes, newerWriteTs);
+    byte[][] conflict = judgePrewriteConflict(column, existLockBytes, newerWriteTs, lockExpired);
     if (conflict != null) {
       LOG.warn("encounter conflict when prewrite, tableName="
           + Bytes.toString(region.getTableDesc().getName()) + ", row=" + Bytes.toString(row)
@@ -383,7 +387,8 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     return conflict;
   }
   
-  protected byte[][] judgePrewriteConflict(Column column, byte[] existLockBytes, Long newerWriteTs) {
+  protected byte[][] judgePrewriteConflict(Column column, byte[] existLockBytes, Long newerWriteTs,
+      boolean lockExpired) {
     if (newerWriteTs != null || existLockBytes != null) {
       newerWriteTs = newerWriteTs == null ? 0 : newerWriteTs;
       existLockBytes = existLockBytes == null ? new byte[0] : existLockBytes;
@@ -396,7 +401,8 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       }
       // we also return the conflict family and qualifier, then the client could know which column
       // encounter conflict when prewriting by row
-      return new byte[][]{Bytes.toBytes(newerWriteTs), existLockBytes, family, qualifier};
+      return new byte[][] { Bytes.toBytes(newerWriteTs), existLockBytes, family, qualifier,
+          Bytes.toBytes(lockExpired) };
     }
     return null;
   }
@@ -495,5 +501,27 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   
   public static void setLockFamilyDelete(final Delete delete) {
     delete.setAttribute(ThemisRegionObserver.LOCK_FAMILY_DELETE, Bytes.toBytes(true));
+  }
+
+  @Override
+  public void isLockExpired(RpcController controller, LockExpiredRequest request,
+      RpcCallback<LockExpiredResponse> callback) {
+    boolean isExpired = false;
+    try {
+      isExpired = isLockExpired(request.getTimestamp());
+    } catch(IOException e) {
+      LOG.error("isLockExpired fail", e);
+      ResponseConverter.setControllerException(controller, e);
+    }
+    LockExpiredResponse.Builder builder = LockExpiredResponse.newBuilder();
+    builder.setExpired(isExpired);
+    callback.run(builder.build());
+  }
+  
+  public boolean isLockExpired(long lockTimestamp) throws IOException {
+    long currentMs = System.currentTimeMillis();
+    System.out.println("###debug, lockTimestamp=" + lockTimestamp + ", currentMs=" + currentMs
+        + ", expiredTs=" + TransactionTTL.getExpiredTimestampForWrite(currentMs));
+    return lockTimestamp < TransactionTTL.getExpiredTimestampForWrite(currentMs);
   }
 }

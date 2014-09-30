@@ -18,6 +18,8 @@ import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredRequest;
+import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.LockExpiredResponse;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitRequest;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitResponse;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisGetRequest;
@@ -170,6 +172,7 @@ public class ThemisEndpointClient {
         ColumnCoordinate column = new ColumnCoordinate(tableName, row, prewriteResult[2],
             prewriteResult[3]);
         lock.setColumn(column);
+        lock.setLockExpired(Bytes.toBoolean(prewriteResult[4]));
         return lock;
       }
     }
@@ -268,5 +271,20 @@ public class ThemisEndpointClient {
     };
     byte[] result = callable.run();
     return result == null ? null : ThemisLock.parseFromByte(result);
+  }
+  
+  public boolean isLockExpired(final byte[] tableName, final byte[] row, final long timestamp)
+      throws IOException {
+    return new CoprocessorCallable<Boolean>(conn, tableName, row) {
+      @Override
+      public Boolean invokeCoprocessor(Stub instance) throws Throwable {
+        LockExpiredRequest.Builder builder = LockExpiredRequest.newBuilder();
+        builder.setTimestamp(timestamp);
+        ServerRpcController controller = new ServerRpcController();
+        BlockingRpcCallback<LockExpiredResponse> rpcCallback = new BlockingRpcCallback<LockExpiredResponse>();
+        instance.isLockExpired(controller, builder.build(), rpcCallback);
+        return rpcCallback.get().getExpired();
+      }
+    }.run();
   }
 }

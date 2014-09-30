@@ -89,4 +89,16 @@ public class WrappedCoprocessorClient extends ThemisEndpointClient {
       }
     }
   }
+  
+  @Override
+  public boolean isLockExpired(final byte[] tableName, final byte[] row, final long timestamp)
+      throws IOException {
+    long beginTs = System.nanoTime();
+    try {
+      return super.isLockExpired(tableName, row, timestamp);
+    } finally {
+      ThemisStatistics
+          .updateLatency(ThemisStatistics.getStatistics().isLockExpiredLatency, beginTs);
+    }
+  }
 }
