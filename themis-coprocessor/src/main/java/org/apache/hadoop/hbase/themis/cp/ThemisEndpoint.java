@@ -519,8 +519,6 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   
   public boolean isLockExpired(long lockTimestamp) throws IOException {
     long currentMs = System.currentTimeMillis();
-    System.out.println("###debug, lockTimestamp=" + lockTimestamp + ", currentMs=" + currentMs
-        + ", expiredTs=" + TransactionTTL.getExpiredTimestampForWrite(currentMs));
     return lockTimestamp < TransactionTTL.getExpiredTimestampForWrite(currentMs);
   }
 }
