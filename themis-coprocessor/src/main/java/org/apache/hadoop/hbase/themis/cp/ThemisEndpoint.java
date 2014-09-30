@@ -61,7 +61,6 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   
   @Override
   public void start(CoprocessorEnvironment env) throws IOException {
-    // TODO: is this necessary?
     // super.start(env);
     if (env instanceof RegionCoprocessorEnvironment) {
       this.env = (RegionCoprocessorEnvironment) env;

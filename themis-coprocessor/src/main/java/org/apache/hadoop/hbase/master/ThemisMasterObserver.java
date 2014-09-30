@@ -41,27 +41,24 @@ import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 public class ThemisMasterObserver extends BaseMasterObserver {
   private static final Log LOG = LogFactory.getLog(ThemisMasterObserver.class);
 
-  public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
   public static final String THEMIS_ENABLE_KEY = "THEMIS_ENABLE";
-  public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_ENABLE_KEY = "themis.expired.timestamp.calculate.enable";
+  public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
+  public static final String THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY = "themis.expired.data.clean.enable";
   public static final String THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME = "themis-expired-ts";
 
-  protected boolean expiredTimestampCalculateEnable;
 
   protected int expiredTsCalculatePeriod;
   protected Chore themisExpiredTsCalculator;
   protected ZooKeeperWatcher zk;
   protected String themisExpiredTsZNodePath;
   protected HConnection connection;
-  protected ThemisEndpointClient cpClient;
   protected ServerLockCleaner lockCleaner;
   
   @Override
   public void start(CoprocessorEnvironment ctx) throws IOException {
-    expiredTimestampCalculateEnable = ctx.getConfiguration().getBoolean(
-      THEMIS_EXPIRED_TIMESTAMP_CALCULATE_ENABLE_KEY, true);
-    if (expiredTimestampCalculateEnable) {
-      startExpiredTimestampCalculator((MasterEnvironment)ctx);
+    if (ctx.getConfiguration().getBoolean(THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true)) {
+      TransactionTTL.init(ctx.getConfiguration());
+      startExpiredTimestampCalculator((MasterEnvironment) ctx);
     }
   }
   
@@ -144,10 +141,8 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     themisExpiredTsZNodePath = getThemisExpiredTsZNodePath(this.zk);
 
     connection = HConnectionManager.createConnection(ctx.getConfiguration());
-    cpClient = new ThemisEndpointClient(connection);
-    lockCleaner = new ServerLockCleaner(connection, cpClient);
+    lockCleaner = new ServerLockCleaner(connection, new ThemisEndpointClient(connection));
     
-    TransactionTTL.init(ctx.getConfiguration());
     String expiredTsCalculatePeriodStr = ctx.getConfiguration()
         .get(THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY);
     if (expiredTsCalculatePeriodStr == null) {
