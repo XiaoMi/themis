@@ -1,11 +1,15 @@
 package org.apache.hadoop.hbase.master;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver.ExpiredTimestampCalculator;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
@@ -92,5 +96,26 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     }
     deleteTable(admin, testTable);
     admin.close();
-  } 
+  }
+  
+  @Test
+  public void testExpiredTimestampCalculator() {
+    Configuration conf = HBaseConfiguration.create();
+    TransactionTTL ttl = new TransactionTTL(conf);
+    // test chronos timestamp
+    ExpiredTimestampCalculator calculator = new ExpiredTimestampCalculator(ttl,
+        ThemisMasterObserver.CHRONOS_TIMESTAMP, 1000, null);
+    calculator.chore();
+    long currentExpiredTs = ttl.getExpiredTsForReadByDataColumn(System.currentTimeMillis());
+    long minos = ttl.toMs(currentExpiredTs - calculator.getCurrentExpiredTs());
+    Assert.assertTrue(minos >= 0 && minos < 1000);
+    
+    // test ms
+    calculator = new ExpiredTimestampCalculator(ttl, ThemisMasterObserver.MS_TIMESTAMP, 1000,
+        null);
+    calculator.chore();
+    currentExpiredTs = ttl.getExpiredMsForReadByDataColumn(System.currentTimeMillis());
+    minos = ttl.toMs(currentExpiredTs - calculator.getCurrentExpiredTs());
+    Assert.assertTrue(minos >= 0 && minos < 1000);
+  }
 }

@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.exception.TransactionExpiredException;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockRequest;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.EraseLockResponse;
 import org.apache.hadoop.hbase.themis.cp.generated.ThemisProtos.ThemisCommitRequest;
@@ -54,10 +55,15 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   private static final Log LOG = LogFactory.getLog(ThemisEndpoint.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
   private RegionCoprocessorEnvironment env;
+  private TransactionTTL transactionTTL;
   
+  @Override
   public void start(CoprocessorEnvironment env) throws IOException {
+    // TODO: is this necessary?
+    // super.start(env);
     if (env instanceof RegionCoprocessorEnvironment) {
       this.env = (RegionCoprocessorEnvironment) env;
+      transactionTTL = new TransactionTTL(env.getConfiguration());
     } else {
       throw new CoprocessorException("Must be loaded on a table region!");
     }
@@ -78,6 +84,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     try {
       Get clientGet = ProtobufUtil.toGet(request.getGet());
       checkFamily(clientGet);
+      checkReadTTL(transactionTTL, System.currentTimeMillis(), request.getStartTs());
       Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(clientGet, request.getStartTs());
       HRegion region = env.getRegion();
       Result result = getFromRegion(region, lockAndWriteGet,
@@ -103,6 +110,28 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       ResponseConverter.setControllerException(controller, e);
     }
     callback.run(clientResult);
+  }
+  
+  public static void checkReadTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+      throws TransactionExpiredException {
+    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
+        .getExpiredMsForReadByCommitColumn(currentMs) : transactionTTL
+        .getExpiredTsForReadByCommitColumn(currentMs);
+    if (startTs < expiredTimestamp) {
+      throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
+          + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs);
+    }
+  }
+  
+  public static void checkWriteTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+      throws TransactionExpiredException {
+    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
+        .getExpiredMsForWrite(currentMs) : transactionTTL.getExpiredTsForWrite(currentMs);
+    if (startTs < expiredTimestamp) {
+      throw new TransactionExpiredException(
+          "Expired Write Transaction, write transaction start Ts:" + startTs + ", expired Ts:"
+              + expiredTimestamp + ", currentMs=" + currentMs);
+    }
   }
   
   protected Result getFromRegion(HRegion region, Get get, MetricsTimeVaryingRate latency)
@@ -263,6 +292,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
+      checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
         public byte[][] doMutation(HRegion region, RowLock rowLock) throws IOException {
@@ -379,6 +409,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
+      checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {

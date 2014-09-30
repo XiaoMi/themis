@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
@@ -25,6 +26,12 @@ import org.apache.hadoop.hbase.util.Pair;
 public class ThemisScanObserver extends BaseRegionObserver {
   public static final String TRANSACTION_START_TS = "_themisTransationStartTs_";
   private static final Log LOG = LogFactory.getLog(ThemisScanObserver.class);
+  private TransactionTTL transactionTTL;
+  
+  @Override
+  public void start(CoprocessorEnvironment e) throws IOException {
+    transactionTTL = new TransactionTTL(e.getConfiguration());
+  }
   
   protected static boolean next(HRegion region, final ThemisServerScanner s,
       List<Result> results, int limit) throws IOException {
@@ -69,6 +76,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       if (s instanceof ThemisServerScanner) {
         ThemisServerScanner pScanner = (ThemisServerScanner)s;
+        ThemisEndpoint.checkReadTTL(transactionTTL, System.currentTimeMillis(), pScanner.getStartTs());
         HRegion region = e.getEnvironment().getRegion();
         boolean more = next(region, pScanner, results, limit);
         e.bypass();
@@ -89,9 +97,10 @@ public class ThemisScanObserver extends BaseRegionObserver {
       Long themisStartTs = getStartTsFromAttribute(scan);
       if (themisStartTs != null) {
         checkFamily(e.getEnvironment().getRegion(), scan);
+        ThemisEndpoint.checkReadTTL(transactionTTL, System.currentTimeMillis(), themisStartTs);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
         ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment()
-            .getRegion().getScanner(internalScan), scan.getFilter());
+            .getRegion().getScanner(internalScan), themisStartTs, scan.getFilter());
         e.bypass();
         return pScanner;
       }

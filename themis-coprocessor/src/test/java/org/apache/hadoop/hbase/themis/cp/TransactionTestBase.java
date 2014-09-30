@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -55,6 +56,7 @@ public class TransactionTestBase extends TestBase {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
+    /*
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisEndpoint.class.getName(),
       ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
@@ -75,11 +77,16 @@ public class TransactionTestBase extends TestBase {
       admin.createTable(tableDesc);
     }
     admin.close();
+    */
+    conf = HBaseConfiguration.create();
+    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine"); 
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); 
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    TEST_UTIL.shutdownMiniCluster();
+//    TEST_UTIL.shutdownMiniCluster();
   }
   
   @Before
@@ -401,5 +408,16 @@ public class TransactionTestBase extends TestBase {
       }
       admin.deleteTable(tableName);
     }
+  }
+  
+  protected void truncateTable(byte[] tableName) throws IOException {
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    HTableDescriptor desc = admin.getTableDescriptor(tableName);
+    admin.disableTable(tableName);
+    admin.deleteTable(tableName);
+    desc.removeFamily(ColumnUtil.LOCK_FAMILY_NAME);
+    admin.createTable(desc);
+    connection.clearRegionCache(tableName);
+    admin.close();
   }
 }

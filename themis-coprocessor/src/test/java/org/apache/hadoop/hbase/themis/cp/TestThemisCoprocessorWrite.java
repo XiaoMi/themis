@@ -5,7 +5,6 @@ import java.util.List;
 
 import junit.framework.Assert;
 
-import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue.Type;
@@ -214,5 +213,60 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
       Assert.assertTrue(e.getMessage().indexOf("can not access family") >= 0);
     }
     admin.close();
+  }
+  
+  public static long getExpiredTimestampForWrite(TransactionTTL transactionTTL, long currentMs,
+      boolean useChronosTime) {
+    if (useChronosTime) {
+      return transactionTTL.getExpiredTsForWrite(currentMs);
+    } else {
+      return transactionTTL.getExpiredMsForWrite(currentMs);
+    }
+  }
+  
+  @Test
+  public void testTransactionExpiredWhenPrewrite() throws IOException {
+    for (boolean useChronosTs : new boolean[] { true, false }) {
+      TransactionTTL transactionTTL = new TransactionTTL(conf);
+      // won't expired
+      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      prewritePrimaryRow();
+
+      // make sure this transaction will be expired
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      try {
+        prewritePrimaryRow();
+        Assert.fail();
+      } catch (IOException e) {
+        Assert.assertTrue(e.getMessage().indexOf("Expired Write Transaction") >= 0);
+      }
+      // this ut will write chronos timestamp, need delete data by truncating table
+      truncateTable(TABLENAME);
+    }
+  }
+  
+  @Test
+  public void testTransactionExpiredWhenCommit() throws IOException {
+    for (boolean useChronosTs : new boolean[] { true, false }) {
+      TransactionTTL transactionTTL = new TransactionTTL(conf);
+      // won't expired
+      long currentMs = System.currentTimeMillis() + 60 * 1000;
+      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      Assert.assertNull(prewritePrimaryRow());
+      commitPrimaryRow();
+
+      // make sure this transaction will be expired
+      currentMs = System.currentTimeMillis() - transactionTTL.transactionTTLTimeError * 1000;
+      prewriteTs = getExpiredTimestampForWrite(transactionTTL, currentMs, useChronosTs);
+      try {
+        commitPrimaryRow();
+        Assert.fail();
+      } catch (IOException e) {
+        Assert.assertTrue(e.getMessage().indexOf("Expired Write Transaction") >= 0);
+      }
+      truncateTable(TABLENAME);
+    }
   }
 }
