@@ -3,21 +3,16 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.util.List;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.master.ThemisMasterObserver.ExpiredTimestampCalculator;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
-import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.junit.Assert;
 import org.junit.Test;
@@ -106,38 +101,9 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   }
   
   @Test
-  public void testExpiredTimestampCalculator() throws Exception {
-    // TODO : polish this unit test
-    ThemisMasterObserver masterObserver = new ThemisMasterObserver();
-    Configuration conf = HBaseConfiguration.create();
-    masterObserver.transactionTTL = new TransactionTTL(conf);
-    
-    // test chronos timestamp
-    masterObserver.timestampType = ThemisMasterObserver.CHRONOS_TIMESTAMP;
-    ExpiredTimestampCalculator calculator = masterObserver.new ExpiredTimestampCalculator(1000,
-        null);
-    calculator.computeExpiredTs();
-    long currentExpiredTs = masterObserver.transactionTTL.getExpiredTsForReadByDataColumn(System
-        .currentTimeMillis());
-    long minos = masterObserver.transactionTTL.toMs(currentExpiredTs
-        - calculator.getCurrentExpiredTs());
-    Assert.assertTrue(minos >= 0 && minos < 1000);
-
-    // test ms
-    masterObserver.timestampType = ThemisMasterObserver.MS_TIMESTAMP;
-    calculator = masterObserver.new ExpiredTimestampCalculator(1000, null);
-    calculator.computeExpiredTs();
-    currentExpiredTs = masterObserver.transactionTTL.getExpiredMsForReadByDataColumn(System
-        .currentTimeMillis());
-    minos = masterObserver.transactionTTL.toMs(currentExpiredTs - calculator.getCurrentExpiredTs());
-    Assert.assertTrue(minos >= 0 && minos < 1000);
-  }
-  
-  @Test
   public void testSetExpiredTsToZk() throws Exception {
     long ts = System.currentTimeMillis() - 10l * 86400 * 1000;
     ThemisMasterObserver masterObserver = new ThemisMasterObserver();
-    Configuration conf = HBaseConfiguration.create();
     masterObserver.zk = new ZooKeeperWatcher(conf, "test", null, true);
     masterObserver.themisExpiredTsZNodePath = ThemisMasterObserver.getThemisExpiredTsZNodePath(masterObserver.zk);
     masterObserver.setExpiredTsToZk(ts);

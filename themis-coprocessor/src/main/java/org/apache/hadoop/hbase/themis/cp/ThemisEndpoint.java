@@ -63,7 +63,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     // super.start(env);
     if (env instanceof RegionCoprocessorEnvironment) {
       this.env = (RegionCoprocessorEnvironment) env;
-      transactionTTL = new TransactionTTL(env.getConfiguration());
+      TransactionTTL.init(env.getConfiguration());
     } else {
       throw new CoprocessorException("Must be loaded on a table region!");
     }
@@ -84,7 +84,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     try {
       Get clientGet = ProtobufUtil.toGet(request.getGet());
       checkFamily(clientGet);
-      checkReadTTL(transactionTTL, System.currentTimeMillis(), request.getStartTs());
+      checkReadTTL(System.currentTimeMillis(), request.getStartTs());
       Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(clientGet, request.getStartTs());
       HRegion region = env.getRegion();
       Result result = getFromRegion(region, lockAndWriteGet,
@@ -112,21 +112,18 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     callback.run(clientResult);
   }
   
-  public static void checkReadTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+  public static void checkReadTTL(long currentMs, long startTs)
       throws TransactionExpiredException {
-    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
-        .getExpiredMsForReadByCommitColumn(currentMs) : transactionTTL
-        .getExpiredTsForReadByCommitColumn(currentMs);
-    if (startTs < expiredTimestamp) {
+    long expiredTimestamp = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
+    if (startTs < TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs)) {
       throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
           + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs);
     }
   }
   
-  public static void checkWriteTTL(TransactionTTL transactionTTL, long currentMs, long startTs)
+  public static void checkWriteTTL(long currentMs, long startTs)
       throws TransactionExpiredException {
-    long expiredTimestamp = startTs <= TransactionTTL.MAX_TIMESTAMP_IN_MS ? transactionTTL
-        .getExpiredMsForWrite(currentMs) : transactionTTL.getExpiredTsForWrite(currentMs);
+    long expiredTimestamp = TransactionTTL.getExpiredTimestampForWrite(currentMs);
     if (startTs < expiredTimestamp) {
       throw new TransactionExpiredException(
           "Expired Write Transaction, write transaction start Ts:" + startTs + ", expired Ts:"
@@ -293,7 +290,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
+      checkWriteTTL(System.currentTimeMillis(), prewriteTs);
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
         public byte[][] doMutation(HRegion region, RowLock rowLock) throws IOException {
@@ -410,7 +407,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
+      checkWriteTTL(System.currentTimeMillis(), prewriteTs);
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {

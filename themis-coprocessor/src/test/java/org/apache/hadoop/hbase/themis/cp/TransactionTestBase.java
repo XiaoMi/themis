@@ -30,6 +30,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -42,7 +43,7 @@ import org.junit.BeforeClass;
 public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_RETRY_COUNT = 2;
   public static final int TEST_LOCK_CLEAN_PAUSE = 200;
-  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
+  protected static HBaseTestingUtility TEST_UTIL;
   
   protected HConnection connection;
   protected HTableInterface table;
@@ -79,16 +80,22 @@ public class TransactionTestBase extends TestBase {
       admin.createTable(tableDesc);
     }
     admin.close();
-    */
+    TransactionTTL.init(conf);
+    
+    /*
     conf = HBaseConfiguration.create();
+    // must make sure the side-side have the same config
+    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
     conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
     conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine"); 
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); 
+    TransactionTTL.init(conf);
+    */
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-//    TEST_UTIL.shutdownMiniCluster();
+    TEST_UTIL.shutdownMiniCluster();
   }
   
   @Before

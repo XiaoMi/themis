@@ -92,6 +92,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.register.registerWorker();
     this.enableConcurrentRpc = getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
     this.cpClient = new WrappedCoprocessorClient(connection);
+    // TODO : share this object?
     this.lockCleaner = new LockCleaner(getConf(), connection, this.wallClock, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
