@@ -118,7 +118,7 @@ public class TestBase {
   
   public static PrimaryLock getPrimaryLock(long prewriteTs, boolean singleRowTransaction) {
     PrimaryLock lock = new PrimaryLock(getColumnType(COLUMN));
-    setThemisLock(lock, prewriteTs, prewriteTs);
+    setThemisLock(lock, prewriteTs);
     ColumnCoordinate[] secondaryColumns = singleRowTransaction ? new ColumnCoordinate[] {
         COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER } : SECONDARY_COLUMNS;
     for (ColumnCoordinate columnCoordinate : secondaryColumns) {
@@ -137,14 +137,13 @@ public class TestBase {
 
   public static SecondaryLock getSecondaryLock(Type type, long prewriteTs) {
     SecondaryLock lock = new SecondaryLock(type);
-    setThemisLock(lock, prewriteTs, prewriteTs);
+    setThemisLock(lock, prewriteTs);
     lock.setPrimaryColumn(COLUMN);
     return lock;
   }
 
-  public static void setThemisLock(ThemisLock lock, long prewriteTs, long wallTime) {
+  public static void setThemisLock(ThemisLock lock, long prewriteTs) {
     lock.setTimestamp(prewriteTs);
-    lock.setWallTime(wallTime);
     lock.setClientAddress(CLIENT_TEST_ADDRESS);
   }
 

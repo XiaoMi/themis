@@ -43,7 +43,6 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     writeLockAndData(COLUMN, prewriteTs - 2);
     lock = getLock(COLUMN);
     Mockito.when(mockRegister.isWorkerAlive(lock.getClientAddress())).thenReturn(true);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
     long startTs = System.currentTimeMillis();
     try {
       transaction.prewriteRowWithLockClean(TABLENAME, transaction.primaryRow, true);
@@ -72,7 +71,6 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     createTransactionWithMock();
     writeLockAndData(COLUMN, prewriteTs - 2);
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
     long startTs = System.currentTimeMillis();
     try {
       transaction.get(TABLENAME, getThemisGet(COLUMN));

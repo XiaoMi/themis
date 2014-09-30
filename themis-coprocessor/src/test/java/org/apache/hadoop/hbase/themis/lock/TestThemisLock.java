@@ -18,7 +18,7 @@ public class TestThemisLock extends TestBase {
   
   protected ThemisLock getNullThemisLock() {
     ThemisLock lock = (NullThemisLock)(new NullThemisLock());
-    setThemisLock(lock, PREWRITE_TS, PREWRITE_TS);
+    setThemisLock(lock, PREWRITE_TS);
     return lock;
   }
   

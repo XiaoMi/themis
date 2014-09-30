@@ -39,7 +39,7 @@ public class TestLockCleaner extends ClientTestBase {
     super.initEnv();
     setConfigForLockCleaner(conf);
     cpClient = new ThemisEndpointClient(connection);
-    lockCleaner = new LockCleaner(conf, connection, mockClock, mockRegister, cpClient);
+    lockCleaner = new LockCleaner(conf, connection, mockRegister, cpClient);
   }
   
   public static void setConfigForLockCleaner(Configuration conf) {
@@ -48,35 +48,11 @@ public class TestLockCleaner extends ClientTestBase {
   }
 
   @Test
-  public void testIsLockExpired() throws IOException {
-    long wallTime = System.currentTimeMillis();
-    ThemisLock lock = getLock(COLUMN);
-    lock.setWallTime(wallTime);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime - 1);
-    Assert.assertFalse(lockCleaner.isLockExpired(lock));
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 99);
-    Assert.assertFalse(lockCleaner.isLockExpired(lock));
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 100);
-    Assert.assertTrue(lockCleaner.isLockExpired(lock));
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 101);
-    Assert.assertTrue(lockCleaner.isLockExpired(lock));
-  }
-  
-
-  @Test
   public void testShouldCleanLock() throws IOException {
-    long wallTime = System.currentTimeMillis();
     ThemisLock lock = getLock(COLUMN);
-    lock.setWallTime(wallTime);
     Mockito.when(mockRegister.isWorkerAlive(lock.getClientAddress())).thenReturn(true);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 99);
     Assert.assertFalse(lockCleaner.shouldCleanLock(lock));
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 100);
-    Assert.assertTrue(lockCleaner.shouldCleanLock(lock));
     Mockito.when(mockRegister.isWorkerAlive(lock.getClientAddress())).thenReturn(false);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 99);
-    Assert.assertTrue(lockCleaner.shouldCleanLock(lock));
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 100);
     Assert.assertTrue(lockCleaner.shouldCleanLock(lock));
   }
 
@@ -294,27 +270,10 @@ public class TestLockCleaner extends ClientTestBase {
       Mockito.when(mockRegister.isWorkerAlive(lc.getClientAddress())).thenReturn(false);
       invokeTryToCleanLock(lc, cleanLocks);
       checkColumnRollback(COLUMN);
-      // lock should be cleaned after retry
-      deleteOldDataAndUpdateTs();
-      lc = getLock(COLUMN);
-      lc.setWallTime(wallTime - 50);
-      writeLockAndData(COLUMN);
-      Mockito.when(mockRegister.isWorkerAlive(lc.getClientAddress())).thenReturn(true);
-      // the lock won't be expire when try to clean lock firstly
-      Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
-      TryToCleanLockThread cleanThread = new TryToCleanLockThread(lc, cleanLocks);
-      long startTs = System.currentTimeMillis();
-      cleanThread.start();
-      Threads.sleep(50);
-      Mockito.when(mockClock.getWallTime()).thenReturn(wallTime + 51);
-      cleanThread.join();
-      checkColumnRollback(COLUMN);
-      Assert.assertTrue(System.currentTimeMillis() - startTs >= 100);
       // lock won't be cleaned by this transaction, however, cleaned by another transaction
       deleteOldDataAndUpdateTs();
       lc = getLock(COLUMN);
       Mockito.when(mockRegister.isWorkerAlive(lc.getClientAddress())).thenReturn(true);
-      Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
       invokeTryToCleanLock(lc, cleanLocks);
     }
   }
@@ -351,9 +310,7 @@ public class TestLockCleaner extends ClientTestBase {
       deleteOldDataAndUpdateTs();
       writeLockAndData(COLUMN);
       lc = getLock(COLUMN);
-      lc.setWallTime(wallTime - 50);
       Mockito.when(mockRegister.isWorkerAlive(lc.getClientAddress())).thenReturn(true);
-      Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
       long startTs = System.currentTimeMillis();
       try {
         invokeTryToCleanLock(lc, cleanLocks);
