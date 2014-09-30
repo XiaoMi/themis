@@ -289,10 +289,11 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   public byte[][] prewriteRow(final byte[] row, final List<ColumnMutation> mutations,
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex, final boolean singleRow) throws IOException {
+    // TODO : use ms enough?
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
+      checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
         public byte[][] doMutation(HRegion region, RowLock rowLock) throws IOException {
@@ -409,7 +410,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(transactionTTL, beginTs / 1000000, prewriteTs);
+      checkWriteTTL(transactionTTL, System.currentTimeMillis(), prewriteTs);
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {

@@ -19,6 +19,8 @@ import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
@@ -99,14 +101,23 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void deleteOldDataAndUpdateTs() throws IOException {
-    nextTransactionTs();
-    for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
-      for (HTableInterface hTable : new HTableInterface[] { table, anotherTable }) {
-        hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
-            .deleteFamily(ANOTHER_FAMILY, timestampBase)
-            .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+    boolean allDataCleaned = false;
+    do {
+      nextTransactionTs();
+      for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
+        for (HTableInterface hTable : new HTableInterface[] { table, anotherTable }) {
+          hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
+              .deleteFamily(ANOTHER_FAMILY, timestampBase)
+              .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+        }
       }
-    }
+      ResultScanner scanner = table.getScanner(new Scan());
+      allDataCleaned = (scanner.next() == null);
+      if (allDataCleaned) {
+        scanner = anotherTable.getScanner(new Scan());
+        allDataCleaned = (scanner.next() == null);
+      }
+    } while (!allDataCleaned);
   }
   
   protected HTableInterface getTable(byte[] tableName) throws IOException {
