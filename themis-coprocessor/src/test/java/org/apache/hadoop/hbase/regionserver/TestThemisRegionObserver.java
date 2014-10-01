@@ -131,7 +131,8 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       admin.flush(TABLENAME); // cleanTs is invalid when flush
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 5)));
-      admin.compact(TABLENAME); // cleanTs is valid when compact
+      // request majorCompact to make sure compact will be executed and cleanTs is valid when compact
+      admin.majorCompact(TABLENAME);
       Threads.sleep(5000); // wait compaction complete
       Result result = getRowByScan();
       Assert.assertEquals(3, result.size());

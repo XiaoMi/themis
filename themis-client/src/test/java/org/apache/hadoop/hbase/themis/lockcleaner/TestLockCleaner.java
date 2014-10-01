@@ -20,7 +20,6 @@ import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
-import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -78,7 +77,7 @@ public class TestLockCleaner extends ClientTestBase {
       lockCleaner.tryToCleanLock(lock);
     }
   }
-  
+
   @Test
   public void testTryToCleanLockSuccess() throws Exception {
     boolean[] cleanLocksOptions = new boolean[]{false, true};
@@ -119,7 +118,6 @@ public class TestLockCleaner extends ClientTestBase {
         invokeTryToCleanLock(lc, cleanLocks);
       } catch (IOException e) {
         admin.enableTable(TABLENAME);
-        e.printStackTrace();
         Assert.assertTrue(e.getCause() instanceof RetriesExhaustedException);
         checkPrewriteColumnSuccess(COLUMN);
       } finally {

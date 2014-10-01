@@ -11,7 +11,9 @@ import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.junit.Assert;
 import org.junit.Test;
 
+// this test could only be run under 0.94
 public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
+  /*
   protected ResultScanner getResultScanner(byte[] tableName, long cleanTs) throws IOException {
     Scan scan = new Scan();
     ThemisExpiredDataCleanFilter filter = new ThemisExpiredDataCleanFilter(cleanTs);
@@ -82,5 +84,5 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
       Assert.assertArrayEquals(column.getQualifier(), kv.getQualifier());
     }
     scanner.close();
-  }
+  }*/
 }

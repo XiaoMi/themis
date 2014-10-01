@@ -57,9 +57,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
   private static final Log LOG = LogFactory.getLog(ThemisEndpoint.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
   private RegionCoprocessorEnvironment env;
-  private TransactionTTL transactionTTL;
   
-  @Override
   public void start(CoprocessorEnvironment env) throws IOException {
     // super.start(env);
     if (env instanceof RegionCoprocessorEnvironment) {

@@ -283,6 +283,7 @@ public class ThemisEndpointClient {
         ServerRpcController controller = new ServerRpcController();
         BlockingRpcCallback<LockExpiredResponse> rpcCallback = new BlockingRpcCallback<LockExpiredResponse>();
         instance.isLockExpired(controller, builder.build(), rpcCallback);
+        checkRpcException(controller);
         return rpcCallback.get().getExpired();
       }
     }.run();
