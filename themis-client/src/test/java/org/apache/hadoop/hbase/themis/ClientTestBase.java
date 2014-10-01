@@ -8,7 +8,6 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
-import org.apache.hadoop.hbase.themis.lockcleaner.WallClock;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle;
 import org.apache.hadoop.hbase.util.Pair;
@@ -17,7 +16,6 @@ import org.mockito.Mockito;
 
 public class ClientTestBase extends TransactionTestBase {
   protected WorkerRegister mockRegister;
-  protected WallClock mockClock;
   protected BaseTimestampOracle mockTimestampOracle;
   protected Transaction transaction;
   
@@ -25,15 +23,13 @@ public class ClientTestBase extends TransactionTestBase {
   public void initEnv() throws IOException {
     super.initEnv();
     mockRegister = Mockito.mock(WorkerRegister.class);
-    mockClock = Mockito.mock(WallClock.class);
     Mockito.when(mockRegister.getClientAddress()).thenReturn(CLIENT_TEST_ADDRESS);
   }
   
   protected void createTransactionWithMock() throws IOException {
     mockTimestampOracle = Mockito.mock(BaseTimestampOracle.class);
     mockTimestamp(prewriteTs);
-    Mockito.when(mockClock.getWallTime()).thenReturn(prewriteTs);
-    transaction = new Transaction(conf, connection, mockTimestampOracle, mockClock, mockRegister);
+    transaction = new Transaction(conf, connection, mockTimestampOracle, mockRegister);
   }
   
   protected void mockTimestamp(long timestamp) throws IOException {
@@ -45,41 +41,6 @@ public class ClientTestBase extends TransactionTestBase {
     return new KeyValue(c.getRow(), c.getFamily(), c.getQualifier(), ts, type, VALUE);
   }
   
-  protected void checkCommitSecondariesSuccess() throws IOException {
-    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
-      checkCommitColumnSuccess(columnCoordinate);
-    }
-  }
-  
-  protected void checkSecondariesRollback() throws IOException {
-    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
-      checkColumnRollback(columnCoordinate);
-    }
-  }
-  
-  protected void checkRollbackForSingleRow() throws IOException {
-    for (ColumnCoordinate columnCoordinate : PRIMARY_ROW_COLUMNS) {
-      checkColumnRollback(columnCoordinate);
-    }
-  }
-  
-  protected void checkColumnRollback(ColumnCoordinate columnCoordinate) throws IOException {
-    Assert.assertNull(readLockBytes(columnCoordinate));
-    Assert.assertNull(readPut(columnCoordinate));
-    Assert.assertNull(readDelete(columnCoordinate));
-  }
-  
-  protected void checkTransactionRollback() throws IOException {
-    for (ColumnCoordinate columnCoordinate : TRANSACTION_COLUMNS) {
-      checkColumnRollback(columnCoordinate);
-    }
-  }
-  
-  public void checkTransactionCommitSuccess() throws IOException {
-    checkCommitRowSuccess(TABLENAME, PRIMARY_ROW);
-    checkCommitSecondariesSuccess();
-  }
-
   protected ThemisGet getThemisGet(ColumnCoordinate c) throws IOException {
     return new ThemisGet(c.getRow()).addColumn(c.getFamily(), c.getQualifier());
   }
@@ -138,7 +99,6 @@ public class ClientTestBase extends TransactionTestBase {
     } else {
       applyTransactionMutations();
     }
-    transaction.wallTime = wallTime;
     transaction.primary = COLUMN;
     transaction.selectPrimaryAndSecondaries();    
   }

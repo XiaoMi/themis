@@ -7,22 +7,30 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver;
+import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -35,7 +43,7 @@ import org.junit.BeforeClass;
 public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_RETRY_COUNT = 2;
   public static final int TEST_LOCK_CLEAN_PAUSE = 200;
-  protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
+  protected static HBaseTestingUtility TEST_UTIL;
   
   protected HConnection connection;
   protected HTableInterface table;
@@ -45,26 +53,50 @@ public class TransactionTestBase extends TestBase {
   // the following ts has effect across uts
   protected static long timestampBase;
   protected static long prewriteTs;
-  protected static long wallTime;
   protected static long commitTs;
   protected ThemisCoprocessorClient cpClient;
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
+    /*
+    TEST_UTIL = new HBaseTestingUtility();
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisProtocolImpl.class.getName());
-    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, ThemisScanObserver.class.getName());
+    conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
+      ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
+    conf.setStrings(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, ThemisMasterObserver.class.getName());
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
+    // timestampBase will increase by 100 each test which will cause the prewriteTs/commitTs is small
+    // than real timestamp, so that set TransactionWriteTTL to 1 hour to avoid this situation
+    conf.setInt(TransactionTTL.THEMIS_WRITE_TRANSACTION_TTL_KEY, 3600);
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
-    TEST_UTIL.createTable(TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
-    TEST_UTIL.createTable(ANOTHER_TABLENAME, new byte[][] { ColumnUtil.LOCK_FAMILY_NAME, FAMILY, ANOTHER_FAMILY });
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    for (byte[] tableName : new byte[][]{TABLENAME, ANOTHER_TABLENAME}) {
+      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
+      for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY}) {
+        HColumnDescriptor columnDesc = new HColumnDescriptor(family);
+        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+        tableDesc.addFamily(columnDesc);
+      }
+      admin.createTable(tableDesc);
+    }
+    admin.close();
+    TransactionTTL.init(conf);*/
+    conf = HBaseConfiguration.create();
+    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    TEST_UTIL.shutdownMiniCluster();
+    if (TEST_UTIL != null) {
+      TEST_UTIL.shutdownMiniCluster();
+    }
   }
   
   @Before
@@ -77,14 +109,23 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void deleteOldDataAndUpdateTs() throws IOException {
-    nextTransactionTs();
-    for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
-      for (HTableInterface hTable : new HTableInterface[] { table, anotherTable }) {
-        hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
-            .deleteFamily(ANOTHER_FAMILY, timestampBase)
-            .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+    boolean allDataCleaned = false;
+    do {
+      nextTransactionTs();
+      for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
+        for (HTableInterface hTable : new HTableInterface[] { table, anotherTable }) {
+          hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
+              .deleteFamily(ANOTHER_FAMILY, timestampBase)
+              .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+        }
       }
-    }
+      ResultScanner scanner = table.getScanner(new Scan());
+      allDataCleaned = (scanner.next() == null);
+      if (allDataCleaned) {
+        scanner = anotherTable.getScanner(new Scan());
+        allDataCleaned = (scanner.next() == null);
+      }
+    } while (!allDataCleaned);
   }
   
   protected HTableInterface getTable(byte[] tableName) throws IOException {
@@ -99,15 +140,20 @@ public class TransactionTestBase extends TestBase {
   
   @After
   public void tearUp() throws IOException {
-    table.close();
-    anotherTable.close();
-    connection.close();
+    if (table != null) {
+      table.close();
+    }
+    if (anotherTable != null) {
+      anotherTable.close();
+    }
+    if (connection != null) {
+      connection.close();
+    }
   }
  
   protected void nextTransactionTs() {
     timestampBase = timestampBase == 0 ? System.currentTimeMillis() : timestampBase + 100;
     prewriteTs = timestampBase + 1;
-    wallTime = prewriteTs;
     commitTs = prewriteTs + 1;
   }
   
@@ -179,7 +225,7 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void writeDeleteColumn(ColumnCoordinate c, long prewriteTs, long commitTs) throws IOException {
-    ColumnCoordinate deleteColumn = new ColumnCoordinate(c.getTableName(), c.getRow(), ColumnUtil.getPutColumn(c));
+    ColumnCoordinate deleteColumn = new ColumnCoordinate(c.getTableName(), c.getRow(), ColumnUtil.getDeleteColumn(c));
     writeWriteColumnInternal(deleteColumn, prewriteTs, commitTs);
   }
   
@@ -318,6 +364,59 @@ public class TransactionTestBase extends TestBase {
     }
   }
   
+  protected void checkCommitSecondariesSuccess() throws IOException {
+    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
+      checkCommitColumnSuccess(columnCoordinate);
+    }
+  }
+  
+  protected void checkSecondariesRollback() throws IOException {
+    for (ColumnCoordinate columnCoordinate : SECONDARY_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
+  protected void checkColumnRollback(ColumnCoordinate columnCoordinate) throws IOException {
+    Assert.assertNull(readLockBytes(columnCoordinate));
+    Assert.assertNull(readPut(columnCoordinate));
+    Assert.assertNull(readDelete(columnCoordinate));
+  }
+  
+  protected void checkRollbackForSingleRow() throws IOException {
+    for (ColumnCoordinate columnCoordinate : PRIMARY_ROW_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
+  protected void checkTransactionRollback() throws IOException {
+    for (ColumnCoordinate columnCoordinate : TRANSACTION_COLUMNS) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
+  public void checkTransactionCommitSuccess() throws IOException {
+    checkCommitRowSuccess(TABLENAME, PRIMARY_ROW);
+    checkCommitSecondariesSuccess();
+  }
+
+  protected void checkColumnsCommitSuccess(ColumnCoordinate[] columns) throws IOException {
+    for (ColumnCoordinate columnCoordinate : columns) {
+      checkCommitColumnSuccess(columnCoordinate);
+    }
+  }
+  
+  protected void checkColumnsPrewriteSuccess(ColumnCoordinate[] columns) throws IOException {
+    for (ColumnCoordinate columnCoordinate : columns) {
+      checkPrewriteColumnSuccess(columnCoordinate);
+    }
+  }
+  
+  protected void checkColumnsRallback(ColumnCoordinate[] columns) throws IOException {
+    for (ColumnCoordinate columnCoordinate : columns) {
+      checkColumnRollback(columnCoordinate);
+    }
+  }
+  
   protected ThemisLock prewritePrimaryRow() throws IOException {
     byte[] lockBytes = ThemisLock.toByte(getLock(COLUMN));
     ThemisLock lock = cpClient.prewriteRow(COLUMN.getTableName(), PRIMARY_ROW.getRow(),
@@ -371,5 +470,25 @@ public class TransactionTestBase extends TestBase {
     prewriteSecondaryRows();
     commitPrimaryRow();
     commitSecondaryRow();
+  }
+  
+  protected void deleteTable(HBaseAdmin admin, byte[] tableName) throws IOException {
+    if (admin.tableExists(tableName)) {
+      if (admin.isTableEnabled(tableName)) {
+        admin.disableTable(tableName);
+      }
+      admin.deleteTable(tableName);
+    }
+  }
+  
+  protected void truncateTable(byte[] tableName) throws IOException {
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    HTableDescriptor desc = admin.getTableDescriptor(tableName);
+    admin.disableTable(tableName);
+    admin.deleteTable(tableName);
+    desc.removeFamily(ColumnUtil.LOCK_FAMILY_NAME);
+    admin.createTable(desc);
+    connection.clearRegionCache(tableName);
+    admin.close();
   }
 }

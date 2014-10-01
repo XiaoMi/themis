@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Get;
@@ -25,6 +26,11 @@ public class ThemisScanObserver extends BaseRegionObserver {
   public static final String TRANSACTION_START_TS = "_themisTransationStartTs_";
   private static final Log LOG = LogFactory.getLog(ThemisScanObserver.class);
   
+  @Override
+  public void start(CoprocessorEnvironment e) throws IOException {
+    TransactionTTL.init(e.getConfiguration());
+  }
+  
   protected static boolean next(HRegion region, final ThemisServerScanner s,
       List<Result> results, int limit) throws IOException {
     List<KeyValue> values = new ArrayList<KeyValue>();
@@ -38,6 +44,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
           List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(pResult.getSecond());
           // should ignore rows which only contain delete columns
           if (putKvs.size() > 0) {
+            // TODO : check there must corresponding data columns by commit column
             Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, s.getDataColumnFilter());
             Result dataResult = region.get(dataGet, null);
             if (!dataResult.isEmpty()) {
@@ -67,6 +74,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       if (s instanceof ThemisServerScanner) {
         ThemisServerScanner pScanner = (ThemisServerScanner)s;
+        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), pScanner.getStartTs());
         HRegion region = e.getEnvironment().getRegion();
         boolean more = next(region, pScanner, results, limit);
         e.bypass();
@@ -86,9 +94,11 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       Long themisStartTs = getStartTsFromAttribute(scan);
       if (themisStartTs != null) {
+        checkFamily(e.getEnvironment().getRegion(), scan);
+        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), themisStartTs);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
         ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment()
-            .getRegion().getScanner(internalScan), scan.getFilter());
+            .getRegion().getScanner(internalScan), themisStartTs, scan.getFilter());
         e.bypass();
         return pScanner;
       }
@@ -96,6 +106,10 @@ public class ThemisScanObserver extends BaseRegionObserver {
     } catch (Throwable ex) {
       throw new DoNotRetryIOException("themis exception in preScannerOpen", ex);
     }
+  }
+  
+  protected void checkFamily(final HRegion region, final Scan scan) throws IOException {
+    ThemisProtocolImpl.checkFamily(region, scan.getFamilies());
   }
   
   public static Long getStartTsFromAttribute(Scan scan) {

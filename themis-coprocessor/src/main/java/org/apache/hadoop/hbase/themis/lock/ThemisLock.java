@@ -17,9 +17,18 @@ public abstract class ThemisLock implements Writable {
   protected Type type = Type.Minimum; // illegal type should be Type.Put or Type.DeleteColumn
   protected long timestamp;
   protected String clientAddress;
-  protected long wallTime;
+  protected long wallTime; // TODO : remove this field
   protected ColumnCoordinate columnCoordinate; // need not to be serialized
+  protected boolean lockExpired = false;
   
+  public boolean isLockExpired() {
+    return lockExpired;
+  }
+
+  public void setLockExpired(boolean lockExpired) {
+    this.lockExpired = lockExpired;
+  }
+
   public ColumnCoordinate getColumn() {
     return columnCoordinate;
   }
@@ -51,12 +60,12 @@ public abstract class ThemisLock implements Writable {
     this.clientAddress = clientAddress;
   }
 
-  public long getWallTime() {
-    return wallTime;
+  public long getWallTime() throws IOException {
+    throw new IOException("not supportted");
   }
   
-  public void setWallTime(long wallTime) {
-    this.wallTime = wallTime;
+  public void setWallTime(long wallTime) throws IOException {
+    throw new IOException("not supportted");
   }
   
   public Type getType() {
@@ -121,7 +130,6 @@ public abstract class ThemisLock implements Writable {
   
   public static void copyThemisLock(ThemisLock source, ThemisLock dest) {
     dest.setTimestamp(source.getTimestamp());
-    dest.setWallTime(source.getWallTime());
     dest.setClientAddress(source.getClientAddress());
   }
 }

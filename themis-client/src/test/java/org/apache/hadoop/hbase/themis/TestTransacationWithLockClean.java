@@ -24,7 +24,9 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     super.initEnv();
     createTransactionWithMock();
   }
-    
+   
+  // these lock-clean test will use ThemisLock constructed in client-side, so that
+  // won't judge lock expired in server-side and won't be affected by the TransactionTTL setting
   @Test
   public void testPrewriteRowWithLockClean() throws IOException {
     // lock will be cleaned and prewrite will success
@@ -43,7 +45,6 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     writeLockAndData(COLUMN, prewriteTs - 2);
     lock = getLock(COLUMN);
     Mockito.when(mockRegister.isWorkerAlive(lock.getClientAddress())).thenReturn(true);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
     long startTs = System.currentTimeMillis();
     try {
       transaction.prewriteRowWithLockClean(TABLENAME, transaction.primaryRow, true);
@@ -72,7 +73,6 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     createTransactionWithMock();
     writeLockAndData(COLUMN, prewriteTs - 2);
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
-    Mockito.when(mockClock.getWallTime()).thenReturn(wallTime);
     long startTs = System.currentTimeMillis();
     try {
       transaction.get(TABLENAME, getThemisGet(COLUMN));
