@@ -141,7 +141,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
 
-2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'
+2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'.
 
 These settings could be set in hbase-site.xml of server-side.
 
@@ -402,9 +402,9 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 ### 服务器端设置 
 
-1. 事务timeout设置. 读写事务的timeout可以通过'themis.read.transaction.ttl'和'themis.write.transaction.ttl'分别设置。
+1. 事务timeout设置:读写事务的timeout可以通过'themis.read.transaction.ttl'和'themis.write.transaction.ttl'分别设置。
 
-2. 数据清理. 如果设置了'themis.expired.data.clean.enable', 不再会被其它事务读取的旧数据会被周期性的清理；清理周期可以通过'themis.expired.timestamp.calculator.period'来设置。
+2. 数据清理:如果设置了'themis.expired.data.clean.enable', 不再会被其它事务读取的旧数据会被周期性的清理；清理周期可以通过'themis.expired.timestamp.calculator.period'来设置。
 
 上面的属性可以在server端的hbase-site.xml中进行设置。
 
