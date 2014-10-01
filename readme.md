@@ -254,12 +254,10 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 
 ## Future Works
 
-1. Optimize the write performance for single-row transaction. The persistent lock is not needed to write to HLog for single-row transaction.
-2. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
-3. Create themis-needed family and set attributes automactically when user creates a table for themis.
-4. A normal way to clear expired data for thmeis.
-5. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
-6. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
+1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
+2. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
+3. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
+4. Support different ioslation levels.
 
 ---
 
@@ -512,9 +510,7 @@ TransactionSize是事务的行数，我们关注使用并发后的相对性能�
 
 ## 将来的工作
 
-1. 写性能优化。对于单行事物，prewrite阶段锁信息的写入可以不落HLog。
-2. RegionServer内存优化。可以将已经删除的Lock信息从MemStore中清掉，确保RegionServer内存中只有当前正在执行的事务。
-3. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
-4. 清理过期数据。
-5. 读出当前事务未提交的写。对于当前事务，会将server端已提交的事务与本事务还没有commit的写进行合并，提供更合理的Snapshot。
-6. 更有效的解决锁冲突。client向zookeeper注册，通过是否在zookeeper丢锁判定client是否退出，帮助更快的清理锁。
+1. RegionServer内存优化。可以将已经删除的Lock信息从MemStore中清掉，确保RegionServer内存中只有当前正在执行的事务。
+2. 读出当前事务未提交的写。对于当前事务，会将server端已提交的事务与本事务还没有commit的写进行合并，提供更合理的Snapshot。
+3. 更有效的解决锁冲突。client向zookeeper注册，通过是否在zookeeper丢锁判定client是否退出，帮助更快的清理锁。
+4. 支持不同的isolation级别。
