@@ -104,6 +104,8 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
 2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
+3. ThemisRegionObserver: single-row write optimization, add data clean filter to the scanner of flush and compaction.
+4. ThemisMasterObserver: automatically add lock family when users creating table, set timestamp for data clean periodly.
 
 ## Usage 
 
@@ -134,6 +136,14 @@ Themis client will manage the users's mutations by row and invoke methods of The
      ```
 
 3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor in table create script. 
+
+### Server Side Settings
+
+1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
+
+2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'
+
+These settings could be set in hbase-site.xml of server-side.
 
 ### depends themis-client
 
@@ -359,6 +369,8 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
 
 1. ThemisProtocol/ThemisCoprocessorImpl。定义和实现Themis coprocessor接口，主要接口是prewrite/commit/themisGet。
 2. ThemisServerScanner/ThemisScanObserver。实现themisScan逻辑。
+3. ThemisRegionObserver: 单行写性能优化逻辑，在flush和compaction的过程中通过添加Filter来实现数据清理。
+4. ThemisMasterObserver: 用户创建表的时候自动添加lock family, 周期性设置过期数据的timestamp。
 
 ## Themis使用
 
@@ -387,6 +399,14 @@ Themis的实现利用了HBase的coprocessor框架，其模块图为：
      ```
 
 3. 对于需要使用themis的family，需要设置THEMIS_ENABLE属性为true，建表的时候可以在family descriptor中加入"CONGIG => {'THEMIS_ENABLE', 'true'}"。
+
+### 服务器端设置 
+
+1. 事务timeout设置. 读写事务的timeout可以通过'themis.read.transaction.ttl'和'themis.write.transaction.ttl'分别设置。
+
+2. 数据清理. 如果设置了'themis.expired.data.clean.enable', 不再会被其它事务读取的旧数据会被周期性的清理；清理周期可以通过'themis.expired.timestamp.calculator.period'来设置。
+
+上面的属性可以在server端的hbase-site.xml中进行设置。
 
 ### Themis客户端
 需要在使用Themis的项目的pom中引入themis-client的依赖：
