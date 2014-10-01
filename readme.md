@@ -255,9 +255,9 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 ## Future Works
 
 1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
-2. A normal way to clear expired data for thmeis.
-3. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
-4. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
+2. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
+3. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
+4. Support different ioslation levels.
 
 ---
 
@@ -510,6 +510,6 @@ TransactionSize是事务的行数，我们关注使用并发后的相对性能�
 ## 将来的工作
 
 1. RegionServer内存优化。可以将已经删除的Lock信息从MemStore中清掉，确保RegionServer内存中只有当前正在执行的事务。
-2. 清理过期数据。
-3. 读出当前事务未提交的写。对于当前事务，会将server端已提交的事务与本事务还没有commit的写进行合并，提供更合理的Snapshot。
-4. 更有效的解决锁冲突。client向zookeeper注册，通过是否在zookeeper丢锁判定client是否退出，帮助更快的清理锁。
+2. 读出当前事务未提交的写。对于当前事务，会将server端已提交的事务与本事务还没有commit的写进行合并，提供更合理的Snapshot。
+3. 更有效的解决锁冲突。client向zookeeper注册，通过是否在zookeeper丢锁判定client是否退出，帮助更快的清理锁。
+4. 支持不同的isolation级别。
