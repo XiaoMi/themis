@@ -16,7 +16,8 @@ public class ThemisScan extends ThemisRead {
     this(HConstants.EMPTY_START_ROW, HConstants.EMPTY_END_ROW);
   }
   
-  protected ThemisScan(Scan scan) {
+  public ThemisScan(Scan scan) {
+    // TODO : check scan is legal for themis
     setHBaseScan(scan);
   }
   
