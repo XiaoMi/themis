@@ -3,6 +3,8 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <themis.version>1.0-SNAPSHOT</themis.version>
+    <hadoop.version>2.0.0-alpha</hadoop.version>
+    <hbase.version>0.94.21</hbase.version>
   </properties>
 
   <modelVersion>4.0.0</modelVersion>
@@ -42,6 +44,19 @@
       <artifactId>themis-coprocessor</artifactId>
       <version>${project.version}</version>
       <classifier>tests</classifier>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase</artifactId>
+      <version>${hbase.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-minicluster</artifactId>
+      <version>${hadoop.version}</version>
+      <scope>compile</scope>
     </dependency>
   </dependencies>
   <build>

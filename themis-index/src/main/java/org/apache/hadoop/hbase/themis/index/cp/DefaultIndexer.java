@@ -13,8 +13,6 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.ThemisScanner;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
@@ -69,11 +67,6 @@ public class DefaultIndexer extends Indexer {
         }
       }
     }
-  }
-
-  @Override
-  public Result get(byte[] tableName, ThemisGet get) throws IOException {
-    return null;
   }
 
   @Override
