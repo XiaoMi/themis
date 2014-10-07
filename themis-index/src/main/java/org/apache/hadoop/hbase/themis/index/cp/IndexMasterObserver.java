@@ -18,6 +18,7 @@ import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Pair;
 
 public class IndexMasterObserver extends BaseMasterObserver {
   private static final Log LOG = LogFactory.getLog(IndexMasterObserver.class);
@@ -26,6 +27,7 @@ public class IndexMasterObserver extends BaseMasterObserver {
   public static final String THEMIS_SECONDARY_INDEX_TABLE_NAME_PREFIX = "__themis_index";
   public static final String THEMIS_SECONDARY_INDEX_TABLE_ATTRIBUTE_KEY = "THEMIS_SECONDARY_TABLE";
   public static final String THEMIS_SECONDARY_INDEX_TABLE_FAMILY = "I";
+  public static final byte[] THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES = Bytes.toBytes(THEMIS_SECONDARY_INDEX_TABLE_FAMILY);
   
   private ThreadLocal<HTableDescriptor> deletedTableDesc = new ThreadLocal<HTableDescriptor>();
   
@@ -92,22 +94,37 @@ public class IndexMasterObserver extends BaseMasterObserver {
   protected void createSecondaryIndexTables(HBaseAdmin admin, String tableName,
       HColumnDescriptor familyDesc) throws IOException {
     List<String> indexTableNames = getSecondaryIndexTableNames(tableName, familyDesc);
+    if (indexTableNames.size() > 1) {
+      throw new IOException(
+          "currently, only allow to define one index on each column, but indexes are : "
+              + indexTableNames);
+    }
     for (String indexTableName : indexTableNames) {
       admin.createTable(getSecondaryIndexTableDesc(indexTableName));
       LOG.info("create secondary index table:" + indexTableName);      
     }
   }
   
-  protected static List<String> getSecondaryIndexTableNames(String tableName, HColumnDescriptor familyDesc) {
-    List<String> tableNames = new ArrayList<String>();
+  protected static List<Pair<String, String>> getIndexNameAndColumns(String tableName,
+      HColumnDescriptor familyDesc) {
+    List<Pair<String, String>> indexNameAndColumns = new ArrayList<Pair<String,String>>();
     String indexAttribute = familyDesc.getValue(THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY);
     String[] indexColumns = indexAttribute.split(THEMIS_SECONDARY_INDEX_NAME_SPLITOR);
     for (String indexColumn : indexColumns) {
       byte[][] indexNameAndColumn = KeyValue.parseColumn(Bytes.toBytes(indexColumn));
       String indexName = Bytes.toString(indexNameAndColumn[0]);
       String columnName = Bytes.toString(indexNameAndColumn[1]);
+      indexNameAndColumns.add(new Pair<String, String>(indexName, columnName));
+    }
+    return indexNameAndColumns;
+  }
+  
+  protected static List<String> getSecondaryIndexTableNames(String tableName, HColumnDescriptor familyDesc) {
+    List<String> tableNames = new ArrayList<String>();
+    List<Pair<String, String>> indexNameAndColumns = getIndexNameAndColumns(tableName, familyDesc);
+    for (Pair<String, String> indexNameAndColumn : indexNameAndColumns) {
       String indexTableName = constructSecondaryIndexTableName(tableName,
-        familyDesc.getNameAsString(), columnName, indexName);
+        familyDesc.getNameAsString(), indexNameAndColumn.getSecond(), indexNameAndColumn.getFirst());
       tableNames.add(indexTableName);
     }
     return tableNames;

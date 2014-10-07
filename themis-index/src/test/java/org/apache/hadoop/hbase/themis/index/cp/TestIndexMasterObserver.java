@@ -4,15 +4,13 @@ import java.io.IOException;
 
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
-import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestIndexMasterObserver extends TransactionTestBase {
+public class TestIndexMasterObserver extends IndexTestBase {
   @Test
   public void testCheckIndexNames() throws IOException {
     HColumnDescriptor desc = new HColumnDescriptor("C");
@@ -63,9 +61,7 @@ public class TestIndexMasterObserver extends TransactionTestBase {
   @Test
   public void testCreateDeleteTableWithSecondaryIndex() throws IOException {
     // create normal table with secondary index table prefix
-    HBaseAdmin admin = new HBaseAdmin(conf);
-    String tableName = IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_NAME_PREFIX + "_a";
-    HTableDescriptor tableDesc = new HTableDescriptor(tableName);
+    HTableDescriptor tableDesc = new HTableDescriptor(IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_NAME_PREFIX + "_a");
     try {
       admin.createTable(tableDesc);
     } catch (IOException e) {
@@ -73,8 +69,7 @@ public class TestIndexMasterObserver extends TransactionTestBase {
     }
     
     // create themis table without index enable
-    tableName = "test_table";
-    tableDesc = new HTableDescriptor(tableName);
+    tableDesc = new HTableDescriptor(INDEX_TEST_MAIN_TABLE_NAME);
     tableDesc.addFamily(IndexMasterObserver.getSecondaryIndexFamily());
     admin.createTable(tableDesc);
     HTableDescriptor[] tableDescs = admin.listTables();
@@ -82,12 +77,12 @@ public class TestIndexMasterObserver extends TransactionTestBase {
       Assert.assertFalse(desc.getNameAsString().indexOf(
         IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_NAME_PREFIX) >= 0);
     }
-    admin.disableTable(tableName);
-    admin.deleteTable(tableName);
+    admin.disableTable(INDEX_TEST_MAIN_TABLE_NAME);
+    admin.deleteTable(INDEX_TEST_MAIN_TABLE_NAME);
     
     // create table with index attribute but without themis enable key
-    tableDesc = new HTableDescriptor(tableName);
-    HColumnDescriptor columnDesc = new HColumnDescriptor("C");
+    tableDesc = new HTableDescriptor(INDEX_TEST_MAIN_TABLE_NAME);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_TEST_MAIN_TABLE_FAMILY_NAME);
     columnDesc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
       Boolean.TRUE.toString());
     tableDesc.addFamily(columnDesc);
@@ -98,23 +93,15 @@ public class TestIndexMasterObserver extends TransactionTestBase {
     }
     
     // create themis table with secondary index attribute
-    tableDesc = new HTableDescriptor(tableName);
-    byte[] family = Bytes.toBytes("C");
-    columnDesc = new HColumnDescriptor(family);
-    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
-    String indexAttribute = "test_index:c";
-    columnDesc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
-      indexAttribute);
-    tableDesc.addFamily(columnDesc);
-    admin.createTable(tableDesc);
+    createTableForIndexTest();
     tableDescs = admin.listTables();
     boolean containMainTable = false;
     boolean containIndexTable = false;
     for (HTableDescriptor desc : tableDescs) {
-      if (desc.getNameAsString().equals(tableName)) {
+      if (Bytes.equals(desc.getName(), INDEX_TEST_MAIN_TABLE_NAME)) {
         containMainTable = true;
         Assert.assertNotNull(desc.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
-      } else if (desc.getNameAsString().equals("__themis_index_test_table_C_c_test_index")) {
+      } else if (Bytes.equals(desc.getName(), INDEX_TEST_INDEX_TABLE_NAME)) {
         containIndexTable = true;
         Assert.assertNotNull(desc.getFamily(Bytes
             .toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY)));
@@ -124,16 +111,14 @@ public class TestIndexMasterObserver extends TransactionTestBase {
     Assert.assertTrue(containMainTable);
     Assert.assertTrue(containIndexTable);
     
-    admin.disableTable(tableName);
-    admin.deleteTable(tableName);
+    deleteTableForIndexTest();
     tableDescs = admin.listTables();
     for (HTableDescriptor desc : tableDescs) {
-      if (desc.getNameAsString().equals(tableName)) {
-        Assert.fail("fail to delete table:" + tableName);
-      } else if (desc.getNameAsString().equals("__themis_index_test_table_C_c_test_index")) {
-        Assert.fail("fail to delete table:__themis_index_test_table_C_c_test_index");
+      if (Bytes.equals(desc.getName(), INDEX_TEST_MAIN_TABLE_NAME)) {
+        Assert.fail("fail to delete table:" + INDEX_TEST_MAIN_TABLE_NAME);
+      } else if (Bytes.equals(desc.getName(), INDEX_TEST_INDEX_TABLE_NAME)) {
+        Assert.fail("fail to delete table:" + INDEX_TEST_INDEX_TABLE_NAME);
       }
     }
-    admin.close();
   }
 }

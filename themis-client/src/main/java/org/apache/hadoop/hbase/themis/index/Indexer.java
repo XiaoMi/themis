@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis.index;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.apache.hadoop.hbase.themis.ThemisScan;
@@ -10,7 +11,7 @@ import org.apache.hadoop.hbase.themis.ThemisScanner;
 import org.apache.hadoop.hbase.themis.TransactionConstant;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 
-public abstract class Indexer {
+public abstract class Indexer extends Configured {
   private static Indexer indexer = null;
   private static Object lock = new Object();
   
@@ -33,6 +34,7 @@ public abstract class Indexer {
   }
 
   public Indexer(Configuration conf) {
+    super(conf);
   }
   
   public abstract Result get(byte[] tableName, ThemisGet get) throws IOException;
