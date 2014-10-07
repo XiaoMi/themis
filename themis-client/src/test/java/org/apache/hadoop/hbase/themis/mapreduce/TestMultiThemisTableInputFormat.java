@@ -79,22 +79,26 @@ public class TestMultiThemisTableInputFormat extends TestThemisRowCounter {
   
   @Test
   public void testThemisRowCounter() throws Exception {
-    writeTestData();
-    Job job = createSubmittableJob(conf, new String[] { Bytes.toString(TABLENAME),
-        Bytes.toString(FAMILY) + ":" + Bytes.toString(QUALIFIER) });
-    job.waitForCompletion(true);
-    assertTrue(job.isSuccessful());
-    Counter counter = job.getCounters()
-        .findCounter(ThemisRowCounter.RowCounterMapper.Counters.ROWS);
-    assertEquals(2, counter.getValue());
-    
-    job = createSubmittableJob(conf, new String[] {
-        Bytes.toString(TABLENAME) + ":" + Bytes.toString(ANOTHER_TABLENAME),
-        Bytes.toString(FAMILY) + ":" + Bytes.toString(QUALIFIER) });
-    job.waitForCompletion(true);
-    assertTrue(job.isSuccessful());
-    counter = job.getCounters()
-        .findCounter(ThemisRowCounter.RowCounterMapper.Counters.ROWS);
-    assertEquals(4, counter.getValue());
+    if (TEST_UTIL != null) {
+      writeTestData();
+      Job job = createSubmittableJob(
+        conf,
+        new String[] { Bytes.toString(TABLENAME),
+            Bytes.toString(FAMILY) + ":" + Bytes.toString(QUALIFIER) });
+      job.waitForCompletion(true);
+      assertTrue(job.isSuccessful());
+      Counter counter = job.getCounters().findCounter(
+        ThemisRowCounter.RowCounterMapper.Counters.ROWS);
+      assertEquals(2, counter.getValue());
+
+      job = createSubmittableJob(
+        conf,
+        new String[] { Bytes.toString(TABLENAME) + ":" + Bytes.toString(ANOTHER_TABLENAME),
+            Bytes.toString(FAMILY) + ":" + Bytes.toString(QUALIFIER) });
+      job.waitForCompletion(true);
+      assertTrue(job.isSuccessful());
+      counter = job.getCounters().findCounter(ThemisRowCounter.RowCounterMapper.Counters.ROWS);
+      assertEquals(4, counter.getValue());
+    }
   }
 }

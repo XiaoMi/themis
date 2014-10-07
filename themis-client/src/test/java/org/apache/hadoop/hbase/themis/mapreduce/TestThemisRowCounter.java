@@ -29,33 +29,38 @@ public class TestThemisRowCounter extends TestThemisMapReduceBase {
   
   @Test
   public void testThemisRowCounter() throws Exception {
-    writeTestData();
-    Job job = ThemisRowCounter.createSubmittableJob(conf, new String[] { Bytes.toString(TABLENAME),
-        Bytes.toString(FAMILY) + ":" + Bytes.toString(QUALIFIER) });
-    job.waitForCompletion(true);
-    assertTrue(job.isSuccessful());
-    Counter counter = job.getCounters()
-        .findCounter(ThemisRowCounter.RowCounterMapper.Counters.ROWS);
-    assertEquals(2, counter.getValue());
-    
-    job = ThemisRowCounter.createSubmittableJob(conf, new String[] { Bytes.toString(TABLENAME),
-        Bytes.toString(ANOTHER_FAMILY) + ":" + Bytes.toString(QUALIFIER) });
-    job.waitForCompletion(true);
-    assertTrue(job.isSuccessful());
-    counter = job.getCounters()
-        .findCounter(ThemisRowCounter.RowCounterMapper.Counters.ROWS);
-    assertEquals(1, counter.getValue());
+    if (TEST_UTIL != null) {
+      writeTestData();
+      Job job = ThemisRowCounter.createSubmittableJob(
+        conf,
+        new String[] { Bytes.toString(TABLENAME),
+            Bytes.toString(FAMILY) + ":" + Bytes.toString(QUALIFIER) });
+      job.waitForCompletion(true);
+      assertTrue(job.isSuccessful());
+      Counter counter = job.getCounters().findCounter(
+        ThemisRowCounter.RowCounterMapper.Counters.ROWS);
+      assertEquals(2, counter.getValue());
+
+      job = ThemisRowCounter.createSubmittableJob(conf, new String[] { Bytes.toString(TABLENAME),
+          Bytes.toString(ANOTHER_FAMILY) + ":" + Bytes.toString(QUALIFIER) });
+      job.waitForCompletion(true);
+      assertTrue(job.isSuccessful());
+      counter = job.getCounters().findCounter(ThemisRowCounter.RowCounterMapper.Counters.ROWS);
+      assertEquals(1, counter.getValue());
+    }
   }
   
   @Test
   public void testThemisRowCounterWithoutQualifier() throws Exception {
-    try {
-      Job job = ThemisRowCounter.createSubmittableJob(conf,
-        new String[] { Bytes.toString(TABLENAME), Bytes.toString(FAMILY) });
-      job.waitForCompletion(true);
-      Assert.fail();
-    } catch (IOException e) {
-      Assert.assertTrue(e.getMessage().contains("must specify qualifier to read themis table"));
+    if (TEST_UTIL != null) {
+      try {
+        Job job = ThemisRowCounter.createSubmittableJob(conf,
+          new String[] { Bytes.toString(TABLENAME), Bytes.toString(FAMILY) });
+        job.waitForCompletion(true);
+        Assert.fail();
+      } catch (IOException e) {
+        Assert.assertTrue(e.getMessage().contains("must specify qualifier to read themis table"));
+      }
     }
   }
 }

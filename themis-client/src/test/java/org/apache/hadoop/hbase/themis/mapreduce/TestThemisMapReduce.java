@@ -84,61 +84,67 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
   
   @Test
   public void testThemisMapReduce() throws Exception {
-    writeTestData();
-    Job job = new Job(table.getConfiguration(), "testThemisMapReduce");
-    job.setNumReduceTasks(1);
-    Scan scan = new Scan();
-    scan.addColumn(FAMILY, QUALIFIER);
-    List<Scan> scans = new ArrayList<Scan>();
-    for (byte[] tableName : new byte[][] { TABLENAME, ANOTHER_TABLENAME }) {
-      Scan thisScan = new Scan(scan);
-      thisScan.setAttribute(Scan.SCAN_ATTRIBUTES_TABLE_NAME, tableName);
-      scans.add(thisScan);
+    if (TEST_UTIL != null) {
+      writeTestData();
+      Job job = new Job(table.getConfiguration(), "testThemisMapReduce");
+      job.setNumReduceTasks(1);
+      Scan scan = new Scan();
+      scan.addColumn(FAMILY, QUALIFIER);
+      List<Scan> scans = new ArrayList<Scan>();
+      for (byte[] tableName : new byte[][] { TABLENAME, ANOTHER_TABLENAME }) {
+        Scan thisScan = new Scan(scan);
+        thisScan.setAttribute(Scan.SCAN_ATTRIBUTES_TABLE_NAME, tableName);
+        scans.add(thisScan);
+      }
+
+      ThemisTableMapReduceUtil.initTableMapperJob(scans, IdentityTableMapper.class,
+        ImmutableBytesWritable.class, Result.class, job);
+      ThemisTableMapReduceUtil.initTableReducerJob(Bytes.toString(TABLENAME), RowSumReducer.class,
+        job);
+      TableMapReduceUtil.addDependencyJars(job.getConfiguration(), RowSumReducer.class);
+      TableMapReduceUtil.addDependencyJars(job.getConfiguration(), TransactionTestBase.class);
+      assertTrue(job.waitForCompletion(true));
+
+      Transaction transaction = new Transaction(connection);
+      Result result = transaction.get(TABLENAME,
+        new ThemisGet(RowSumReducer.getReduceRow(ROW)).addColumn(FAMILY, QUALIFIER));
+      Assert.assertEquals(2, Bytes.toInt(result.getValue(FAMILY, QUALIFIER)));
     }
-    
-    ThemisTableMapReduceUtil.initTableMapperJob(scans, IdentityTableMapper.class,
-      ImmutableBytesWritable.class, Result.class, job);
-    ThemisTableMapReduceUtil.initTableReducerJob(Bytes.toString(TABLENAME), RowSumReducer.class, job);
-    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), RowSumReducer.class);
-    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), TransactionTestBase.class);
-    assertTrue(job.waitForCompletion(true));
-    
-    Transaction transaction = new Transaction(connection);
-    Result result = transaction.get(TABLENAME,
-      new ThemisGet(RowSumReducer.getReduceRow(ROW)).addColumn(FAMILY, QUALIFIER));
-    Assert.assertEquals(2, Bytes.toInt(result.getValue(FAMILY, QUALIFIER)));
   }
   
   @Test
   public void testMultiThemisTableOutputFormat() throws Exception {
-    writeTestData();
-    Job job = new Job(table.getConfiguration(), "testMultiThemisTableOutputFormat");
-    job.setNumReduceTasks(1);
-    Scan scan = new Scan();
-    scan.addColumn(FAMILY, QUALIFIER);
-    List<Scan> scans = new ArrayList<Scan>();
-    for (byte[] tableName : new byte[][] { TABLENAME, ANOTHER_TABLENAME}) {
-      Scan thisScan = new Scan(scan);
-      thisScan.setAttribute(Scan.SCAN_ATTRIBUTES_TABLE_NAME, tableName);
-      scans.add(thisScan);
-    }
-    
-    ThemisTableMapReduceUtil.initTableMapperJob(scans, PrefixCopyMapper.class,
-      ImmutableBytesWritable.class, TableMutations.class, job);
-    ThemisTableMapReduceUtil.initMultiTableReducerJob(MultiThemisTableReducer.class, job);
-    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), PrefixCopyMapper.class);
-    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), TransactionTestBase.class);
-    assertTrue(job.waitForCompletion(true));
-    
-    Transaction transaction = new Transaction(connection);
-    for (byte[] row : new byte[][]{ROW, ANOTHER_ROW}) {
-      Result resultA = transaction.get(TABLENAME,
-        new ThemisGet(PrefixCopyMapper.getRowKeyWithPrefix(row)).addColumn(FAMILY, QUALIFIER));
-      Result resultB = transaction.get(ANOTHER_TABLENAME,
-        new ThemisGet(PrefixCopyMapper.getRowKeyWithPrefix(row)).addColumn(FAMILY, QUALIFIER));
-      Assert.assertEquals(1, resultA.size());
-      Assert.assertEquals(1, resultB.size());
-      Assert.assertEquals(resultA.list().get(0).getTimestamp(), resultB.list().get(0).getTimestamp());
+    if (TEST_UTIL != null) {
+      writeTestData();
+      Job job = new Job(table.getConfiguration(), "testMultiThemisTableOutputFormat");
+      job.setNumReduceTasks(1);
+      Scan scan = new Scan();
+      scan.addColumn(FAMILY, QUALIFIER);
+      List<Scan> scans = new ArrayList<Scan>();
+      for (byte[] tableName : new byte[][] { TABLENAME, ANOTHER_TABLENAME }) {
+        Scan thisScan = new Scan(scan);
+        thisScan.setAttribute(Scan.SCAN_ATTRIBUTES_TABLE_NAME, tableName);
+        scans.add(thisScan);
+      }
+
+      ThemisTableMapReduceUtil.initTableMapperJob(scans, PrefixCopyMapper.class,
+        ImmutableBytesWritable.class, TableMutations.class, job);
+      ThemisTableMapReduceUtil.initMultiTableReducerJob(MultiThemisTableReducer.class, job);
+      TableMapReduceUtil.addDependencyJars(job.getConfiguration(), PrefixCopyMapper.class);
+      TableMapReduceUtil.addDependencyJars(job.getConfiguration(), TransactionTestBase.class);
+      assertTrue(job.waitForCompletion(true));
+
+      Transaction transaction = new Transaction(connection);
+      for (byte[] row : new byte[][] { ROW, ANOTHER_ROW }) {
+        Result resultA = transaction.get(TABLENAME,
+          new ThemisGet(PrefixCopyMapper.getRowKeyWithPrefix(row)).addColumn(FAMILY, QUALIFIER));
+        Result resultB = transaction.get(ANOTHER_TABLENAME,
+          new ThemisGet(PrefixCopyMapper.getRowKeyWithPrefix(row)).addColumn(FAMILY, QUALIFIER));
+        Assert.assertEquals(1, resultA.size());
+        Assert.assertEquals(1, resultB.size());
+        Assert.assertEquals(resultA.list().get(0).getTimestamp(), resultB.list().get(0)
+            .getTimestamp());
+      }
     }
   }
 }

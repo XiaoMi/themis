@@ -1,5 +1,6 @@
 package org.apache.hadoop.hbase.themis;
 
+import org.apache.hadoop.hbase.themis.index.Indexer.NullIndexer;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister.NullWorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.LocalTimestampOracle;
 
@@ -24,6 +25,9 @@ public class TransactionConstant {
   public static final String DEFAULT_REMOTE_TIMESTAMP_SERVER_ZK_QUORUM = "127.0.0.1:2181";
   public static final String REMOTE_TIMESTAMP_SERVER_CLUSTER_NAME = "themis.remote.timestamp.server.clustername";
   public static final String DEFAULT_REMOTE_TIMESTAMP_SERVER_CLUSTER = "default-cluster";
+  // secondary index
+  public static final String INDEXER_CLASS_KEY = "themis.indexer.class";
+  public static final String DEFAULT_INDEXER_CLASS = NullIndexer.class.getName();
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
 }
