@@ -134,12 +134,8 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
-    Result pResult = indexer.get(tableName, userGet);
-    if (pResult != null) {
-      return pResult;
-    }
     ThemisRequest.checkContainColumn(userGet);
-    pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
+    Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
     // if the result contains KeyValues from lock columns, it means we encounter conflict
     // locks and need to clean lock before retry
     if (ThemisCpUtil.isLockResult(pResult)) {
