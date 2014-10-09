@@ -167,7 +167,6 @@ public class Transaction extends Configured implements TransactionInterface {
     if (indexScanner != null) {
       return indexScanner;
     }
-    ThemisRequest.checkContainColumn(userScan);
     return new ThemisScanner(tableName, userScan.getHBaseScan(), this);
   }
   

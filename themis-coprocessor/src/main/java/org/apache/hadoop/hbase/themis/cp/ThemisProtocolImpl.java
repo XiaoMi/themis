@@ -57,8 +57,10 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     checkReadTTL(System.currentTimeMillis(), startTs);
     // first get lock and write columns to check conflicted lock and get commitTs
     Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(get, startTs);
-    Result result = ThemisCpUtil.removeNotRequiredLockColumns(get, getFromRegion(region, lockAndWriteGet, null,
-      ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency));
+    Result result = ThemisCpUtil.removeNotRequiredLockColumns(
+      get.getFamilyMap(),
+      getFromRegion(region, lockAndWriteGet, null,
+        ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency));
     Pair<List<KeyValue>, List<KeyValue>> lockAndWriteKvs = ThemisCpUtil.seperateLockAndWriteKvs(result.list());
     List<KeyValue> lockKvs = lockAndWriteKvs.getFirst();
     if (!ignoreLock && lockKvs.size() != 0) {

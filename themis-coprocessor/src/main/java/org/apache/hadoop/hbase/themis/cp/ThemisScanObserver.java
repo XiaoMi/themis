@@ -37,7 +37,8 @@ public class ThemisScanObserver extends BaseRegionObserver {
     for (int i = 0; i < limit;) {
       boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE);
       if (!values.isEmpty()) {
-        Result result = new Result(values);
+        Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getScan().getFamilyMap(),
+          new Result(values));
         Pair<List<KeyValue>, List<KeyValue>> pResult = ThemisCpUtil.seperateLockAndWriteKvs(result.list());
         List<KeyValue> lockKvs = pResult.getFirst();
         if (lockKvs.size() == 0) {
@@ -94,11 +95,12 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       Long themisStartTs = getStartTsFromAttribute(scan);
       if (themisStartTs != null) {
+        ThemisCpUtil.prepareScan(scan, e.getEnvironment().getRegion().getTableDesc().getFamilies());
         checkFamily(e.getEnvironment().getRegion(), scan);
         ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), themisStartTs);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
-        ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment()
-            .getRegion().getScanner(internalScan), themisStartTs, scan.getFilter());
+        ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment().getRegion()
+            .getScanner(internalScan), internalScan, themisStartTs, scan.getFilter());
         e.bypass();
         return pScanner;
       }

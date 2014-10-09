@@ -315,8 +315,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     filterList.addFilter(new PrefixFilter(ROW));
     filterList.addFilter(new PrefixFilter(ANOTHER_ROW));
     get.setFilter(filterList);
-    checkGetResultForDifferentTs(iResult);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs);
+    checkGetResultForDifferentTs(iResult);
   }
   
   @Test

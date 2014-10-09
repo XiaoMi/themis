@@ -284,6 +284,22 @@ public class TestThemisCpUtil extends TestBase {
     checkReadWithLockAndWriteColumns(createdScan.getFamilyMap(), COLUMN);
     checkReadWithLockAndWriteColumns(createdScan.getFamilyMap(),
       new ColumnCoordinate(ANOTHER_FAMILY, ANOTHER_QUALIFIER));
+    
+    // test scan family
+    scan = new Scan(startRow, stopRow);
+    scan.addFamily(FAMILY);
+    scan.addColumn(ANOTHER_FAMILY, QUALIFIER);
+    createdScan = ThemisCpUtil.constructLockAndWriteScan(scan, PREWRITE_TS);
+    Assert.assertArrayEquals(startRow, createdScan.getStartRow());
+    Assert.assertArrayEquals(stopRow, createdScan.getStopRow());
+    Assert.assertEquals(3, createdScan.getFamilies().length);
+    checkReadWithWriteColumns(createdScan.getFamilyMap(), new ColumnCoordinate(ANOTHER_FAMILY,
+        QUALIFIER));
+    Assert.assertTrue(createdScan.getFamilyMap().containsKey(FAMILY)
+        && createdScan.getFamilyMap().get(FAMILY) == null);
+    Assert.assertTrue(createdScan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)
+      && createdScan.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null);
+    Assert.assertTrue(createdScan.getFilter() instanceof ExcludeDataColumnFilter);
   }
   
   @Test
@@ -340,7 +356,8 @@ public class TestThemisCpUtil extends TestBase {
     lockColumn = ColumnUtil.getLockColumn(ANOTHER_FAMILY, QUALIFIER);
     sourceKvs.add(new KeyValue(ROW, lockColumn.getFamily(), lockColumn.getQualifier(), PREWRITE_TS,
         Type.Put, VALUE));
-    Result result = ThemisCpUtil.removeNotRequiredLockColumns(get, new Result(sourceKvs));
+    Result result = ThemisCpUtil.removeNotRequiredLockColumns(get.getFamilyMap(), new Result(
+        sourceKvs));
     Assert.assertEquals(2, result.size());
     Assert.assertTrue(KEYVALUE.equals(result.list().get(0)));
     Assert.assertTrue(lockKv.equals(result.list().get(1)));
@@ -362,7 +379,8 @@ public class TestThemisCpUtil extends TestBase {
     checkReadWithWriteColumns(get.getFamilyMap(), COLUMN);
   }
   
-  public static void checkReadWithLockAndWriteColumns(Map<byte[], NavigableSet<byte[]>> families, ColumnCoordinate columnCoordinate) {
+  public static void checkReadWithLockAndWriteColumns(Map<byte[], NavigableSet<byte[]>> families,
+      ColumnCoordinate columnCoordinate) {
     Column lockColumn = ColumnUtil.getLockColumn(columnCoordinate);
     Assert.assertTrue(families.get(lockColumn.getFamily()).contains(lockColumn.getQualifier()));
     checkReadWithWriteColumns(families, columnCoordinate);

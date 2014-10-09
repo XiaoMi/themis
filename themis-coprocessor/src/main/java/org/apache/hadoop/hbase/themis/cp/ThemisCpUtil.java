@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
 import java.util.Set;
@@ -33,12 +34,13 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 
 public class ThemisCpUtil {
-  // Filters which only use the rowkey will be classified into ALLOWED_ROWKEY_FILTER_CLASSES class, these filters
+  // Filters which only use the rowkey will be classified into ALLOWED_ROWKEY_FILTER_CLASSES class,
+  // these filters
   // will be used in the first stage of themis read
   public static Set<Class<? extends Filter>> ALLOWED_ROWKEY_FILTER_CLASSES = new HashSet<Class<? extends Filter>>();
   public static Set<Class<? extends Filter>> DISALLOWD_FILTERS = new HashSet<Class<? extends Filter>>();
   private static String disallowedFilterClassNameString = null;
-  
+
   static {
     ALLOWED_ROWKEY_FILTER_CLASSES.add(InclusiveStopFilter.class);
     ALLOWED_ROWKEY_FILTER_CLASSES.add(PrefixFilter.class);
@@ -47,13 +49,13 @@ public class ThemisCpUtil {
     ALLOWED_ROWKEY_FILTER_CLASSES.add(InclusiveStopFilter.class);
     ALLOWED_ROWKEY_FILTER_CLASSES.add(PageFilter.class);
     ALLOWED_ROWKEY_FILTER_CLASSES.add(RowFilter.class);
-    
+
     DISALLOWD_FILTERS.add(DependentColumnFilter.class);
     // TODO : check the wrapped class to judge whether allowed
     DISALLOWD_FILTERS.add(SkipFilter.class);
     DISALLOWD_FILTERS.add(WhileMatchFilter.class);
   }
-  
+
   public static String getDisallowedFilterClassNameString() {
     if (disallowedFilterClassNameString == null) {
       disallowedFilterClassNameString = "";
@@ -70,16 +72,16 @@ public class ThemisCpUtil {
 
   public static abstract class FilterCallable {
     public abstract void processConcreteFilter(Filter filter) throws IOException;
+
     public boolean processFilterListOperator(Operator op) {
       return true;
     }
   }
-  
-  public static void processFilters(Filter filter, FilterCallable callable)
-      throws IOException {
+
+  public static void processFilters(Filter filter, FilterCallable callable) throws IOException {
     if (filter != null) {
       if (filter instanceof FilterList) {
-        FilterList filterList = (FilterList)filter;
+        FilterList filterList = (FilterList) filter;
         if (!callable.processFilterListOperator(filterList.getOperator())) {
           return;
         }
@@ -91,13 +93,12 @@ public class ThemisCpUtil {
       }
     }
   }
-  
 
   static class ClassifiedFilters extends FilterCallable {
     protected boolean allMustPassOperator = true;
     protected FilterList rowkeyFilters = new FilterList();
     protected FilterList noRowkeyFilters = new FilterList();
-    
+
     @Override
     public void processConcreteFilter(Filter filter) throws IOException {
       if (ALLOWED_ROWKEY_FILTER_CLASSES.contains(filter.getClass())) {
@@ -112,7 +113,7 @@ public class ThemisCpUtil {
         noRowkeyFilters.addFilter(filter);
       }
     }
-    
+
     public boolean processFilterListOperator(Operator op) {
       if (op.equals(Operator.MUST_PASS_ONE)) {
         allMustPassOperator = false;
@@ -121,12 +122,11 @@ public class ThemisCpUtil {
       return true;
     }
   }
-  
+
   // we will first read lock/write column when doing themis read to check lock conflict.
   // at this time, we could move ROWKEY_FILTERS to the first read if all filters in user-set
   // filterList are organized by MUST_PASS_ALL, which could filter data as early as possible
-  public static void moveRowkeyFiltersForWriteGet(Get sourceGet, Get destGet)
-      throws IOException {
+  public static void moveRowkeyFiltersForWriteGet(Get sourceGet, Get destGet) throws IOException {
     ClassifiedFilters classifyFilters = new ClassifiedFilters();
     if (sourceGet.getFilter() != null) {
       processFilters(sourceGet.getFilter(), classifyFilters);
@@ -145,7 +145,7 @@ public class ThemisCpUtil {
       }
     }
   }
-  
+
   public static void moveRowkeyFiltersForWriteScan(Scan sourceScan, Scan destScan)
       throws IOException {
     ClassifiedFilters classifyFilters = new ClassifiedFilters();
@@ -154,22 +154,29 @@ public class ThemisCpUtil {
     }
     if (classifyFilters.allMustPassOperator) {
       if (classifyFilters.rowkeyFilters.getFilters().size() != 0) {
-        destScan.setFilter(classifyFilters.rowkeyFilters);
+        if (destScan.getFilter() != null) {
+          FilterList filter = new FilterList();
+          filter.addFilter(destScan.getFilter());
+          filter.addFilter(classifyFilters.rowkeyFilters);
+          destScan.setFilter(filter);
+        } else {
+          destScan.setFilter(classifyFilters.rowkeyFilters);
+        }
         sourceScan.setFilter(classifyFilters.noRowkeyFilters);
       }
     }
   }
-  
+
   public static void addLockAndWriteColumnToGet(Get userGet, Get internalGet, long startTs)
       throws IOException {
     boolean excludeDataColumn = false;
     for (Entry<byte[], NavigableSet<byte[]>> entry : userGet.getFamilyMap().entrySet()) {
-      if (entry.getValue() != null) {
+      if (entry.getValue() != null && entry.getValue().size() > 0) {
         for (byte[] qualifier : entry.getValue()) {
           Column dataColumn = new Column(entry.getKey(), qualifier);
           // not include the whole lock family
-          if (!(internalGet.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)
-              && internalGet.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null)) {
+          if (!(internalGet.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME) && internalGet
+              .getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null)) {
             Column lockColumn = ColumnUtil.getLockColumn(dataColumn);
             internalGet.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
           }
@@ -187,15 +194,16 @@ public class ThemisCpUtil {
     }
     internalGet.setTimeRange(0, startTs);
   }
-  
-  public static Result removeNotRequiredLockColumns(Get userGet, Result result) {
+
+  public static Result removeNotRequiredLockColumns(Map<byte[], NavigableSet<byte[]>> familyMap,
+      Result result) {
     if (!result.isEmpty()) {
       List<KeyValue> kvs = new ArrayList<KeyValue>();
       for (KeyValue kv : result.list()) {
         if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamily())) {
           Column dataColumn = ColumnUtil.getDataColumnFromLockColumn(new Column(kv.getFamily(), kv
               .getQualifier()));
-          if (userGet.getFamilyMap().containsKey(dataColumn.getFamily())) {
+          if (familyMap.containsKey(dataColumn.getFamily())) {
             kvs.add(kv);
           }
         } else {
@@ -208,14 +216,14 @@ public class ThemisCpUtil {
     }
     return result;
   }
-  
+
   public static Get constructLockAndWriteGet(Get userGet, long startTs) throws IOException {
     Get putGet = new Get(userGet.getRow());
     addLockAndWriteColumnToGet(userGet, putGet, startTs);
     moveRowkeyFiltersForWriteGet(userGet, putGet);
     return putGet;
   }
-  
+
   public static void prepareGet(Get get, Collection<HColumnDescriptor> families) {
     if (!get.hasFamilies()) {
       for (HColumnDescriptor family : families) {
@@ -225,22 +233,45 @@ public class ThemisCpUtil {
       }
     }
   }
-  
+
+  public static void prepareScan(Scan scan, Collection<HColumnDescriptor> families) {
+    if (!scan.hasFamilies()) {
+      for (HColumnDescriptor family : families) {
+        if (!Bytes.equals(family.getName(), ColumnUtil.LOCK_FAMILY_NAME)) {
+          scan.addFamily(family.getName());
+        }
+      }
+    } else if (scan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)) {
+      scan.getFamilyMap().remove(ColumnUtil.LOCK_FAMILY_NAME);
+    }
+  }
+
   public static Scan constructLockAndWriteScan(Scan userScan, long startTs) throws IOException {
+    boolean excludeDataColumn = false;
     Scan internalScan = new Scan(userScan);
     internalScan.setFilter(null);
-    internalScan.setFamilyMap(new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR));
+    internalScan.setFamilyMap(new TreeMap<byte[], NavigableSet<byte[]>>(Bytes.BYTES_COMPARATOR));
     for (Entry<byte[], NavigableSet<byte[]>> entry : userScan.getFamilyMap().entrySet()) {
-      for (byte[] qualifier : entry.getValue()) {
-        Column dataColumn = new Column(entry.getKey(), qualifier);
-        addLockAndWriteColumnToScan(dataColumn, internalScan);
+      if (entry.getValue() != null && entry.getValue().size() > 0) {
+        for (byte[] qualifier : entry.getValue()) {
+          Column dataColumn = new Column(entry.getKey(), qualifier);
+          addLockAndWriteColumnToScan(dataColumn, internalScan);
+        }
+      } else {
+        // TODO : use filter to read out lock columns corresponding to needed data column
+        internalScan.addFamily(ColumnUtil.LOCK_FAMILY_NAME);
+        internalScan.addFamily(entry.getKey());
+        excludeDataColumn = true;
       }
+    }
+    if (excludeDataColumn) {
+      internalScan.setFilter(new ExcludeDataColumnFilter());
     }
     internalScan.setTimeRange(0, startTs);
     moveRowkeyFiltersForWriteScan(userScan, internalScan);
     return internalScan;
   }
-  
+
   public static void addLockAndWriteColumnToScan(Column column, Scan scan) {
     Column lockColumn = ColumnUtil.getLockColumn(column);
     scan.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
@@ -282,7 +313,7 @@ public class ThemisCpUtil {
     }
     return get;
   }
-  
+
   // get put kv which has greater timestamp than delete kv under the same family
   protected static List<KeyValue> getPutKvs(List<KeyValue> writeKvs) {
     List<KeyValue> result = new ArrayList<KeyValue>();
@@ -316,7 +347,7 @@ public class ThemisCpUtil {
     Column deleteColumn = ColumnUtil.getDeleteColumn(column);
     get.addColumn(deleteColumn.getFamily(), deleteColumn.getQualifier());
   }
-  
+
   public static boolean isLockResult(Result result) {
     if (result.isEmpty()) {
       return false;
@@ -324,7 +355,7 @@ public class ThemisCpUtil {
     KeyValue firstKv = result.list().get(0);
     return ColumnUtil.isLockColumn(firstKv.getFamily(), firstKv.getQualifier());
   }
-  
+
   public static Pair<List<KeyValue>, List<KeyValue>> seperateLockAndWriteKvs(List<KeyValue> kvs) {
     List<KeyValue> lockKvs = new ArrayList<KeyValue>();
     List<KeyValue> writeKvs = new ArrayList<KeyValue>();
