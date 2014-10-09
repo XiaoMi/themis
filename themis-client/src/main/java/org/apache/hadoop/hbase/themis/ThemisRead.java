@@ -22,18 +22,15 @@ public abstract class ThemisRead extends ThemisRequest {
   
   public abstract boolean getCacheBlocks();
 
-  // themis does not expose timestamp to users and queried family/qualifer must
-  // be set explicitly by users. Therefore, we only allowed use Filters in HBase which
-  // not refer to timestamp and column match
+  // themis does not expose timestamp and versions to users. Therefore, we disallowed
+  // Filters in HBase which refer to timestamp or column match
   public ThemisRead setFilter(Filter filter) throws IOException {
     ThemisCpUtil.processFilters(filter, new FilterCallable() {
       public void processConcreteFilter(Filter filter) throws IOException {
         Class<? extends Filter> filterCls = filter.getClass();
-        if (!(ThemisCpUtil.ALLOWED_ROWKEY_FILTER_CLASSES.contains(filterCls)
-            || ThemisCpUtil.ALLOWED_COLUMN_FILTER_CLASSES.contains(filterCls)
-            || ThemisCpUtil.ALLOWED_TRANSFER_FILTER_CLASSES.contains(filterCls))) {
-          throw new IOException("any filter class must be one of the following classes : "
-              + ThemisCpUtil.getAllowedFilterClassNameString());
+        if (ThemisCpUtil.DISALLOWD_FILTERS.contains(filterCls)) {
+          throw new IOException("themis read disallow this filterm, all disallowed filters : "
+              + ThemisCpUtil.getDisallowedFilterClassNameString());
         }
       }
     });

@@ -13,58 +13,53 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.filter.DependentColumnFilter;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.FilterList.Operator;
+import org.apache.hadoop.hbase.filter.FuzzyRowFilter;
 import org.apache.hadoop.hbase.filter.InclusiveStopFilter;
-import org.apache.hadoop.hbase.filter.KeyOnlyFilter;
+import org.apache.hadoop.hbase.filter.PageFilter;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.RandomRowFilter;
-import org.apache.hadoop.hbase.filter.SingleColumnValueExcludeFilter;
-import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
+import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.filter.SkipFilter;
-import org.apache.hadoop.hbase.filter.ValueFilter;
+import org.apache.hadoop.hbase.filter.WhileMatchFilter;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
-import org.mortbay.log.Log;
 
 public class ThemisCpUtil {
-  // we classify themis-allowed Filters in HBase as three categories : ROWKEY_FILTER, COLUMN_FILTER and TRANSFTER_FITLER.
-  // Then ROWKEY_FILTER and COLUMN_FITLER will be used to filter data in different stages of themis read
+  // Filters which only use the rowkey will be classified into ALLOWED_ROWKEY_FILTER_CLASSES class, these filters
+  // will be used in the first stage of themis read
   public static Set<Class<? extends Filter>> ALLOWED_ROWKEY_FILTER_CLASSES = new HashSet<Class<? extends Filter>>();
-  public static Set<Class<? extends Filter>> ALLOWED_COLUMN_FILTER_CLASSES = new HashSet<Class<? extends Filter>>();
-  public static Set<Class<? extends Filter>> ALLOWED_TRANSFER_FILTER_CLASSES = new HashSet<Class<? extends Filter>>();
-  private static String allowedFilterClassNameString = null;
+  public static Set<Class<? extends Filter>> DISALLOWD_FILTERS = new HashSet<Class<? extends Filter>>();
+  private static String disallowedFilterClassNameString = null;
   
   static {
     ALLOWED_ROWKEY_FILTER_CLASSES.add(InclusiveStopFilter.class);
     ALLOWED_ROWKEY_FILTER_CLASSES.add(PrefixFilter.class);
     ALLOWED_ROWKEY_FILTER_CLASSES.add(RandomRowFilter.class);
+    ALLOWED_ROWKEY_FILTER_CLASSES.add(FuzzyRowFilter.class);
+    ALLOWED_ROWKEY_FILTER_CLASSES.add(InclusiveStopFilter.class);
+    ALLOWED_ROWKEY_FILTER_CLASSES.add(PageFilter.class);
+    ALLOWED_ROWKEY_FILTER_CLASSES.add(RowFilter.class);
     
-    ALLOWED_COLUMN_FILTER_CLASSES.add(SingleColumnValueFilter.class);
-    ALLOWED_COLUMN_FILTER_CLASSES.add(SingleColumnValueExcludeFilter.class);
-    ALLOWED_COLUMN_FILTER_CLASSES.add(SkipFilter.class);
-    ALLOWED_COLUMN_FILTER_CLASSES.add(ValueFilter.class);
-    
-    ALLOWED_TRANSFER_FILTER_CLASSES.add(KeyOnlyFilter.class);
+    DISALLOWD_FILTERS.add(DependentColumnFilter.class);
+    // TODO : check the wrapped class to judge whether allowed
+    DISALLOWD_FILTERS.add(SkipFilter.class);
+    DISALLOWD_FILTERS.add(WhileMatchFilter.class);
   }
   
-  public static String getAllowedFilterClassNameString() {
-    if (allowedFilterClassNameString == null) {
-      allowedFilterClassNameString = "";
-      for (Class<? extends Filter> cls : ALLOWED_ROWKEY_FILTER_CLASSES) {
-        allowedFilterClassNameString += (cls.getName() + ";");
-      }
-      for (Class<? extends Filter> cls : ALLOWED_COLUMN_FILTER_CLASSES) {
-        allowedFilterClassNameString += (cls.getName() + ";");
-      }
-      for (Class<? extends Filter> cls : ALLOWED_TRANSFER_FILTER_CLASSES) {
-        allowedFilterClassNameString += (cls.getName() + ";");
+  public static String getDisallowedFilterClassNameString() {
+    if (disallowedFilterClassNameString == null) {
+      disallowedFilterClassNameString = "";
+      for (Class<? extends Filter> cls : DISALLOWD_FILTERS) {
+        disallowedFilterClassNameString += (cls.getName() + ";");
       }
     }
-    return allowedFilterClassNameString;
+    return disallowedFilterClassNameString;
   }
 
   public static abstract class FilterCallable {

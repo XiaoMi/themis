@@ -35,8 +35,8 @@ import org.junit.Test;
 public class TestThemisCpUtil extends TestBase {
   @Test
   public void testGetAllowedFilterClassNamesString() {
-    String nameString = ThemisCpUtil.getAllowedFilterClassNameString();
-    System.out.println("Allowed filter class name:" + nameString);
+    String nameString = ThemisCpUtil.getDisallowedFilterClassNameString();
+    System.out.println("Disallowed filter class name:" + nameString);
   }
   
 
