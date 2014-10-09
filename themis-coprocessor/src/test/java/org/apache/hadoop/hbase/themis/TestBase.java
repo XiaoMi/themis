@@ -196,4 +196,8 @@ public class TestBase {
     ByteArrayInputStream byteInStream = new ByteArrayInputStream(byteOutStream.toByteArray());
     actual.readFields(new DataInputStream(byteInStream));
   }
+  
+  public static Column getColumn(ColumnCoordinate columnCoordinate) {
+    return new Column(columnCoordinate.getFamily(), columnCoordinate.getQualifier());
+  }
 }

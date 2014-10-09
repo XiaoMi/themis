@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.themis.cp;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
@@ -9,6 +10,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 
+import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
@@ -131,7 +133,14 @@ public class ThemisCpUtil {
     }
     if (classifyFilters.allMustPassOperator) {
       if (classifyFilters.rowkeyFilters.getFilters().size() != 0) {
-        destGet.setFilter(classifyFilters.rowkeyFilters);
+        if (destGet.getFilter() != null) {
+          FilterList filter = new FilterList();
+          filter.addFilter(destGet.getFilter());
+          filter.addFilter(classifyFilters.rowkeyFilters);
+          destGet.setFilter(filter);
+        } else {
+          destGet.setFilter(classifyFilters.rowkeyFilters);
+        }
         sourceGet.setFilter(classifyFilters.noRowkeyFilters);
       }
     }
@@ -151,16 +160,53 @@ public class ThemisCpUtil {
     }
   }
   
-  public static void addLockAndWriteColumnToGet(Get userGet, Get internalGet, long startTs) throws IOException {
+  public static void addLockAndWriteColumnToGet(Get userGet, Get internalGet, long startTs)
+      throws IOException {
+    boolean excludeDataColumn = false;
     for (Entry<byte[], NavigableSet<byte[]>> entry : userGet.getFamilyMap().entrySet()) {
-      for (byte[] qualifier : entry.getValue()) {
-        Column dataColumn = new Column(entry.getKey(), qualifier);
-        Column lockColumn = ColumnUtil.getLockColumn(dataColumn);
-        internalGet.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
-        addWriteColumnToGet(dataColumn, internalGet);
+      if (entry.getValue() != null) {
+        for (byte[] qualifier : entry.getValue()) {
+          Column dataColumn = new Column(entry.getKey(), qualifier);
+          // not include the whole lock family
+          if (!(internalGet.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)
+              && internalGet.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null)) {
+            Column lockColumn = ColumnUtil.getLockColumn(dataColumn);
+            internalGet.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
+          }
+          addWriteColumnToGet(dataColumn, internalGet);
+        }
+      } else {
+        // TODO : use filter to read out lock columns corresponding to needed data column
+        internalGet.addFamily(ColumnUtil.LOCK_FAMILY_NAME);
+        internalGet.addFamily(entry.getKey());
+        excludeDataColumn = true;
       }
     }
+    if (excludeDataColumn) {
+      internalGet.setFilter(new ExcludeDataColumnFilter());
+    }
     internalGet.setTimeRange(0, startTs);
+  }
+  
+  public static Result removeNotRequiredLockColumns(Get userGet, Result result) {
+    if (!result.isEmpty()) {
+      List<KeyValue> kvs = new ArrayList<KeyValue>();
+      for (KeyValue kv : result.list()) {
+        if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamily())) {
+          Column dataColumn = ColumnUtil.getDataColumnFromLockColumn(new Column(kv.getFamily(), kv
+              .getQualifier()));
+          if (userGet.getFamilyMap().containsKey(dataColumn.getFamily())) {
+            kvs.add(kv);
+          }
+        } else {
+          kvs.add(kv);
+        }
+      }
+      if (kvs.size() != result.size()) {
+        return new Result(kvs);
+      }
+    }
+    return result;
   }
   
   public static Get constructLockAndWriteGet(Get userGet, long startTs) throws IOException {
@@ -168,6 +214,16 @@ public class ThemisCpUtil {
     addLockAndWriteColumnToGet(userGet, putGet, startTs);
     moveRowkeyFiltersForWriteGet(userGet, putGet);
     return putGet;
+  }
+  
+  public static void prepareGet(Get get, Collection<HColumnDescriptor> families) {
+    if (!get.hasFamilies()) {
+      for (HColumnDescriptor family : families) {
+        if (!Bytes.equals(family.getName(), ColumnUtil.LOCK_FAMILY_NAME)) {
+          get.addFamily(family.getName());
+        }
+      }
+    }
   }
   
   public static Scan constructLockAndWriteScan(Scan userScan, long startTs) throws IOException {

@@ -40,6 +40,13 @@ public class ThemisGet extends ThemisRead {
   }
   
   @Override
+  public ThemisRead addFamily(byte[] family) throws IOException {
+    checkContainingPreservedColumn(family, null);
+    this.get.addFamily(family);
+    return this;
+  }
+  
+  @Override
   public Map<byte[], NavigableSet<byte[]>> getFamilyMap() {
     return get.getFamilyMap();
   }

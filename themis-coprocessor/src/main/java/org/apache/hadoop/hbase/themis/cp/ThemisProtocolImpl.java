@@ -51,13 +51,14 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   // TODO(cuijianwei) : read out data/lock/write column in the same region.get to improve efficiency?
   public Result themisGet(final Get get, final long startTs, final boolean ignoreLock)
       throws IOException {
+    HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
+    ThemisCpUtil.prepareGet(get, region.getTableDesc().getFamilies());
     checkFamily(get);
     checkReadTTL(System.currentTimeMillis(), startTs);
     // first get lock and write columns to check conflicted lock and get commitTs
     Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(get, startTs);
-    HRegion region = ((RegionCoprocessorEnvironment) getEnvironment()).getRegion();
-    Result result = getFromRegion(region, lockAndWriteGet, null,
-      ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency);
+    Result result = ThemisCpUtil.removeNotRequiredLockColumns(get, getFromRegion(region, lockAndWriteGet, null,
+      ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency));
     Pair<List<KeyValue>, List<KeyValue>> lockAndWriteKvs = ThemisCpUtil.seperateLockAndWriteKvs(result.list());
     List<KeyValue> lockKvs = lockAndWriteKvs.getFirst();
     if (!ignoreLock && lockKvs.size() != 0) {

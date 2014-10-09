@@ -18,6 +18,8 @@ public abstract class ThemisRead extends ThemisRequest {
 
   public abstract ThemisRead addColumn(byte [] family, byte [] qualifier) throws IOException;
   
+  public abstract ThemisRead addFamily(byte[] family) throws IOException;
+  
   public abstract void setCacheBlocks(boolean cacheBlocks);
   
   public abstract boolean getCacheBlocks();
