@@ -62,6 +62,10 @@ public class ThemisCpUtil {
     return disallowedFilterClassNameString;
   }
 
+  public static interface RowLevelFilter {
+    public boolean isRowLevelFilter();
+  }
+
   public static abstract class FilterCallable {
     public abstract void processConcreteFilter(Filter filter) throws IOException;
     public boolean processFilterListOperator(Operator op) {
@@ -96,6 +100,12 @@ public class ThemisCpUtil {
     public void processConcreteFilter(Filter filter) throws IOException {
       if (ALLOWED_ROWKEY_FILTER_CLASSES.contains(filter.getClass())) {
         rowkeyFilters.addFilter(filter);
+      } else if (filter instanceof RowLevelFilter) {
+        if (((RowLevelFilter) filter).isRowLevelFilter()) {
+          rowkeyFilters.addFilter(filter);
+        } else {
+          noRowkeyFilters.addFilter(filter);
+        }
       } else {
         noRowkeyFilters.addFilter(filter);
       }

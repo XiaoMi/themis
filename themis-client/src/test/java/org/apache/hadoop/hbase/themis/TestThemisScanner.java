@@ -1,5 +1,7 @@
 package org.apache.hadoop.hbase.themis;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.hadoop.hbase.client.Get;
@@ -8,17 +10,19 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.FilterList.Operator;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
-import org.apache.hadoop.hbase.themis.ThemisScan;
-import org.apache.hadoop.hbase.themis.ThemisScanner;
-import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
+import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil.CustomerColumnFilter;
+import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil.CustomerRowkeyFilter;
+import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil.RowLevelFilter;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -301,6 +305,21 @@ public class TestThemisScanner extends ClientTestBase {
   }
   
   @Test
+  public void testScanWithCustomerFilters() throws IOException {
+    prepareScanData(TRANSACTION_COLUMNS);
+    CustomerRowkeyFilter rowLevelFilter = new CustomerRowkeyFilter(ROW);
+    ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS, rowLevelFilter);
+    checkResultForROW(scanner.next());
+    checkAndCloseScanner(scanner);
+    
+    CustomerColumnFilter columnFilter = new CustomerColumnFilter(QUALIFIER);
+    scanner = prepareScanner(TRANSACTION_COLUMNS, columnFilter);
+    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY}, scanner.next());
+    checkAndCloseScanner(scanner);
+  }
+  
+  @Test
   public void testScanWithFilter() throws IOException {
     prepareScanData(TRANSACTION_COLUMNS);
     writeData(COLUMN, lastTs(prewriteTs), ANOTHER_VALUE);
@@ -319,5 +338,5 @@ public class TestThemisScanner extends ClientTestBase {
     checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
     Assert.assertEquals(1, scanner.next().size());
     checkAndCloseScanner(scanner);
-  }  
+  }
 }

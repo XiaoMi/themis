@@ -1,5 +1,7 @@
 package org.apache.hadoop.hbase.themis.cp;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,7 +18,9 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.ColumnCountGetFilter;
 import org.apache.hadoop.hbase.filter.ColumnRangeFilter;
 import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.filter.FilterList;
+import org.apache.hadoop.hbase.filter.Filter.ReturnCode;
 import org.apache.hadoop.hbase.filter.FilterList.Operator;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
@@ -27,6 +31,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ColumnTimestampFilter;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil.FilterCallable;
+import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil.RowLevelFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.junit.Assert;
@@ -76,6 +81,61 @@ public class TestThemisCpUtil extends TestBase {
     Assert.assertEquals(0, counter.concreteFilterCount);
   }
   
+  public static class CustomerRowkeyFilter extends FilterBase implements RowLevelFilter {
+    private byte[] rowkey;
+    
+    public CustomerRowkeyFilter() {}
+    
+    public CustomerRowkeyFilter(byte[] rowkey) {
+      this.rowkey = rowkey;
+    }
+    
+    public boolean filterRowKey(byte [] buffer, int offset, int length) {
+      return !Bytes.equals(rowkey, 0, rowkey.length, buffer, offset, length);
+    }
+    
+    public void readFields(DataInput in) throws IOException {
+      rowkey = Bytes.readByteArray(in);
+    }
+
+    public void write(DataOutput out) throws IOException {
+      Bytes.writeByteArray(out, rowkey);
+    }
+
+    public boolean isRowLevelFilter() {
+      return true;
+    }
+  }
+  
+  public static class CustomerColumnFilter extends FilterBase implements RowLevelFilter {
+    private byte[] qualifier;
+    
+    public CustomerColumnFilter() {}
+    
+    public CustomerColumnFilter(byte[] qualifier) {
+      this.qualifier = qualifier;
+    }
+
+    public ReturnCode filterKeyValue(KeyValue kv) {
+      if (Bytes.equals(qualifier, kv.getQualifier())) {
+        return ReturnCode.INCLUDE;
+      }
+      return ReturnCode.SKIP;
+    }
+    
+    public void readFields(DataInput in) throws IOException {
+      qualifier = Bytes.readByteArray(in);
+    }
+
+    public void write(DataOutput out) throws IOException {
+      Bytes.writeByteArray(out, qualifier);
+    }
+
+    public boolean isRowLevelFilter() {
+      return false;
+    }
+  }
+  
   @Test
   public void testMoveRowkeyFiltersForWriteColumnGet() throws IOException {
     Get sourceGet = new Get(ROW);
@@ -116,6 +176,26 @@ public class TestThemisCpUtil extends TestBase {
     Assert.assertTrue(sourceFilter.getFilters().get(0) instanceof SingleColumnValueFilter);
     Assert.assertEquals(1, dstFilter.getFilters().size());
     Assert.assertTrue(dstFilter.getFilters().get(0) instanceof PrefixFilter);
+    // test customer filters
+    filters = new FilterList();
+    filters.addFilter(new SingleColumnValueFilter());
+    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new CustomerRowkeyFilter(ROW));
+    filters.addFilter(new CustomerColumnFilter(QUALIFIER));
+    sourceGet.setFilter(filters);
+    ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
+    sourceFilter = (FilterList)sourceGet.getFilter();
+    dstFilter = (FilterList)dstGet.getFilter();
+    Assert.assertEquals(2, sourceFilter.getFilters().size());
+    for (Filter filter : sourceFilter.getFilters()) {
+    Assert.assertFalse(filter instanceof PrefixFilter);
+    Assert.assertFalse(filter instanceof CustomerRowkeyFilter);
+    }
+    Assert.assertEquals(2, dstFilter.getFilters().size());
+    for (Filter filter : dstFilter.getFilters()) {
+    Assert.assertFalse(filter instanceof SingleColumnValueFilter);
+    Assert.assertFalse(filter instanceof CustomerColumnFilter);
+    }
   }
   
   protected void checkConstructedDataGet(List<KeyValue> putKvs, Filter filter, Get get) {
