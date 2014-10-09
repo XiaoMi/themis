@@ -5,12 +5,9 @@ import java.io.IOException;
 import junit.framework.Assert;
 
 import org.apache.hadoop.hbase.filter.ColumnRangeFilter;
+import org.apache.hadoop.hbase.filter.DependentColumnFilter;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
-import org.apache.hadoop.hbase.themis.ThemisGet;
-import org.apache.hadoop.hbase.themis.ThemisRead;
-import org.apache.hadoop.hbase.themis.ThemisScan;
-import org.apache.hadoop.hbase.themis.TestBase;
 import org.junit.Test;
 
 public class TestThemisRead extends TestBase {
@@ -24,7 +21,7 @@ public class TestThemisRead extends TestBase {
       
       // illegal Filter class directly
       try {
-        reader.setFilter(new ColumnRangeFilter());
+        reader.setFilter(new DependentColumnFilter());
         Assert.fail();
       } catch (IOException e) {}
       // illegal Filter class in FilterList
@@ -32,7 +29,7 @@ public class TestThemisRead extends TestBase {
       filterList.addFilter(new PrefixFilter());
       filterList.addFilter(new ColumnRangeFilter());
       try {
-        reader.setFilter(new ColumnRangeFilter());
+        reader.setFilter(new DependentColumnFilter());
         Assert.fail();
       } catch (IOException e) {}
       

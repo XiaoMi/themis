@@ -13,9 +13,6 @@ import org.apache.hadoop.hbase.filter.FilterList.Operator;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
-import org.apache.hadoop.hbase.themis.ThemisScan;
-import org.apache.hadoop.hbase.themis.ThemisScanner;
-import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
@@ -300,6 +297,24 @@ public class TestThemisScanner extends ClientTestBase {
     checkAndCloseScanner(scanner);
   }
   
+  // TODO : support filter serialization for 0.98
+  /*
+  @Test
+  public void testScanWithCustomerFilters() throws IOException {
+    prepareScanData(TRANSACTION_COLUMNS);
+    CustomerRowkeyFilter rowLevelFilter = new CustomerRowkeyFilter(ROW);
+    ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS, rowLevelFilter);
+    checkResultForROW(scanner.next());
+    checkAndCloseScanner(scanner);
+    
+    CustomerColumnFilter columnFilter = new CustomerColumnFilter(QUALIFIER);
+    scanner = prepareScanner(TRANSACTION_COLUMNS, columnFilter);
+    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY}, scanner.next());
+    checkAndCloseScanner(scanner);
+  }
+  */
+  
   @Test
   public void testScanWithFilter() throws IOException {
     prepareScanData(TRANSACTION_COLUMNS);
@@ -319,5 +334,5 @@ public class TestThemisScanner extends ClientTestBase {
     checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
     Assert.assertEquals(1, scanner.next().size());
     checkAndCloseScanner(scanner);
-  }  
+  }
 }
