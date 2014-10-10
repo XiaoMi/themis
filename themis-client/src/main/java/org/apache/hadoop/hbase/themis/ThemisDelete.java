@@ -15,7 +15,8 @@ public class ThemisDelete extends ThemisMutation {
     this.delete = new Delete(row);
   }
   
-  protected ThemisDelete(Delete delete) {
+  // TODO : check delete is legal for themis
+  public ThemisDelete(Delete delete) {
     setHBaseDelete(delete);
   }
   
