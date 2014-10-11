@@ -69,7 +69,7 @@ public class TestIndexMasterObserver extends IndexTestBase {
     }
     
     // create themis table without index enable
-    tableDesc = new HTableDescriptor(INDEX_TEST_MAIN_TABLE_NAME);
+    tableDesc = new HTableDescriptor(MAIN_TABLE);
     tableDesc.addFamily(IndexMasterObserver.getSecondaryIndexFamily());
     admin.createTable(tableDesc);
     HTableDescriptor[] tableDescs = admin.listTables();
@@ -77,12 +77,12 @@ public class TestIndexMasterObserver extends IndexTestBase {
       Assert.assertFalse(desc.getNameAsString().indexOf(
         IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_NAME_PREFIX) >= 0);
     }
-    admin.disableTable(INDEX_TEST_MAIN_TABLE_NAME);
-    admin.deleteTable(INDEX_TEST_MAIN_TABLE_NAME);
+    admin.disableTable(MAIN_TABLE);
+    admin.deleteTable(MAIN_TABLE);
     
     // create table with index attribute but without themis enable key
-    tableDesc = new HTableDescriptor(INDEX_TEST_MAIN_TABLE_NAME);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_TEST_MAIN_TABLE_FAMILY_NAME);
+    tableDesc = new HTableDescriptor(MAIN_TABLE);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_FAMILY);
     columnDesc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
       Boolean.TRUE.toString());
     tableDesc.addFamily(columnDesc);
@@ -98,10 +98,10 @@ public class TestIndexMasterObserver extends IndexTestBase {
     boolean containMainTable = false;
     boolean containIndexTable = false;
     for (HTableDescriptor desc : tableDescs) {
-      if (Bytes.equals(desc.getName(), INDEX_TEST_MAIN_TABLE_NAME)) {
+      if (Bytes.equals(desc.getName(), MAIN_TABLE)) {
         containMainTable = true;
         Assert.assertNotNull(desc.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
-      } else if (Bytes.equals(desc.getName(), INDEX_TEST_INDEX_TABLE_NAME)) {
+      } else if (Bytes.equals(desc.getName(), INDEX_TABLE)) {
         containIndexTable = true;
         Assert.assertNotNull(desc.getFamily(Bytes
             .toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY)));
@@ -114,10 +114,10 @@ public class TestIndexMasterObserver extends IndexTestBase {
     deleteTableForIndexTest();
     tableDescs = admin.listTables();
     for (HTableDescriptor desc : tableDescs) {
-      if (Bytes.equals(desc.getName(), INDEX_TEST_MAIN_TABLE_NAME)) {
-        Assert.fail("fail to delete table:" + INDEX_TEST_MAIN_TABLE_NAME);
-      } else if (Bytes.equals(desc.getName(), INDEX_TEST_INDEX_TABLE_NAME)) {
-        Assert.fail("fail to delete table:" + INDEX_TEST_INDEX_TABLE_NAME);
+      if (Bytes.equals(desc.getName(), MAIN_TABLE)) {
+        Assert.fail("fail to delete table:" + MAIN_TABLE);
+      } else if (Bytes.equals(desc.getName(), INDEX_TABLE)) {
+        Assert.fail("fail to delete table:" + INDEX_TABLE);
       }
     }
   }

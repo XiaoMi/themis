@@ -14,7 +14,7 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.themis.ThemisScan;
-import org.apache.hadoop.hbase.themis.ThemisScanner;
+import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
@@ -70,8 +70,21 @@ public class DefaultIndexer extends Indexer {
   }
 
   @Override
-  public ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException {
-    return null;
+  public IndexScanner getScanner(byte[] tableName, ThemisScan scan, Transaction transaction)
+      throws IOException {
+    if (!(scan instanceof IndexRead)) {
+      return null;
+    }
+    IndexRead indexRead = (IndexRead)scan;
+    if (!Bytes.equals(tableName, indexRead.getIndexColumn().getTableName())) {
+      throw new IOException("tableName not match, tableName=" + Bytes.toString(tableName)
+          + ", indexColumn=" + indexRead.getIndexColumn());
+    }
+    String indexTableName = columnIndexes.get(indexRead.getIndexColumn());
+    if (indexTableName == null) {
+      throw new IOException("not find index definition for indexColumn=" + indexRead.getIndexColumn());
+    }
+    return new IndexScanner(indexTableName, indexRead, transaction);
   }
 
   @Override

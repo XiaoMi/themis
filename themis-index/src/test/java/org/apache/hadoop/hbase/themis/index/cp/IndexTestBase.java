@@ -12,11 +12,12 @@ import org.junit.After;
 import org.junit.Before;
 
 public class IndexTestBase extends ClientTestBase {
-  public static final byte[] INDEX_TEST_MAIN_TABLE_NAME = Bytes.toBytes("test_index_main");
-  public static final byte[] INDEX_TEST_INDEX_TABLE_NAME = Bytes.toBytes("__themis_index_test_index_main_C_c_test_index");
-  public static final byte[] INDEX_TEST_MAIN_TABLE_FAMILY_NAME = Bytes.toBytes("C");
-  public static final byte[] INDEX_TEST_MAIN_TABLE_QUALIFIER_NAME = Bytes.toBytes("c");
-  public static final byte[] TEST_IDNEX_NAME = Bytes.toBytes("test_index:c");
+  public static final byte[] MAIN_TABLE = Bytes.toBytes("test_index_main");
+  public static final byte[] INDEX_TABLE = Bytes.toBytes("__themis_index_test_index_main_ThemisCF_Qualifier_test_index");
+  public static final byte[] INDEX_FAMILY = FAMILY;
+  public static final byte[] INDEX_QUALIFIER = QUALIFIER;
+  public static final byte[] IDNEX_NAME = Bytes.toBytes("test_index:Qualifier");
+  public static final IndexColumn INDEX_COLUMN = new IndexColumn(MAIN_TABLE, FAMILY, QUALIFIER);
   
   protected HBaseAdmin admin = null;
   
@@ -35,18 +36,20 @@ public class IndexTestBase extends ClientTestBase {
   }
   
   protected void createTableForIndexTest() throws IOException {
-    HTableDescriptor tableDesc = new HTableDescriptor(INDEX_TEST_MAIN_TABLE_NAME);
-    byte[] family = INDEX_TEST_MAIN_TABLE_FAMILY_NAME;
-    HColumnDescriptor columnDesc = new HColumnDescriptor(family);
+    HTableDescriptor tableDesc = new HTableDescriptor(MAIN_TABLE);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_FAMILY);
     columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
     columnDesc.setValue(Bytes.toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY),
-      TEST_IDNEX_NAME);
+      IDNEX_NAME);
+    tableDesc.addFamily(columnDesc);
+    columnDesc = new HColumnDescriptor(ANOTHER_FAMILY);
+    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
     tableDesc.addFamily(columnDesc);
     admin.createTable(tableDesc);
   }
   
   protected void deleteTableForIndexTest() throws IOException {
-    admin.disableTable(INDEX_TEST_MAIN_TABLE_NAME);
-    admin.deleteTable(INDEX_TEST_MAIN_TABLE_NAME); 
+    admin.disableTable(MAIN_TABLE);
+    admin.deleteTable(MAIN_TABLE); 
   }
 }

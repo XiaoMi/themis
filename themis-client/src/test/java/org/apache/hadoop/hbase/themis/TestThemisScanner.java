@@ -52,15 +52,6 @@ public class TestThemisScanner extends ClientTestBase {
       get.getFamilyMap().get(ANOTHER_FAMILY).iterator().next());
   }
   
-  protected void prepareScanData(ColumnCoordinate[] columns) throws IOException {
-    deleteOldDataAndUpdateTs();
-    for (ColumnCoordinate columnCoordinate : columns) {
-      writePutAndData(columnCoordinate, prewriteTs, commitTs);
-    }
-    nextTransactionTs();
-    createTransactionWithMock();
-  }
-  
   protected ThemisScan prepareScan(ColumnCoordinate[] columns) throws IOException {
     return prepareScan(columns, null);
   }

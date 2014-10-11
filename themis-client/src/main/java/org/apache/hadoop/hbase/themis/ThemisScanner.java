@@ -16,10 +16,10 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 // scanner for range read
 public class ThemisScanner extends AbstractClientScanner {
-  private final ResultScanner scanner;
-  private final byte[] tableName;
-  private Transaction transaction;
-  private final Scan scan;
+  protected final ResultScanner scanner;
+  protected final byte[] tableName;
+  protected Transaction transaction;
+  protected final Scan scan;
   
   public ThemisScanner(final byte[] tableName, final Scan scan, final Transaction transaction)
       throws IOException {

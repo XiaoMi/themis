@@ -140,4 +140,13 @@ public class ClientTestBase extends TransactionTestBase {
       }
     }
   }
+  
+  protected void prepareScanData(ColumnCoordinate[] columns) throws IOException {
+    deleteOldDataAndUpdateTs();
+    for (ColumnCoordinate columnCoordinate : columns) {
+      writePutAndData(columnCoordinate, prewriteTs, commitTs);
+    }
+    nextTransactionTs();
+    createTransactionWithMock();
+  }
 }

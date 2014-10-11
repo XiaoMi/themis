@@ -25,6 +25,10 @@ public class ThemisScan extends ThemisRead {
     this.scan = new Scan(startRow, stopRow);
   }
   
+  public ThemisScan(byte[] startRow) {
+    this(startRow, HConstants.EMPTY_END_ROW);
+  }
+  
   protected Scan getHBaseScan() {
     return this.scan;
   }
@@ -100,6 +104,10 @@ public class ThemisScan extends ThemisRead {
   @Override
   public Filter getFilter() {
     return this.scan.getFilter();
+  }
+  
+  public Scan getInternalScan() {
+    return this.scan;
   }
   
   // TODO(cuijianwei): support reverse scan

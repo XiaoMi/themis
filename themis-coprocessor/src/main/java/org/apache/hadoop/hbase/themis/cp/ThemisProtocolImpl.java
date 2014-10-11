@@ -164,7 +164,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     for (byte[] family : families) {
       Store store = region.getStore(family);
       if (store == null) {
-        throw new DoNotRetryIOException("family : '" + family + "' not found in table : "
+        throw new DoNotRetryIOException("family : '" + Bytes.toString(family) + "' not found in table : "
             + region.getTableDesc().getNameAsString());
       }
       String themisEnable = store.getFamily().getValue(ThemisMasterObserver.THEMIS_ENABLE_KEY);
