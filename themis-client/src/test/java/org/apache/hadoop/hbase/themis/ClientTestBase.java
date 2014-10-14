@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
@@ -148,5 +149,10 @@ public class ClientTestBase extends TransactionTestBase {
     }
     nextTransactionTs();
     createTransactionWithMock();
+  }
+  
+  protected void checkAndCloseScanner(ResultScanner scanner) throws IOException {
+    Assert.assertNull(scanner.next());
+    scanner.close();
   }
 }

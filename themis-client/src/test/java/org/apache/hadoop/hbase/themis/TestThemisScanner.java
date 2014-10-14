@@ -86,11 +86,6 @@ public class TestThemisScanner extends ClientTestBase {
     Assert.assertArrayEquals(columns[0].getRow(), result.getRow());
   }
   
-  protected void checkAndCloseScanner(ThemisScanner scanner) throws IOException {
-    Assert.assertNull(scanner.next());
-    scanner.close();
-  }
-  
   @Test
   public void testScanOneRow() throws Exception {
     // null result

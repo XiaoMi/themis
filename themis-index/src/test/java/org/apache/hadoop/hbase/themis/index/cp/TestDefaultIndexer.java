@@ -13,7 +13,6 @@ import org.apache.hadoop.hbase.themis.ThemisDelete;
 import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.apache.hadoop.hbase.themis.ThemisPut;
 import org.apache.hadoop.hbase.themis.ThemisScan;
-import org.apache.hadoop.hbase.themis.TransactionConstant;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -24,12 +23,10 @@ import org.junit.Test;
 public class TestDefaultIndexer extends IndexTestBase {
   @Test
   public void testLoadSecondaryIndexesForTable() throws IOException {
-    createTableForIndexTest();
     Map<IndexColumn, String> columnIndexes = new HashMap<IndexColumn, String>();
     DefaultIndexer indexer = new DefaultIndexer(conf);
     indexer.loadSecondaryIndexesForTable(admin.getTableDescriptor(MAIN_TABLE),
       columnIndexes);
-    deleteTableForIndexTest();
     Assert.assertEquals(1, columnIndexes.size());
     IndexColumn indexColumn = new IndexColumn(MAIN_TABLE,
         INDEX_FAMILY, INDEX_QUALIFIER);
@@ -48,7 +45,6 @@ public class TestDefaultIndexer extends IndexTestBase {
     mutationCache.addMutation(MAIN_TABLE, new KeyValue(ROW,
         INDEX_FAMILY, INDEX_QUALIFIER, Long.MAX_VALUE,
         Type.DeleteColumn, VALUE));
-    createTableForIndexTest();
     DefaultIndexer indexer = new DefaultIndexer(conf);
     indexer.addIndexMutations(mutationCache);
     Assert.assertEquals(4, mutationCache.size());
@@ -64,40 +60,56 @@ public class TestDefaultIndexer extends IndexTestBase {
     Assert.assertNotNull(typeAndValue);
     Assert.assertEquals(Type.Put, typeAndValue.getFirst());
     Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, typeAndValue.getSecond());
-    deleteTableForIndexTest();
+  }
+
+  protected void mockTsAndCommitTransaction() throws IOException {
+    mockTimestamp(commitTs);
+    transaction.commit();
+  }
+  
+  protected void nextTsAndCreateTransaction() throws IOException {
+    nextTransactionTs();
+    createTransactionWithMock();    
+  }
+  
+  protected void checkReadResult(byte[] value, ColumnCoordinate column, Result result)
+      throws IOException {
+    checkReadResults(new byte[][]{value}, new ColumnCoordinate[]{column}, result);
+  }
+  
+  protected void checkReadResults(byte[][] values, ColumnCoordinate[] columns, Result result) {
+    Assert.assertEquals(values.length, result.size());
+    for (int i = 0; i < values.length; ++i) {
+      ColumnCoordinate column = columns[i];
+      Assert.assertArrayEquals(values[i], result.getValue(column.getFamily(), column.getQualifier()));
+    }
   }
 
   @Test
   public void testWriteTransactionWithIndex() throws IOException {
-    createTableForIndexTest();
-    conf.set(TransactionConstant.INDEXER_CLASS_KEY, DefaultIndexer.class.getName());
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     ThemisPut put = new ThemisPut(ROW);
     put.add(INDEX_FAMILY, INDEX_QUALIFIER, VALUE);
     transaction.put(MAIN_TABLE, put);
-    mockTimestamp(commitTs);
-    transaction.commit();
-    nextTransactionTs();
-    createTransactionWithMock();
+    mockTsAndCommitTransaction();
+    
+    nextTsAndCreateTransaction();
     Result result = transaction.get(MAIN_TABLE, new ThemisGet(ROW).addColumn(
       INDEX_FAMILY, INDEX_QUALIFIER));
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(VALUE, result.list().get(0).getValue());
+    checkReadResult(VALUE, COLUMN, result);
     result = transaction.get(INDEX_TABLE, new ThemisGet(VALUE).addColumn(
       IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW));
     Assert.assertEquals(1, result.size());
     Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.list().get(0).getValue());
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     ThemisDelete delete = new ThemisDelete(ROW);
     delete.deleteColumn(INDEX_FAMILY, INDEX_QUALIFIER);
     transaction.delete(MAIN_TABLE, delete);
     mockTimestamp(commitTs);
     transaction.commit();
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     result = transaction.get(MAIN_TABLE, new ThemisGet(ROW).addColumn(
       INDEX_FAMILY, INDEX_QUALIFIER));
     Assert.assertTrue(result.isEmpty());
@@ -105,32 +117,22 @@ public class TestDefaultIndexer extends IndexTestBase {
       IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW));
     Assert.assertEquals(1, result.size());
     Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.list().get(0).getValue());
-    deleteTableForIndexTest();
-  }
-  
-  protected void mockTsAndCommitTransaction() throws IOException {
-    mockTimestamp(commitTs);
-    transaction.commit();
   }
   
   @Test
   public void testIndexGet() throws IOException {
-    createTableForIndexTest();
-    conf.set(TransactionConstant.INDEXER_CLASS_KEY, DefaultIndexer.class.getName());
-    createTransactionWithMock();
+    Result result = null;
+    nextTsAndCreateTransaction();
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE));
     mockTsAndCommitTransaction();
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     
     // no-index scan
     ResultScanner scanner = transaction.getScanner(MAIN_TABLE,
       new ThemisScan().addColumn(FAMILY, QUALIFIER));
-    Result result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
+    Assert.assertFalse(scanner instanceof IndexScanner);
+    checkReadResult(VALUE, COLUMN, scanner.next());
     scanner.close();
     
     // index get column
@@ -138,41 +140,30 @@ public class TestDefaultIndexer extends IndexTestBase {
         new DataGet().addColumn(FAMILY, QUALIFIER));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResult(VALUE, COLUMN, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // write other qualifier and family
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     transaction.delete(MAIN_TABLE, new ThemisDelete(ROW).deleteColumn(FAMILY, ANOTHER_QUALIFIER));
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(ANOTHER_FAMILY, QUALIFIER, ANOTHER_VALUE));
     mockTsAndCommitTransaction();
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     // index get family and column
     indexGet = new IndexGet(INDEX_COLUMN, VALUE,
       new DataGet().addColumn(FAMILY, QUALIFIER).addFamily(ANOTHER_FAMILY));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
-    result = scanner.next();
-    Assert.assertEquals(2, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResults(new byte[][] { VALUE, ANOTHER_VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // index get whole row
     indexGet = new IndexGet(INDEX_COLUMN, VALUE, new DataGet());
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
-    result = scanner.next();
-    Assert.assertEquals(2, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResults(new byte[][] { VALUE, ANOTHER_VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // write another value in index column
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(FAMILY, QUALIFIER, ANOTHER_VALUE));
@@ -182,11 +173,8 @@ public class TestDefaultIndexer extends IndexTestBase {
     indexGet = new IndexGet(INDEX_COLUMN, VALUE, new DataGet().addColumn(FAMILY, QUALIFIER));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResult(VALUE, COLUMN, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // can not read the old value
     nextTransactionTs();
@@ -194,22 +182,17 @@ public class TestDefaultIndexer extends IndexTestBase {
     indexGet = new IndexGet(INDEX_COLUMN, VALUE, new DataGet().addColumn(FAMILY, QUALIFIER));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkAndCloseScanner(scanner);
     
     // can read the new value
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     indexGet = new IndexGet(INDEX_COLUMN, ANOTHER_VALUE, new DataGet().addColumn(FAMILY, QUALIFIER)
         .addFamily(ANOTHER_FAMILY));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(2, result.size());
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResults(new byte[][] { ANOTHER_VALUE, ANOTHER_VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // delete value
     // write another value in index column
@@ -220,84 +203,59 @@ public class TestDefaultIndexer extends IndexTestBase {
     indexGet = new IndexGet(INDEX_COLUMN, ANOTHER_VALUE, new DataGet().addColumn(FAMILY, QUALIFIER));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResult(ANOTHER_VALUE, COLUMN, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // can not read value after timestamp updated
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     indexGet = new IndexGet(INDEX_COLUMN, ANOTHER_VALUE, new DataGet().addColumn(FAMILY, QUALIFIER));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkAndCloseScanner(scanner);
     
     // two rows with the same index column value
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     transaction.put(MAIN_TABLE, new ThemisPut(ANOTHER_ROW).add(FAMILY, QUALIFIER, VALUE));
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE));
     mockTsAndCommitTransaction();
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     indexGet = new IndexGet(INDEX_COLUMN, VALUE, new DataGet().addColumn(FAMILY, QUALIFIER));
     scanner = transaction.getScanner(MAIN_TABLE, indexGet);
     Assert.assertTrue(scanner instanceof IndexScanner);
     result = scanner.next();
-    Assert.assertEquals(1, result.size());
     Assert.assertArrayEquals(ANOTHER_ROW, result.getRow());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
+    checkReadResult(VALUE, COLUMN, result);
     result = scanner.next();
-    Assert.assertEquals(1, result.size());
     Assert.assertArrayEquals(ROW, result.getRow());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
-    
-    deleteTableForIndexTest();
+    checkReadResult(VALUE, COLUMN, result);
+    checkAndCloseScanner(scanner);
   }
   
   @Test
   public void testIndexScan() throws IOException {
-    createTableForIndexTest();
-    
-    conf.set(TransactionConstant.INDEXER_CLASS_KEY, DefaultIndexer.class.getName());
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     transaction.put(MAIN_TABLE, new ThemisPut(ANOTHER_ROW).add(FAMILY, QUALIFIER, ANOTHER_VALUE));
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE));
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(FAMILY, ANOTHER_QUALIFIER, VALUE));
     transaction.put(MAIN_TABLE, new ThemisPut(ROW).add(ANOTHER_FAMILY, QUALIFIER, VALUE));
     mockTsAndCommitTransaction();
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     IndexScan indexScan = new IndexScan(INDEX_COLUMN);
     ResultScanner scanner = transaction.getScanner(MAIN_TABLE, indexScan);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    Result result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(FAMILY, QUALIFIER));
-    result = scanner.next();
-    Assert.assertEquals(3, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, ANOTHER_QUALIFIER));
-    Assert.assertArrayEquals(VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResult(ANOTHER_VALUE, COLUMN, scanner.next());
+    checkReadResults(new byte[][] { VALUE, VALUE, VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_QUALIFIER, COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // start/stop row for index scan
     indexScan = new IndexScan(INDEX_COLUMN, ANOTHER_VALUE, ANOTHER_VALUE);
     scanner = transaction.getScanner(MAIN_TABLE, indexScan);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResult(ANOTHER_VALUE, COLUMN, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // Delete/Update
     transaction.delete(MAIN_TABLE, new ThemisDelete(ROW).deleteColumn(FAMILY, ANOTHER_QUALIFIER));
@@ -307,50 +265,31 @@ public class TestDefaultIndexer extends IndexTestBase {
     indexScan = new IndexScan(INDEX_COLUMN);
     scanner = transaction.getScanner(MAIN_TABLE, indexScan);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(FAMILY, QUALIFIER));
-    result = scanner.next();
-    Assert.assertEquals(3, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, ANOTHER_QUALIFIER));
-    Assert.assertArrayEquals(VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    
-    nextTransactionTs();
-    createTransactionWithMock();
+    checkReadResult(ANOTHER_VALUE, COLUMN, scanner.next());
+    checkReadResults(new byte[][] { VALUE, VALUE, VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_QUALIFIER, COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
+
+    nextTsAndCreateTransaction();
     indexScan = new IndexScan(INDEX_COLUMN);
     scanner = transaction.getScanner(MAIN_TABLE, indexScan);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(FAMILY, QUALIFIER));
-    result = scanner.next();
-    Assert.assertEquals(2, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
+    checkReadResult(ANOTHER_VALUE, COLUMN, scanner.next());
+    checkReadResults(new byte[][] { VALUE, ANOTHER_VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
     
     // update value to make tow rows have the same index column value
     transaction.put(MAIN_TABLE, new ThemisPut(ANOTHER_ROW).add(FAMILY, QUALIFIER, VALUE));
     mockTsAndCommitTransaction();
     
-    nextTransactionTs();
-    createTransactionWithMock();
+    nextTsAndCreateTransaction();
     indexScan = new IndexScan(INDEX_COLUMN);
     scanner = transaction.getScanner(MAIN_TABLE, indexScan);
     Assert.assertTrue(scanner instanceof IndexScanner);
-    result = scanner.next();
-    Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    result = scanner.next();
-    Assert.assertEquals(2, result.size());
-    Assert.assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
-    Assert.assertArrayEquals(ANOTHER_VALUE, result.getValue(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertNull(scanner.next());
-    scanner.close();
-    
-    deleteTableForIndexTest();
+    checkReadResult(VALUE, COLUMN, scanner.next());
+    checkReadResults(new byte[][] { VALUE, ANOTHER_VALUE }, new ColumnCoordinate[] { COLUMN,
+        COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
+    checkAndCloseScanner(scanner);
   }
 }
