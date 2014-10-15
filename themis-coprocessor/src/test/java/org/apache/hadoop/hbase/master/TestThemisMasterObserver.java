@@ -8,46 +8,82 @@ import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestThemisMasterObserver extends TransactionTestBase {
+  private HBaseAdmin admin = null;
+  private byte[] testTable = Bytes.toBytes("test_table");
+  private byte[] testFamily = Bytes.toBytes("test_family");
+  
+  @Before
+  public void initEnv() throws IOException {
+    super.initEnv();
+    admin = new HBaseAdmin(conf);
+  }
+  
+  @After
+  public void tearUp() throws IOException {
+    if (admin != null) {
+      admin.close();
+    }
+    super.tearUp();
+  }
+  
   @Test
   public void testCreateThemisLockFamily() throws Exception {
     HColumnDescriptor columnDesc = ThemisMasterObserver.createLockFamily();
+    checkLockFamilyDesc(columnDesc);
+  }
+  
+  protected void checkLockFamilyDesc(HTableDescriptor tableDescriptor) {
+    Assert.assertNotNull(tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
+    checkLockFamilyDesc(tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
+  }
+  
+  protected void checkLockFamilyDesc(HColumnDescriptor columnDesc) {
     Assert.assertArrayEquals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName());
     Assert.assertEquals(1, columnDesc.getMaxVersions());
     Assert.assertTrue(columnDesc.isInMemory());
+    Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
+  }
+  
+  protected void createTestTable(boolean themisEnable) throws IOException {
+    admin.createTable(getTestTableDesc(themisEnable));
+  }
+  
+  protected HTableDescriptor getTestTableDesc(boolean themisEnable) throws IOException {
+    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
+    if (themisEnable) {
+      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+    }
+    tableDesc.addFamily(columnDesc);
+    return tableDesc;
   }
   
   @Test
   public void testAddLockFamilyForThemisTable() throws Exception {
-    HBaseAdmin admin = new HBaseAdmin(conf);
-    byte[] testTable = Bytes.toBytes("test_table");
-    byte[] testFamily = Bytes.toBytes("test_family");
-
     // create table without setting THEMIS_ENABLE
     deleteTable(admin, testTable);
-    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
-    tableDesc.addFamily(columnDesc);
-    admin.createTable(tableDesc);
+    createTestTable(false);
     Assert
         .assertFalse(admin.getTableDescriptor(testTable).getFamiliesKeys().contains(ColumnUtil.LOCK_FAMILY_NAME));
     
     // create table with THEMIS_ENABLE and family 'L'
     deleteTable(admin, testTable);
-    tableDesc = new HTableDescriptor(testTable);
-    columnDesc = new HColumnDescriptor(testFamily);
-    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-    tableDesc.addFamily(columnDesc);
-    columnDesc = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
+    HTableDescriptor tableDesc = getTestTableDesc(true);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
     tableDesc.addFamily(columnDesc);
     try {
       admin.createTable(tableDesc);
@@ -58,27 +94,17 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     
     // create table with THEMIS_ENABLE
     deleteTable(admin, testTable);
-    tableDesc = new HTableDescriptor(testTable);
-    columnDesc = new HColumnDescriptor(testFamily);
-    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-    tableDesc.addFamily(columnDesc);
-    admin.createTable(tableDesc);
+    createTestTable(true);
     Assert.assertTrue(admin.getTableDescriptor(testTable).getFamiliesKeys()
       .contains(ColumnUtil.LOCK_FAMILY_NAME));
-    HColumnDescriptor lockDesc = admin.getTableDescriptor(testTable).getFamily(ColumnUtil.LOCK_FAMILY_NAME);
-    Assert.assertTrue(lockDesc.isInMemory());
-    Assert.assertEquals(1, lockDesc.getMaxVersions());
-    Assert.assertEquals(HConstants.FOREVER, lockDesc.getTimeToLive());
-    lockDesc = admin.getTableDescriptor(testTable).getFamily(testFamily);
-    Assert.assertEquals(Integer.MAX_VALUE, lockDesc.getMaxVersions());
-    Assert.assertEquals(HConstants.FOREVER, lockDesc.getTimeToLive());
+    checkLockFamilyDesc(admin.getTableDescriptor(testTable));
+    HColumnDescriptor dataColumnDesc = admin.getTableDescriptor(testTable).getFamily(testFamily);
+    Assert.assertEquals(Integer.MAX_VALUE, dataColumnDesc.getMaxVersions());
+    Assert.assertEquals(HConstants.FOREVER, dataColumnDesc.getTimeToLive());
     // exception when set MaxVersion
     deleteTable(admin, testTable);
-    tableDesc = new HTableDescriptor(testTable);
-    columnDesc = new HColumnDescriptor(testFamily);
-    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-    columnDesc.setMaxVersions(1);
-    tableDesc.addFamily(columnDesc);
+    tableDesc = getTestTableDesc(true);
+    tableDesc.getFamily(testFamily).setMaxVersions(1);
     try {
       admin.createTable(tableDesc);
     } catch (DoNotRetryIOException e) {
@@ -86,18 +112,28 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     }
     deleteTable(admin, testTable);
     // exception when set TTL
-    tableDesc = new HTableDescriptor(testTable);
-    columnDesc = new HColumnDescriptor(testFamily);
-    columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-    columnDesc.setTimeToLive(60 * 1000);
-    tableDesc.addFamily(columnDesc);
+    tableDesc = getTestTableDesc(true);
+    tableDesc.getFamily(testFamily).setTimeToLive(60 * 1000);
     try {
       admin.createTable(tableDesc);
     } catch (DoNotRetryIOException e) {
       Assert.assertTrue(e.getMessage().indexOf("can not set TTL for family") >= 0);
     }
     deleteTable(admin, testTable);
-    admin.close();
+  }
+  
+  @Test
+  public void testTruncateTable() throws IOException {
+    deleteTable(admin, testTable);
+    createTestTable(true);
+    HTableInterface table = connection.getTable(testTable);
+    HTableDescriptor desc = table.getTableDescriptor();
+    admin.disableTable(testTable);
+    admin.deleteTable(testTable);
+    admin.createTable(desc);
+    checkLockFamilyDesc(admin.getTableDescriptor(testTable));
+    table.close();
+    deleteTable(admin, testTable);
   }
   
   @Test
