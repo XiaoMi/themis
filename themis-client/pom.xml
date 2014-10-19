@@ -3,7 +3,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <hadoop.version>2.2.0</hadoop.version>
-    <hbase.version>0.98.5</hbase.version>
+    <hbase.version>0.98.5-hadoop2</hbase.version>
     <themis.version>1.0-SNAPSHOT</themis.version>
     <chronos.version>1.0.1-thrift0.8.0</chronos.version>
   </properties>
