@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -58,8 +59,9 @@ public class TransactionTestBase extends TestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    useMiniCluster();
-    startMiniCluster(conf);
+//    useMiniCluster();
+//    startMiniCluster(conf);
+    useOnebox((conf = HBaseConfiguration.create()));
   }
   
   public static void useMiniCluster() throws Exception {
