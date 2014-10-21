@@ -25,6 +25,10 @@ public class ThemisScan extends ThemisRead {
     this.scan = new Scan(startRow, stopRow);
   }
   
+  public ThemisScan(byte[] startRow) {
+    this(startRow, HConstants.EMPTY_END_ROW);
+  }
+  
   protected Scan getHBaseScan() {
     return this.scan;
   }
@@ -38,6 +42,13 @@ public class ThemisScan extends ThemisRead {
   public ThemisScan addColumn(byte [] family, byte [] qualifier) throws IOException {
     checkContainingPreservedColumn(family, qualifier);
     this.scan.addColumn(family, qualifier);
+    return this;
+  }
+  
+  @Override
+  public ThemisScan addFamily(byte[] family) throws IOException {
+    checkContainingPreservedColumn(family, null);
+    this.scan.addFamily(family);
     return this;
   }
 
@@ -93,6 +104,10 @@ public class ThemisScan extends ThemisRead {
   @Override
   public Filter getFilter() {
     return this.scan.getFilter();
+  }
+  
+  public Scan getInternalScan() {
+    return this.scan;
   }
   
   // TODO(cuijianwei): support reverse scan

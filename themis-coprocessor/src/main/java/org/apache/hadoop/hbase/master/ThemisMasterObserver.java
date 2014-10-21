@@ -22,6 +22,7 @@ import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.UnmodifyableHTableDescriptor;
 import org.apache.hadoop.hbase.coprocessor.BaseMasterObserver;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
@@ -45,8 +46,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
   public static final String THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY = "themis.expired.data.clean.enable";
   public static final String THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME = "themis-expired-ts";
-
-
+  
   protected int expiredTsCalculatePeriod;
   protected Chore themisExpiredTsCalculator;
   protected ZooKeeperWatcher zk;
@@ -72,6 +72,9 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   @Override
   public void preCreateTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
       HTableDescriptor desc, HRegionInfo[] regions) throws IOException {
+    if (desc instanceof UnmodifyableHTableDescriptor) {
+      return;
+    }
     boolean themisEnable = false;
     for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
       if (isThemisEnableFamily(columnDesc)) {

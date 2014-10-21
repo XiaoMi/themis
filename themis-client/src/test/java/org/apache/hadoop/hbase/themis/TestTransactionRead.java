@@ -35,6 +35,17 @@ public class TestTransactionRead extends ClientTestBase {
     Result result = transaction.get(TABLENAME, getThemisGet(COLUMN));
     checkReadColumnResultWithTs(result, COLUMN, prewriteTs - 2);
   }
+  
+  @Test
+  public void testGetEntireRow() throws IOException {
+    commitTestTransaction();
+    nextTransactionTs();
+    createTransactionWithMock();
+    Result result = transaction.get(TABLENAME, new ThemisGet(ROW));
+    Assert.assertEquals(2, result.size());
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, result.list().get(0));
+    checkResultKvColumn(COLUMN, result.list().get(1));
+  }
 
   @Test
   public void testGetOneColumnWithDelete() throws IOException {

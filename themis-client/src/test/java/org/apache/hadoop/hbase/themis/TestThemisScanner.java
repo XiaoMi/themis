@@ -1,7 +1,5 @@
 package org.apache.hadoop.hbase.themis;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.hadoop.hbase.client.Get;
@@ -10,7 +8,6 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.Filter;
-import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.FilterList.Operator;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
@@ -19,10 +16,8 @@ import org.apache.hadoop.hbase.filter.ValueFilter;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil.CustomerColumnFilter;
 import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil.CustomerRowkeyFilter;
-import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil.RowLevelFilter;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
-import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -55,15 +50,6 @@ public class TestThemisScanner extends ClientTestBase {
     Assert.assertEquals(1, get.getFamilyMap().get(ANOTHER_FAMILY).size());
     Assert.assertArrayEquals(ANOTHER_QUALIFIER,
       get.getFamilyMap().get(ANOTHER_FAMILY).iterator().next());
-  }
-  
-  protected void prepareScanData(ColumnCoordinate[] columns) throws IOException {
-    deleteOldDataAndUpdateTs();
-    for (ColumnCoordinate columnCoordinate : columns) {
-      writePutAndData(columnCoordinate, prewriteTs, commitTs);
-    }
-    nextTransactionTs();
-    createTransactionWithMock();
   }
   
   protected ThemisScan prepareScan(ColumnCoordinate[] columns) throws IOException {
@@ -100,11 +86,6 @@ public class TestThemisScanner extends ClientTestBase {
     Assert.assertArrayEquals(columns[0].getRow(), result.getRow());
   }
   
-  protected void checkAndCloseScanner(ThemisScanner scanner) throws IOException {
-    Assert.assertNull(scanner.next());
-    scanner.close();
-  }
-  
   @Test
   public void testScanOneRow() throws Exception {
     // null result
@@ -124,6 +105,25 @@ public class TestThemisScanner extends ClientTestBase {
     scanner = prepareScanner(columns);
     result = scanner.next();
     checkScanRow(columns, result);
+    checkAndCloseScanner(scanner);
+    
+    // test scan family
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan().addFamily(FAMILY));
+    result = scanner.next();
+    checkScanRow(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_QUALIFIER}, result);
+    checkAndCloseScanner(scanner);
+    
+    // test scan entire row
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan());
+    result = scanner.next();
+    checkScanRow(columns, result);
+    checkAndCloseScanner(scanner);
+    
+    // test scan family together with column
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan().addFamily(ANOTHER_FAMILY)
+        .addColumn(FAMILY, QUALIFIER));
+    result = scanner.next();
+    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_FAMILY, COLUMN}, result);
     checkAndCloseScanner(scanner);
   }
   
@@ -219,6 +219,39 @@ public class TestThemisScanner extends ClientTestBase {
     } finally {
       scanner.close();
     }
+    
+    // scan family with lock in another family
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(ANOTHER_FAMILY));
+    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_FAMILY}, scanner.next());
+    checkAndCloseScanner(scanner);
+    
+    // scan family with lock in the read family
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(FAMILY));
+    Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
+    try {
+      scanner.next();
+      Assert.fail();
+    } catch (LockConflictException e) {
+    } finally {
+      scanner.close();
+    }
+    
+    // scan entire row with lock conflict
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
+    Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
+    try {
+      scanner.next();
+      Assert.fail();
+    } catch (LockConflictException e) {
+    } finally {
+      scanner.close();
+    }
+    
+    // scan entire row with lock conflict resolved
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
+    Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
+    checkResultForROW(scanner.next());
+    checkAndCloseScanner(scanner);
   }
   
   @Test

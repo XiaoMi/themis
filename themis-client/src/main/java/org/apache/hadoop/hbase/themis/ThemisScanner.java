@@ -16,10 +16,10 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 // scanner for range read
 public class ThemisScanner extends AbstractClientScanner {
-  private final ResultScanner scanner;
-  private final byte[] tableName;
-  private Transaction transaction;
-  private final Scan scan;
+  protected final ResultScanner scanner;
+  protected final byte[] tableName;
+  protected Transaction transaction;
+  protected final Scan scan;
   
   public ThemisScanner(final byte[] tableName, final Scan scan, final Transaction transaction)
       throws IOException {
@@ -46,8 +46,12 @@ public class ThemisScanner extends AbstractClientScanner {
   public static Get createGetFromScan(Scan scan, byte[] rowkey) {
     Get get = new Get(rowkey);
     for (Entry<byte[], NavigableSet<byte[]>> familyEntry : scan.getFamilyMap().entrySet()) {
-      for (byte[] qualifier : familyEntry.getValue()) {
-        get.addColumn(familyEntry.getKey(), qualifier);
+      if (familyEntry.getValue() != null && familyEntry.getValue().size() > 0) {
+        for (byte[] qualifier : familyEntry.getValue()) {
+          get.addColumn(familyEntry.getKey(), qualifier);
+        }
+      } else {
+        get.addFamily(familyEntry.getKey());
       }
     }
     return get;

@@ -22,12 +22,12 @@ import org.apache.hadoop.hbase.filter.KeyOnlyFilter;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
+import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
-import org.apache.zookeeper.Transaction;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -145,15 +145,21 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     checkGetResultForDifferentTs(iResult);
   }
   
-  protected void checkGetOneColumnConflictResult(ColumnCoordinate columnCoordinate, Result internalResult)
-      throws IOException {
+  protected void checkGetOneColumnConflictResult(ColumnCoordinate columnCoordinate,
+      Result internalResult, long prewriteTs) throws IOException {
     Assert.assertTrue(ThemisCpUtil.isLockResult(internalResult));
     Assert.assertEquals(1, internalResult.list().size());
     KeyValue kv = internalResult.list().get(0);
     Assert.assertTrue(ColumnUtil.getLockColumn(columnCoordinate).equals(
       new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRow(), kv.getFamily(), kv.getQualifier())));
     Assert.assertEquals(prewriteTs, kv.getTimestamp());
-    Assert.assertArrayEquals(ThemisLock.toByte(getLock(columnCoordinate)), kv.getValue());
+    Assert.assertArrayEquals(ThemisLock.toByte(getLock(columnCoordinate, prewriteTs)), kv.getValue());
+
+  }
+  
+  protected void checkGetOneColumnConflictResult(ColumnCoordinate columnCoordinate, Result internalResult)
+      throws IOException {
+    checkGetOneColumnConflictResult(columnCoordinate, internalResult, prewriteTs);
   }
   
   @Test
@@ -240,6 +246,53 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     Assert.assertEquals(prewriteTs + 30,
       result.getColumnLatest(COLUMN_WITH_ANOTHER_FAMILY.getFamily(),
         COLUMN_WITH_ANOTHER_FAMILY.getQualifier()).getTimestamp());
+  }
+  
+  @Test
+  public void testGetFamily() throws IOException {
+    // get entire row
+    commitTestTransaction();
+    Get get = new Get(ROW);
+    Result iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
+    Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
+    Assert.assertEquals(2, iResult.size());
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, iResult.list().get(0));
+    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    
+    // get entire family
+    commitOneColumn(COLUMN_WITH_ANOTHER_QUALIFIER, Type.Put, prewriteTs + 10, commitTs + 10);
+    get = new Get(ROW);
+    get.addFamily(FAMILY);
+    iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
+    Assert.assertEquals(2, iResult.size());
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(0));
+    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    
+    // get entire family together with another family's column
+    get = new Get(ROW);
+    get.addFamily(FAMILY);
+    get.addColumn(ANOTHER_FAMILY, QUALIFIER);
+    iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
+    Assert.assertEquals(3, iResult.size());
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, iResult.list().get(0));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(1));
+    checkResultKvColumn(COLUMN, iResult.list().get(2));
+    
+    // get entire family with lock in another family
+    writeLockAndData(COLUMN_WITH_ANOTHER_FAMILY, prewriteTs + 20);
+    get = new Get(ROW);
+    get.addFamily(FAMILY);
+    iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
+    Assert.assertEquals(2, iResult.size());
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(0));
+    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    
+    // get entire family with lock conflict
+    get = new Get(ROW);
+    get.addFamily(FAMILY);
+    get.addColumn(ANOTHER_FAMILY, QUALIFIER);
+    iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
+    checkGetOneColumnConflictResult(COLUMN_WITH_ANOTHER_FAMILY, iResult, prewriteTs + 20);
   }
   
   @Test

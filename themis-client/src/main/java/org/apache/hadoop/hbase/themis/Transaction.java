@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.MultiRowExceptions;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
+import org.apache.hadoop.hbase.themis.index.Indexer;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -66,6 +67,7 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean enableConcurrentRpc;
   protected boolean singleRowTransaction = false;
   protected boolean enableSingleRowWrite;
+  protected Indexer indexer;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -92,6 +94,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
+    this.indexer = Indexer.getIndexer(conf);
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -131,7 +134,6 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
-    ThemisRequest.checkContainColumn(userGet);
     Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
     // if the result contains KeyValues from lock columns, it means we encounter conflict
     // locks and need to clean lock before retry
@@ -161,7 +163,10 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public ThemisScanner getScanner(byte[] tableName, ThemisScan userScan) throws IOException {
-    ThemisRequest.checkContainColumn(userScan);
+    ThemisScanner indexScanner = indexer.getScanner(tableName, userScan, this);
+    if (indexScanner != null) {
+      return indexScanner;
+    }
     return new ThemisScanner(tableName, userScan.getHBaseScan(), this);
   }
   
@@ -169,6 +174,9 @@ public class Transaction extends Configured implements TransactionInterface {
     if (mutationCache.size() == 0) {
       return;
     }
+    
+    indexer.addIndexMutations(mutationCache);
+    
     selectPrimaryAndSecondaries();
 
     // must prewrite primary successfully before prewriting secondaries
