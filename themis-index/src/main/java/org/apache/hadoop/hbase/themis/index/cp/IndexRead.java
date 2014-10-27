@@ -7,7 +7,7 @@ public class IndexRead extends ThemisScan {
   protected final DataGet dataGet;
   
   public IndexRead(IndexColumn indexColumn, ThemisScan indexScan, DataGet dataGet) {
-    super(indexScan.getInternalScan());
+    super.setHBaseScan(indexScan.getInternalScan());
     this.indexColumn = indexColumn;
     this.dataGet = dataGet;
   }
