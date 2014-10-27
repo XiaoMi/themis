@@ -83,6 +83,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
       }
       return hasMore;
     } catch (Throwable ex) {
+      LOG.error("themis error when scan for kvs=" + results);
       throw new DoNotRetryIOException("themis exception in preScannerNext", ex);
     }
   }
