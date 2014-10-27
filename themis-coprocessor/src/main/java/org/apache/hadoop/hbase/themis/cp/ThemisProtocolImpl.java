@@ -121,6 +121,9 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   
   public static void checkReadTTL(long currentMs, long startTs, byte[] row)
       throws TransactionExpiredException {
+    if (!TransactionTTL.transactionTTLEnable) {
+      return;
+    }
     long expiredTimestamp = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
     if (startTs < TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs)) {
       throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
@@ -131,6 +134,9 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   
   public static void checkWriteTTL(long currentMs, long startTs, byte[] row)
       throws TransactionExpiredException {
+    if (!TransactionTTL.transactionTTLEnable) {
+      return;
+    }
     long expiredTimestamp = TransactionTTL.getExpiredTimestampForWrite(currentMs);
     if (startTs < expiredTimestamp) {
       throw new TransactionExpiredException(
