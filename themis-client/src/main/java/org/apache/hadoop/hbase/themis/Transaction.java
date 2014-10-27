@@ -68,6 +68,7 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean singleRowTransaction = false;
   protected boolean enableSingleRowWrite;
   protected Indexer indexer;
+  protected boolean disableLockClean = false;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -95,6 +96,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.startTs = this.timestampOracle.getStartTs();
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
     this.indexer = Indexer.getIndexer(conf);
+    this.disableLockClean = getConf().getBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -145,6 +147,11 @@ public class Transaction extends Configured implements TransactionInterface {
 
   protected Result tryToCleanLockAndGetAgain(byte[] tableName, Get get,
       List<KeyValue> lockKvs) throws IOException {
+    if (disableLockClean) {
+      throw new LockConflictException("lockClean disabled, can't be cleaned after lockResult="
+          + lockKvs);
+    }
+
     // we only need to try once to clean lock; although later transaction may write a lock with smaller startTs
     // than Transaction.startTs, the commitTs of the write must be larger than Transaction.startTs. Therefore
     // should not be read out by this transaction
@@ -313,6 +320,11 @@ public class Transaction extends Configured implements TransactionInterface {
       throws IOException {
     ThemisLock lock = prewriteRow(tableName, mutation, containPrimary);
     if (lock != null) {
+      if (disableLockClean) {
+        throw new LockConflictException("lockClean disabled, can't clean lock, column="
+            + lock.getColumn() + ", conflict lock=" + lock);
+      }
+      
       // we must do lock cleaning if encountering conflict lock. We must make sure the returned conflict column
       // is the data column other than the corresponding write/lock columns; otherwise, fatal errors might be caused.
       if (!ColumnUtil.isDataColumn(lock.getColumn())) {

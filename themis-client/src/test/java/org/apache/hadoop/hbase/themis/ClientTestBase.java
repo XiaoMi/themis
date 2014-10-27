@@ -33,6 +33,12 @@ public class ClientTestBase extends TransactionTestBase {
     transaction = new Transaction(conf, connection, mockTimestampOracle, mockRegister);
   }
   
+  protected void createTransactionWithWorkRegister(WorkerRegister reg) throws IOException {
+    mockTimestampOracle = Mockito.mock(BaseTimestampOracle.class);
+    mockTimestamp(prewriteTs);
+    transaction = new Transaction(conf, connection, mockTimestampOracle, reg);
+  }
+  
   protected void mockTimestamp(long timestamp) throws IOException {
     Mockito.when(mockTimestampOracle.getRequestIdWithTimestamp()).thenReturn(new Pair<Long, Long>(timestamp, timestamp));
 
@@ -95,6 +101,11 @@ public class ClientTestBase extends TransactionTestBase {
   
   protected void preparePrewrite(boolean singleRowTransaction) throws IOException {
     createTransactionWithMock();
+    preparePrewriteWithoutCreateTransaction(singleRowTransaction);
+  }
+  
+  protected void preparePrewriteWithoutCreateTransaction(boolean singleRowTransaction)
+      throws IOException {
     if (singleRowTransaction) {
       applySingleRowTransactionMutations();
     } else {

@@ -35,34 +35,40 @@ public class ThemisScanObserver extends BaseRegionObserver {
       List<Result> results, int limit) throws IOException {
     List<KeyValue> values = new ArrayList<KeyValue>();
     for (int i = 0; i < limit;) {
-      boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE);
-      if (!values.isEmpty()) {
-        Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getScan().getFamilyMap(),
-          new Result(values));
-        Pair<List<KeyValue>, List<KeyValue>> pResult = ThemisCpUtil.seperateLockAndWriteKvs(result.list());
-        List<KeyValue> lockKvs = pResult.getFirst();
-        if (lockKvs.size() == 0) {
-          List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(pResult.getSecond());
-          // should ignore rows which only contain delete columns
-          if (putKvs.size() > 0) {
-            // TODO : check there must corresponding data columns by commit column
-            Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, s.getDataColumnFilter());
-            Result dataResult = region.get(dataGet, null);
-            if (!dataResult.isEmpty()) {
-              results.add(dataResult);
-              ++i;
+      try {
+        boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE);
+        if (!values.isEmpty()) {
+          Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getScan().getFamilyMap(),
+            new Result(values));
+          Pair<List<KeyValue>, List<KeyValue>> pResult = ThemisCpUtil
+              .seperateLockAndWriteKvs(result.list());
+          List<KeyValue> lockKvs = pResult.getFirst();
+          if (lockKvs.size() == 0) {
+            List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(pResult.getSecond());
+            // should ignore rows which only contain delete columns
+            if (putKvs.size() > 0) {
+              // TODO : check there must corresponding data columns by commit column
+              Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, s.getDataColumnFilter());
+              Result dataResult = region.get(dataGet, null);
+              if (!dataResult.isEmpty()) {
+                results.add(dataResult);
+                ++i;
+              }
             }
+          } else {
+            LOG.warn("encounter conflict lock in ThemisScan, row=" + result.getRow());
+            results.add(new Result(lockKvs));
+            ++i;
           }
-        } else {
-          LOG.warn("encounter conflict lock in ThemisScan, row=" + result.getRow());
-          results.add(new Result(lockKvs));
-          ++i;
         }
+        if (!moreRows) {
+          return false;
+        }
+        values.clear();
+      } catch (Throwable e) {
+        LOG.error("themis error when scan for write_kvs=" + values);
+        throw new IOException(e);
       }
-      if (!moreRows) {
-        return false;
-      }
-      values.clear();
     }
     return true;
   }
