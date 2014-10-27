@@ -24,11 +24,17 @@ import org.apache.hadoop.hbase.util.Pair;
 
 public class ThemisScanObserver extends BaseRegionObserver {
   public static final String TRANSACTION_START_TS = "_themisTransationStartTs_";
+  private static final byte[] PRE_SCANNER_OPEN_FEEK_ROW = Bytes.toBytes("preScannerOpen");
+  private static final byte[] PRE_SCANNER_NEXT_FEEK_ROW = Bytes.toBytes("preScannerNext");
   private static final Log LOG = LogFactory.getLog(ThemisScanObserver.class);
   
   @Override
   public void start(CoprocessorEnvironment e) throws IOException {
     TransactionTTL.init(e.getConfiguration());
+  }
+  
+  protected static byte[] currentRow(List<KeyValue> values) {
+    return values.size() > 0 ? values.get(0).getRow() : PRE_SCANNER_NEXT_FEEK_ROW;
   }
   
   protected static boolean next(HRegion region, final ThemisServerScanner s,
@@ -37,6 +43,8 @@ public class ThemisScanObserver extends BaseRegionObserver {
     for (int i = 0; i < limit;) {
       try {
         boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE);
+        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), s.getStartTs(),
+          currentRow(values));
         if (!values.isEmpty()) {
           Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getScan().getFamilyMap(),
             new Result(values));
@@ -81,7 +89,6 @@ public class ThemisScanObserver extends BaseRegionObserver {
     try {
       if (s instanceof ThemisServerScanner) {
         ThemisServerScanner pScanner = (ThemisServerScanner)s;
-        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), pScanner.getStartTs());
         HRegion region = e.getEnvironment().getRegion();
         boolean more = next(region, pScanner, results, limit);
         e.bypass();
@@ -103,7 +110,8 @@ public class ThemisScanObserver extends BaseRegionObserver {
       if (themisStartTs != null) {
         ThemisCpUtil.prepareScan(scan, e.getEnvironment().getRegion().getTableDesc().getFamilies());
         checkFamily(e.getEnvironment().getRegion(), scan);
-        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), themisStartTs);
+        ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), themisStartTs,
+          PRE_SCANNER_OPEN_FEEK_ROW);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
         ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment().getRegion()
             .getScanner(internalScan), internalScan, themisStartTs, scan.getFilter());
