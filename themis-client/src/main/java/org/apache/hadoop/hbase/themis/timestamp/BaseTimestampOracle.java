@@ -41,6 +41,8 @@ public abstract class BaseTimestampOracle {
     this.executor = new ThreadPoolExecutor(1, 1, 10, TimeUnit.SECONDS, requestQueue,
       Threads.newDaemonThreadFactory("themis-timestamp-request-worker"),
       new RequestRejectedHandler());
+    LOG.info("create timestamp oracle, maxQueuedRequestCount=" + maxQueuedRequestCount
+        + ", requestTimeout=" + requestTimeout);
   }
   
   public Pair<Long, Long> getRequestIdWithTimestamp() throws IOException {
