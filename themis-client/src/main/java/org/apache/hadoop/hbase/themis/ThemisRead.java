@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableSet;
 
 import org.apache.hadoop.hbase.filter.Filter;
@@ -42,4 +43,16 @@ public abstract class ThemisRead extends ThemisRequest {
   protected abstract ThemisRead setFilterWithoutCheck(Filter filter);
   
   public abstract Filter getFilter();
+  
+  public static void checkContainingPreservedColumns(Map<byte[], NavigableSet<byte[]>> familyMap)
+      throws IOException {
+    for (Entry<byte[], NavigableSet<byte []>> entry : familyMap.entrySet()) {
+      byte[] family = entry.getKey();
+      if (entry.getValue() != null) {
+        for (byte[] qualifier : entry.getValue()) {
+          checkContainingPreservedColumn(family, qualifier);
+        }
+      }
+    }
+  }
 }

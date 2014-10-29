@@ -15,7 +15,8 @@ public class ThemisGet extends ThemisRead {
     this.get = new Get(row);
   }
   
-  protected ThemisGet(Get get) {
+  protected ThemisGet(Get get) throws IOException {
+    checkContainingPreservedColumns(get.getFamilyMap());
     setHBaseGet(get);
   }
   

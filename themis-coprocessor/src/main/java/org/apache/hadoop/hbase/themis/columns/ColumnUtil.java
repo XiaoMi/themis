@@ -74,12 +74,12 @@ public class ColumnUtil {
 
   public static Column getPutColumn(Column dataColumn) {
     return new Column(dataColumn.getFamily(),
-      concatQualifierWithSuffix(dataColumn.getQualifier(), PUT_QUALIFIER_SUFFIX));
+      concatQualifierWithSuffix(dataColumn.getQualifier(), PUT_QUALIFIER_SUFFIX_BYTES));
   }
 
   public static Column getDeleteColumn(Column dataColumn) {
     return new Column(dataColumn.getFamily(),
-      concatQualifierWithSuffix(dataColumn.getQualifier(), DELETE_QUALIFIER_SUFFIX));
+      concatQualifierWithSuffix(dataColumn.getQualifier(), DELETE_QUALIFIER_SUFFIX_BYTES));
   }
 
   public static Column getDataColumn(Column lockOrWriteColumn) {
@@ -99,9 +99,8 @@ public class ColumnUtil {
     }
   }
   
-  protected static byte[] concatQualifierWithSuffix(byte[] qualifier, String suffix) {
-    String qualiferString = qualifier == null ? "" : Bytes.toString(qualifier);
-    return Bytes.toBytes(qualiferString + suffix);
+  protected static byte[] concatQualifierWithSuffix(byte[] qualifier, byte[] suffix) {
+    return qualifier == null ? qualifier : Bytes.add(qualifier, suffix);
   }
 
   // TODO : judge in which situation qualifier will be null ? null == ""?

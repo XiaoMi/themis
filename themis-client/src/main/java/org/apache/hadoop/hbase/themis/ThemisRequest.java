@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
@@ -12,7 +13,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 // abstract class for ThemisGet/Delete/Put/Scan
 abstract class ThemisRequest {
   // check whether the requested family/qualifier refers to preserved family/qualifier
-  protected void checkContainingPreservedColumn(byte[] family, byte[] qualifier) throws IOException {
+  protected static void checkContainingPreservedColumn(byte[] family, byte[] qualifier) throws IOException {
     Column column = new Column(family, qualifier == null ? HConstants.EMPTY_BYTE_ARRAY : qualifier);
     if (ColumnUtil.isPreservedColumn(column)) {
       throw new IOException("can not query preserved column : " + column);
@@ -35,5 +36,14 @@ abstract class ThemisMutation extends ThemisRequest {
   
   protected boolean hasColumn() {
     return getFamilyMap() != null && getFamilyMap().size() != 0;
+  }
+  
+  public static void checkContainingPreservedColumns(Map<byte[], List<KeyValue>> mutations)
+      throws IOException {
+    for (Entry<byte[], List<KeyValue>> entry : mutations.entrySet()) {
+      for (KeyValue kv : entry.getValue()) {
+        checkContainingPreservedColumn(kv.getFamily(), kv.getQualifier());
+      }
+    }
   }
 }
