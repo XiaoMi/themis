@@ -48,8 +48,10 @@ public abstract class ThemisRead extends ThemisRequest {
       throws IOException {
     for (Entry<byte[], NavigableSet<byte []>> entry : familyMap.entrySet()) {
       byte[] family = entry.getKey();
-      for (byte[] qualifier : entry.getValue()) {
-        checkContainingPreservedColumn(family, qualifier);
+      if (entry.getValue() != null) {
+        for (byte[] qualifier : entry.getValue()) {
+          checkContainingPreservedColumn(family, qualifier);
+        }
       }
     }
   }
