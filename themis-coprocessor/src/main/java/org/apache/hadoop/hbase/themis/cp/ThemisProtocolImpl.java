@@ -422,6 +422,9 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   }
 
   public boolean isLockExpired(long lockTimestamp) throws IOException {
+    if (!TransactionTTL.transactionTTLEnable) {
+      return false;
+    }
     long currentMs = System.currentTimeMillis();
     return lockTimestamp < TransactionTTL.getExpiredTimestampForWrite(currentMs);
   }
