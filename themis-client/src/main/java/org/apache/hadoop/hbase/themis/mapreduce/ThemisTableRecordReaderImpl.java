@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.ScannerCallable;
 import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.themis.ThemisScan;
@@ -81,6 +82,9 @@ public class ThemisTableRecordReaderImpl {
   
   public void setConf(Configuration conf) {
     this.conf = conf;
+    logScannerActivity = conf.getBoolean(
+      ScannerCallable.LOG_SCANNER_ACTIVITY, false);
+    logPerRowCount = conf.getInt(LOG_PER_ROW_COUNT, 100);
   }
 
   // the following methods are all coped from TableRecordReaderImpl.java
