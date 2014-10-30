@@ -201,25 +201,25 @@ public class Transaction extends Configured implements TransactionInterface {
     long beginTs = System.currentTimeMillis();
     
     try {
-    indexer.addIndexMutations(mutationCache);
-    
-    selectPrimaryAndSecondaries();
+      indexer.addIndexMutations(mutationCache);
 
-    // must prewrite primary successfully before prewriting secondaries
-    prewritePrimary();
-    if (enableConcurrentRpc) {
-      concurrentPrewriteSecondaries();
-    } else {
-      prewriteSecondaries();
-    }
-    // must get commitTs after doing prewrite successfully
-    commitTs = timestampOracle.getCommitTs();
-    commitPrimary();
-    if (enableConcurrentRpc) {
-      concurrentCommitSecondaries();
-    } else {
-      commitSecondaries();
-    }
+      selectPrimaryAndSecondaries();
+
+      // must prewrite primary successfully before prewriting secondaries
+      prewritePrimary();
+      if (enableConcurrentRpc) {
+        concurrentPrewriteSecondaries();
+      } else {
+        prewriteSecondaries();
+      }
+      // must get commitTs after doing prewrite successfully
+      commitTs = timestampOracle.getCommitTs();
+      commitPrimary();
+      if (enableConcurrentRpc) {
+        concurrentCommitSecondaries();
+      } else {
+        commitSecondaries();
+      }
     } finally {
       logSlowOperation(System.currentTimeMillis() - beginTs, "themisCommit", "rowSize="
           + mutationCache.getMutations().size() + ", columnSize=" + mutationCache.size());
