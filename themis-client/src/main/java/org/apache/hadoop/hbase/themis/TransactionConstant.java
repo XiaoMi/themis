@@ -34,4 +34,8 @@ public class TransactionConstant {
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
   public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";
+  
+  // slow latency warn
+  public static final String THEMIS_SLOW_OPERATION_CUTOFF_KEY = "themis.slow.operation.cutoff";
+  public static final int DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF = 100; // in ms
 }
