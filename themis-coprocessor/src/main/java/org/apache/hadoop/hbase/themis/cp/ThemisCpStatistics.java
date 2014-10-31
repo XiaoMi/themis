@@ -17,7 +17,7 @@ public class ThemisCpStatistics implements Updater {
   
   public static final String THEMIS_CP_SLOW_OPERATION_CUTOFF_KEY = "themis.cp.slow.operation.cutoff";
   public static final long DEFAULT_THEMIS_CP_SLOW_OPERATION_CUTOFF = 100;
-  private static long slowCutoff; // in us
+  private static long slowCutoff = DEFAULT_THEMIS_CP_SLOW_OPERATION_CUTOFF * 1000; // in us
   
   private static final ThemisCpStatistics statistcs = new ThemisCpStatistics();
   private final MetricsRegistry registry = new MetricsRegistry();
