@@ -93,18 +93,27 @@ public class LockCleaner extends ServerLockCleaner {
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
-        // TODO : get lock expired in server side when get return
-        if (clientLockTTL == 0) {
-          lock.setLockExpired(cpClient.isLockExpired(tableName, kv.getRow(), kv.getTimestamp()));
-        } else {
-          // TODO : compatible with different timestamp type
-          long writeTs = (type == TimestampType.MS ? kv.getTimestamp() : TransactionTTL.toMs(kv.getTimestamp()));
-          lock.setLockExpired(System.currentTimeMillis() >= writeTs + clientLockTTL);
-        }
+        checkLockExpired(lock, cpClient, clientLockTTL, type);
         locks.add(lock);
       }
     }
     return locks;
+  }
+  
+  protected static void checkLockExpired(ThemisLock lock, ThemisCoprocessorClient cpClient,
+      int clientLockTTL, TimestampType type) throws IOException {
+    // TODO : get lock expired in server side when get return
+    if (clientLockTTL == 0) {
+      lock.setLockExpired(cpClient.isLockExpired(lock.getColumn().getTableName(), lock.getColumn()
+          .getRow(), lock.getTimestamp()));
+    } else {
+      // TODO : compatible with different timestamp type
+      long writeTs = (type == TimestampType.MS ? lock.getTimestamp() : TransactionTTL.toMs(lock
+          .getTimestamp()));
+      lock.setLockExpired(System.currentTimeMillis() >= writeTs + clientLockTTL);
+      LOG.info("check lock expired by client lock ttl, lock=" + lock + ", clientLockTTL="
+          + clientLockTTL + ", type=" + type);
+    }
   }
   
   public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
@@ -131,8 +140,10 @@ public class LockCleaner extends ServerLockCleaner {
       }
       if (current + 1 < retry) {
         LOG.warn("sleep " + pause + " to clean lock, current=" + current + ", retry=" + retry
-            + ", clientLockTTL=" + clientLockTTl);
+            + ", clientLockTTL=" + clientLockTTl + ", type=" + timestampType);
         Threads.sleep(pause);
+        // must check expired between retry
+        checkLockExpired(lock, cpClient, clientLockTTl, timestampType);
       }
     }
     // check the whether the lock has been cleaned by other transaction
