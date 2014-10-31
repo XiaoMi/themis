@@ -1,6 +1,7 @@
 package org.apache.hadoop.hbase.themis.cp;
 
 import java.io.IOException;
+import java.security.Timestamp;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -53,5 +54,13 @@ public class TestTransactionTTL extends TestBase {
       ms,
       TransactionTTL.toMs(expiredTs) + TransactionTTL.writeTransactionTTL
           + TransactionTTL.transactionTTLTimeError);
+  }
+  
+  @Test
+  public void testTypeEqual() {
+    TimestampType type = TimestampType.valueOf(TimestampType.MS.toString());
+    Assert.assertTrue(type == TimestampType.MS && type != TimestampType.CHRONOS);
+    type = TimestampType.valueOf(TimestampType.CHRONOS.toString());
+    Assert.assertTrue(type == TimestampType.CHRONOS && type != TimestampType.MS);
   }
 }
