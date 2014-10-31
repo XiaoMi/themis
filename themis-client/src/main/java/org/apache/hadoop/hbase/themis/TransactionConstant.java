@@ -10,7 +10,7 @@ public class TransactionConstant {
   public static final String WORKER_REGISTER_CLASS_KEY = "themis.worker.register.class";
   public static final String DEFAULT_WORKER_REISTER_CLASS = NullWorkerRegister.class.getName();
   public static final String THEMIS_RETRY_COUNT = "themis.retry.count";
-  public static final int DEFAULT_THEMIS_RETRY_COUNT = 1;
+  public static final int DEFAULT_THEMIS_RETRY_COUNT = 10;
   public static final String THEMIS_PAUSE = "themis.pause";
   public static final int DEFAULT_THEMIS_PAUSE = 100;
   public static final String THEMIS_ENABLE_CONCURRENT_RPC = "themis.enable.concurrent.rpc";
@@ -34,4 +34,8 @@ public class TransactionConstant {
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
   public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";
+  
+  // slow latency warn
+  public static final String THEMIS_SLOW_OPERATION_CUTOFF_KEY = "themis.slow.operation.cutoff";
+  public static final int DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF = 100; // in ms
 }

@@ -69,6 +69,7 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean enableSingleRowWrite;
   protected Indexer indexer;
   protected boolean disableLockClean = false;
+  protected int slowLatencyCutoff;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -97,6 +98,8 @@ public class Transaction extends Configured implements TransactionInterface {
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
     this.indexer = Indexer.getIndexer(conf);
     this.disableLockClean = getConf().getBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
+    this.slowLatencyCutoff = getConf().getInt(TransactionConstant.THEMIS_SLOW_OPERATION_CUTOFF_KEY,
+      TransactionConstant.DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF);
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -136,13 +139,27 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
-    Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
-    // if the result contains KeyValues from lock columns, it means we encounter conflict
-    // locks and need to clean lock before retry
-    if (ThemisCpUtil.isLockResult(pResult)) {
-      return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.list());
+    long beginTs = System.currentTimeMillis();
+    boolean lockClean = false;
+    try {
+      Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
+      // if the result contains KeyValues from lock columns, it means we encounter conflict
+      // locks and need to clean lock before retry
+      if (ThemisCpUtil.isLockResult(pResult)) {
+        lockClean = true;
+        return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.list());
+      }
+      return pResult;
+    } finally {
+      logSlowOperation(System.currentTimeMillis() - beginTs, "themisGet",
+        "rowkey=" + Bytes.toStringBinary(userGet.getRow()) + ", lockClean=" + lockClean);
     }
-    return pResult;
+  }
+  
+  protected void logSlowOperation(long latency, String operation, String message) {
+    if (latency > slowLatencyCutoff) {
+      LOG.warn("slow " + operation + ", latency=" + latency + ", " + message);
+    }
   }
 
   protected Result tryToCleanLockAndGetAgain(byte[] tableName, Get get,
@@ -181,25 +198,31 @@ public class Transaction extends Configured implements TransactionInterface {
     if (mutationCache.size() == 0) {
       return;
     }
+    long beginTs = System.currentTimeMillis();
     
-    indexer.addIndexMutations(mutationCache);
-    
-    selectPrimaryAndSecondaries();
+    try {
+      indexer.addIndexMutations(mutationCache);
 
-    // must prewrite primary successfully before prewriting secondaries
-    prewritePrimary();
-    if (enableConcurrentRpc) {
-      concurrentPrewriteSecondaries();
-    } else {
-      prewriteSecondaries();
-    }
-    // must get commitTs after doing prewrite successfully
-    commitTs = timestampOracle.getCommitTs();
-    commitPrimary();
-    if (enableConcurrentRpc) {
-      concurrentCommitSecondaries();
-    } else {
-      commitSecondaries();
+      selectPrimaryAndSecondaries();
+
+      // must prewrite primary successfully before prewriting secondaries
+      prewritePrimary();
+      if (enableConcurrentRpc) {
+        concurrentPrewriteSecondaries();
+      } else {
+        prewriteSecondaries();
+      }
+      // must get commitTs after doing prewrite successfully
+      commitTs = timestampOracle.getCommitTs();
+      commitPrimary();
+      if (enableConcurrentRpc) {
+        concurrentCommitSecondaries();
+      } else {
+        commitSecondaries();
+      }
+    } finally {
+      logSlowOperation(System.currentTimeMillis() - beginTs, "themisCommit", "rowSize="
+          + mutationCache.getMutations().size() + ", columnSize=" + mutationCache.size());
     }
   }
   

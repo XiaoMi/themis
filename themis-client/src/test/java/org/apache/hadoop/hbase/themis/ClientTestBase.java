@@ -23,6 +23,7 @@ public class ClientTestBase extends TransactionTestBase {
   @Override
   public void initEnv() throws IOException {
     super.initEnv();
+    conf.setInt(TransactionConstant.THEMIS_RETRY_COUNT, 1);
     mockRegister = Mockito.mock(WorkerRegister.class);
     Mockito.when(mockRegister.getClientAddress()).thenReturn(CLIENT_TEST_ADDRESS);
   }
