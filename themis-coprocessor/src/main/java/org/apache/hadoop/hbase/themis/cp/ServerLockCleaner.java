@@ -27,7 +27,7 @@ import com.google.common.collect.Lists;
 public class ServerLockCleaner {
   protected final ThemisCoprocessorClient cpClient;
   protected final HConnection conn;
-  
+ 
   public ServerLockCleaner(HConnection conn, ThemisCoprocessorClient cpClient) throws IOException {
     this.conn = conn;
     this.cpClient = cpClient;

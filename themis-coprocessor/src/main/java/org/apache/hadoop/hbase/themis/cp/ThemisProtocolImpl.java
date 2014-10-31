@@ -43,6 +43,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     super.start(env);
     try {
       TransactionTTL.init(env.getConfiguration());
+      ThemisCpStatistics.init(env.getConfiguration());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -85,6 +86,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       return region.get(get, lockId);
     } finally {
       ThemisCpStatistics.updateLatency(latency, beginTs);
+      
     }
   }
   
