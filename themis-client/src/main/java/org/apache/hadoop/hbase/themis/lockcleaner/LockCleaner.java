@@ -130,7 +130,8 @@ public class LockCleaner extends ServerLockCleaner {
         return true;
       }
       if (current + 1 < retry) {
-        LOG.warn("sleep " + pause + " to clean lock, current=" + current + ", retry=" + retry);
+        LOG.warn("sleep " + pause + " to clean lock, current=" + current + ", retry=" + retry
+            + ", clientLockTTL=" + clientLockTTl);
         Threads.sleep(pause);
       }
     }
