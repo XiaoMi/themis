@@ -21,6 +21,7 @@ public class ThemisTableRecordWriterWrapper<K, V> extends RecordWriter<K, V> {
   private final int writeRetryPause;
   private long timestamp = 0;
   private int transactionCount = 0;
+  private long totalTransactionCount = 0;
   
   public ThemisTableRecordWriterWrapper(RecordWriter<K, V> impl, Configuration conf) {
     this.impl = impl;
@@ -53,10 +54,11 @@ public class ThemisTableRecordWriterWrapper<K, V> extends RecordWriter<K, V> {
         }
       }
     } finally {
+      ++totalTransactionCount;
       if (++transactionCount >= this.logPerWriteTransaction) {
         long now = System.currentTimeMillis();
         LOG.info("Themis Reduce took " + (now - timestamp) + "ms to process " + transactionCount
-            + " transactions");
+            + " transactions, totalTransaction=" + totalTransactionCount);
         transactionCount = 0;
         timestamp = now;
       }

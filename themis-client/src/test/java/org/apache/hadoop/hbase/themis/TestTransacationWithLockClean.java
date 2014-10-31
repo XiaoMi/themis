@@ -3,11 +3,9 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.Arrays;
 
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
@@ -21,8 +19,8 @@ public class TestTransacationWithLockClean extends ClientTestBase {
   
   @Override
   public void initEnv() throws IOException {
-    TestLockCleaner.setConfigForLockCleaner(conf);
     super.initEnv();
+    TestLockCleaner.setConfigForLockCleaner(conf);
     createTransactionWithMock();
   }
    

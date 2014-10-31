@@ -1,5 +1,6 @@
 package org.apache.hadoop.hbase.themis;
 
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.index.Indexer.NullIndexer;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister.NullWorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.LocalTimestampOracle;
@@ -38,4 +39,8 @@ public class TransactionConstant {
   // slow latency warn
   public static final String THEMIS_SLOW_OPERATION_CUTOFF_KEY = "themis.slow.operation.cutoff";
   public static final int DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF = 100; // in ms
+  
+  // timestamp type
+  public static final String THEMIS_TIMESTAMP_TYPE_KEY = "themis.timestamp.type";
+  public static final String DEFAULT_THEMIS_TIMESTAMP_TYPE = TimestampType.CHRONOS.toString();
 }

@@ -48,6 +48,7 @@ public class ThemisTableRecordReaderImpl {
   private long numRestarts = 0;
   private long timestamp;
   private int rowcount;
+  private long totalRowCount;
   private boolean logScannerActivity = false;
   private int logPerRowCount = 100;
 
@@ -73,6 +74,7 @@ public class ThemisTableRecordReaderImpl {
       LOG.info("Current scan=" + currentScan.toString());
       timestamp = System.currentTimeMillis();
       rowcount = 0;
+      totalRowCount = 0;
     }
   }
 
@@ -142,9 +144,11 @@ public class ThemisTableRecordReaderImpl {
         value = this.scanner.next();
         if (logScannerActivity) {
           rowcount++;
+          totalRowCount++;
           if (rowcount >= logPerRowCount) {
             long now = System.currentTimeMillis();
-            LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows");
+            LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows"
+                + ", totalReadRows=" + totalRowCount);
             timestamp = now;
             rowcount = 0;
           }
@@ -179,7 +183,8 @@ public class ThemisTableRecordReaderImpl {
     } catch (IOException ioe) {
       if (logScannerActivity) {
         long now = System.currentTimeMillis();
-        LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows");
+        LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount
+            + " rows, totalReadRows=" + totalRowCount);
         LOG.info(ioe);
         String lastRow = lastSuccessfulRow == null ? "null" : Bytes
             .toStringBinary(lastSuccessfulRow);
