@@ -50,7 +50,7 @@ public class ThemisCpUtil {
     ALLOWED_ROWKEY_FILTER_CLASSES.add(PageFilter.class);
     ALLOWED_ROWKEY_FILTER_CLASSES.add(RowFilter.class);
 
-    DISALLOWD_FILTERS.add(DependentColumnFilter.class);
+    DISALLOWD_FILTERS.add(DependentColumnFilter.class); // need timestamp
     // TODO : check the wrapped class to judge whether allowed
     DISALLOWD_FILTERS.add(SkipFilter.class);
     DISALLOWD_FILTERS.add(WhileMatchFilter.class);

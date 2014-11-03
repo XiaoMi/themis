@@ -32,8 +32,8 @@ public abstract class ThemisRead extends ThemisRequest {
       public void processConcreteFilter(Filter filter) throws IOException {
         Class<? extends Filter> filterCls = filter.getClass();
         if (ThemisCpUtil.DISALLOWD_FILTERS.contains(filterCls)) {
-          throw new IOException("themis read disallow this filterm, all disallowed filters : "
-              + ThemisCpUtil.getDisallowedFilterClassNameString());
+          throw new IOException("themis read disallow this filter, filter=" + filter
+              + ", all disallowed filters : " + ThemisCpUtil.getDisallowedFilterClassNameString());
         }
       }
     });
