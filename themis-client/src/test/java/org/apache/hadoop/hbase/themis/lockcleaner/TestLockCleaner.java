@@ -17,7 +17,6 @@ import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
-import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -153,7 +152,7 @@ public class TestLockCleaner extends ClientTestBase {
     ThemisLock expectLock = getPrimaryLock();
     List<KeyValue> kvs = new ArrayList<KeyValue>();
     kvs.add(getLockKv(KEYVALUE, ThemisLock.toByte(expectLock)));
-    List<ThemisLock> locks = LockCleaner.constructLocks(TABLENAME, kvs, cpClient, TimestampType.MS);
+    List<ThemisLock> locks = LockCleaner.constructLocks(TABLENAME, kvs, cpClient);
     Assert.assertEquals(1, locks.size());
     Assert.assertTrue(expectLock.equals(locks.get(0)));
     Assert.assertTrue(COLUMN.equals(locks.get(0).getColumn()));
@@ -161,7 +160,7 @@ public class TestLockCleaner extends ClientTestBase {
     // with no-lock column, should throw exception
     kvs.add(KEYVALUE);
     try {
-      LockCleaner.constructLocks(TABLENAME, kvs, cpClient, TimestampType.MS);
+      LockCleaner.constructLocks(TABLENAME, kvs, cpClient);
       Assert.fail();
     } catch (ThemisFatalException e) {}
   }  
