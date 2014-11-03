@@ -1,6 +1,5 @@
 package org.apache.hadoop.hbase.themis;
 
-import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.index.Indexer.NullIndexer;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister.NullWorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.LocalTimestampOracle;
@@ -34,9 +33,5 @@ public class TransactionConstant {
   public static final int DEFAULT_CLIENT_LOCK_TTL = 0;
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
-  public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";
-  
-  // slow latency warn
-  public static final String THEMIS_SLOW_OPERATION_CUTOFF_KEY = "themis.slow.operation.cutoff";
-  public static final int DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF = 100; // in ms  
+  public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";  
 }

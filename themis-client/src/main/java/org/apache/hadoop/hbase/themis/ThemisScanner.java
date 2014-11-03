@@ -82,8 +82,7 @@ public class ThemisScanner extends AbstractClientScanner {
       return pResult;
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().nextLatency, beginTs);
-      String message = "row=" + pResult + ", lockClean=" + lockClean;
-      transaction.logSlowOperation((System.nanoTime() - beginTs) / 1000000, "themisNext", message);
+      ThemisStatistics.logSlowOperation("themisNext", beginTs, "row=" + pResult + ", lockClean=" + lockClean);
     }
   }
 

@@ -10,6 +10,8 @@ import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ClientTestBase;
 import org.apache.hadoop.hbase.themis.TransactionConstant;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.Before;
@@ -29,6 +31,7 @@ public class IndexTestBase extends ClientTestBase {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     useMiniCluster();
+    TransactionTTL.timestampType = TimestampType.MS;
     conf.set(TransactionConstant.INDEXER_CLASS_KEY, DefaultIndexer.class.getName());
     conf.set(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, IndexMasterObserver.class.getName());
     startMiniCluster(conf);

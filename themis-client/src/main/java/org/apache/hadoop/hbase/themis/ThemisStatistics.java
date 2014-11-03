@@ -1,17 +1,19 @@
 package org.apache.hadoop.hbase.themis;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpStatistics;
+import org.apache.hadoop.hbase.themis.cp.ThemisStatisticsBase;
 import org.apache.hadoop.metrics.MetricsContext;
 import org.apache.hadoop.metrics.MetricsRecord;
 import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.Updater;
 import org.apache.hadoop.metrics.util.MetricsRegistry;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingLong;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingRate;
 
 // latency/counter statistics of key steps of themis client
-public class ThemisStatistics implements Updater {
+public class ThemisStatistics extends ThemisStatisticsBase {
   private static final ThemisStatistics statistcs = new ThemisStatistics();
+  private static boolean inited = false;
   private final MetricsRegistry registry = new MetricsRegistry();
   private final MetricsContext context;
   private final MetricsRecord metricsRecord;
@@ -50,11 +52,18 @@ public class ThemisStatistics implements Updater {
     remoteTimestampRequestLatency.pushMetric(metricsRecord);
   }
   
+  public static void init(Configuration conf) {
+    if (!inited) {
+      ThemisStatisticsBase.init(conf);
+      inited = true;
+    }
+  }
+  
   public static ThemisStatistics getStatistics() {
     return statistcs;
   }
-  
+
   public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs) {
-    ThemisCpStatistics.updateLatency(metric, beginTs);
+    ThemisCpStatistics.updateLatency(metric, beginTs, false);
   }
 }

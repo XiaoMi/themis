@@ -1,24 +1,14 @@
 package org.apache.hadoop.hbase.themis.cp;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.metrics.MetricsContext;
 import org.apache.hadoop.metrics.MetricsRecord;
 import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.Updater;
 import org.apache.hadoop.metrics.util.MetricsRegistry;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingLong;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingRate;
 
 // latency statistics for key steps of themis coprocessor
-public class ThemisCpStatistics implements Updater {
-  private static final Log LOG = LogFactory.getLog(ThemisCpStatistics.class);
-  
-  public static final String THEMIS_CP_SLOW_OPERATION_CUTOFF_KEY = "themis.cp.slow.operation.cutoff";
-  public static final long DEFAULT_THEMIS_CP_SLOW_OPERATION_CUTOFF = 100;
-  private static long slowCutoff = DEFAULT_THEMIS_CP_SLOW_OPERATION_CUTOFF * 1000; // in us
-  
+public class ThemisCpStatistics extends ThemisStatisticsBase {
   private static final ThemisCpStatistics statistcs = new ThemisCpStatistics();
   private final MetricsRegistry registry = new MetricsRegistry();
   private final MetricsContext context;
@@ -48,11 +38,6 @@ public class ThemisCpStatistics implements Updater {
     context.registerUpdater(this);
   }
   
-  public static void init(Configuration conf) {
-    slowCutoff = conf.getLong(ThemisCpStatistics.THEMIS_CP_SLOW_OPERATION_CUTOFF_KEY,
-      ThemisCpStatistics.DEFAULT_THEMIS_CP_SLOW_OPERATION_CUTOFF) * 1000;
-  }
-  
   public void doUpdates(MetricsContext context) {
     getLockAndWriteLatency.pushMetric(metricsRecord);
     getDataLatency.pushMetric(metricsRecord);
@@ -75,14 +60,5 @@ public class ThemisCpStatistics implements Updater {
 
   public static ThemisCpStatistics getThemisCpStatistics() {
     return statistcs;
-  }
-  
-  public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs) {
-    long consumeInUs = (System.nanoTime() - beginTs) / 1000;
-    metric.inc((System.nanoTime() - beginTs) / 1000);
-    if (consumeInUs > slowCutoff) {
-      LOG.warn("themis cp slow operation " + metric.getName() + ", latency(ms)="
-          + (consumeInUs / 1000));
-    }
-  }
+  }  
 }
