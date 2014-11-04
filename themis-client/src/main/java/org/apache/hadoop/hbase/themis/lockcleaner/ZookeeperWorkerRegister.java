@@ -14,7 +14,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperListener;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
-import org.apache.hadoop.yarn.webapp.hamlet.HamletSpec._;
 import org.apache.zookeeper.KeeperException;
 
 public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable {
@@ -94,9 +93,9 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
     super(conf);
     try {
       clientNameStr = new ClientNameWithProcessId().toString();
+      clusterName = conf.get("hbase.cluster.name");
       aliveClientParentPath = getAliveClientParentPath();
       aliveClientPath = getAliveClientPath();
-      clusterName = conf.get("hbase.cluster.name");
       watcher = new ZooKeeperWatcher(conf, clientNameStr, new TimeoutOrDeletedHandler(),
           false);
       clientTracker = new ClientTracker(watcher);
@@ -159,7 +158,6 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
 
   @Override
   public boolean isWorkerAlive(String clientAddress) throws IOException {
-    // TODO : disable this function when error happened?
     if (exception != null) {
       throw new IOException(exception);
     }
