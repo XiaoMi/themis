@@ -287,16 +287,16 @@ public class TestThemisCpUtil extends TestBase {
     
     // test scan family
     scan = new Scan(startRow, stopRow);
-    scan.addFamily(FAMILY);
-    scan.addColumn(ANOTHER_FAMILY, QUALIFIER);
+    scan.addFamily(ANOTHER_FAMILY);
+    scan.addColumn(FAMILY, QUALIFIER);
     createdScan = ThemisCpUtil.constructLockAndWriteScan(scan, PREWRITE_TS);
     Assert.assertArrayEquals(startRow, createdScan.getStartRow());
     Assert.assertArrayEquals(stopRow, createdScan.getStopRow());
     Assert.assertEquals(3, createdScan.getFamilies().length);
-    checkReadWithWriteColumns(createdScan.getFamilyMap(), new ColumnCoordinate(ANOTHER_FAMILY,
+    checkReadWithWriteColumns(createdScan.getFamilyMap(), new ColumnCoordinate(FAMILY,
         QUALIFIER));
-    Assert.assertTrue(createdScan.getFamilyMap().containsKey(FAMILY)
-        && createdScan.getFamilyMap().get(FAMILY) == null);
+    Assert.assertTrue(createdScan.getFamilyMap().containsKey(ANOTHER_FAMILY)
+        && createdScan.getFamilyMap().get(ANOTHER_FAMILY) == null);
     Assert.assertTrue(createdScan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)
       && createdScan.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null);
     Assert.assertTrue(createdScan.getFilter() instanceof ExcludeDataColumnFilter);
@@ -334,19 +334,21 @@ public class TestThemisCpUtil extends TestBase {
     
     // test for combination of family-level and column-level transfer
     userGet = new Get(ROW);
-    userGet.addFamily(FAMILY);
-    userGet.addColumn(ANOTHER_FAMILY, ANOTHER_QUALIFIER);
+    userGet.addFamily(ANOTHER_FAMILY); // another family will be processed firstly
+    userGet.addColumn(FAMILY, ANOTHER_QUALIFIER); // the column should not overwrite lock family
     internalGet = new Get(userGet.getRow());
     ThemisCpUtil.addLockAndWriteColumnToGet(userGet, internalGet, PREWRITE_TS);
-    checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME, FAMILY);
-    checkReadWithWriteColumns(internalGet.getFamilyMap(), new ColumnCoordinate(ANOTHER_FAMILY,
+    checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME, ANOTHER_FAMILY);
+    checkReadWithWriteColumns(internalGet.getFamilyMap(), new ColumnCoordinate(FAMILY,
         ANOTHER_QUALIFIER));
+    Assert.assertTrue(internalGet.getFilter() instanceof ExcludeDataColumnFilter);
   }
 
   @Test
   public void testRemoveNotRequiredLockColumns() {
     Get get = new Get(ROW);
     get.addFamily(FAMILY);
+    get.addColumn(ANOTHER_FAMILY, ANOTHER_QUALIFIER);
     List<KeyValue> sourceKvs = new ArrayList<KeyValue>();
     sourceKvs.add(KEYVALUE);
     Column lockColumn = ColumnUtil.getLockColumn(FAMILY, QUALIFIER);
@@ -399,6 +401,14 @@ public class TestThemisCpUtil extends TestBase {
     Scan scan = new Scan();
     ThemisCpUtil.addLockAndWriteColumnToScan(COLUMN, scan);
     checkReadWithLockAndWriteColumns(scan.getFamilyMap(), COLUMN);
+    
+    // scan with family
+    scan = new Scan();
+    scan.addFamily(ColumnUtil.LOCK_FAMILY_NAME);
+    ThemisCpUtil.addLockAndWriteColumnToScan(COLUMN, scan);
+    Assert.assertTrue(scan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)
+        && scan.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null);
+    checkReadWithWriteColumns(scan.getFamilyMap(), COLUMN);
   }
   
   @Test

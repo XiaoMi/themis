@@ -236,6 +236,14 @@ public class TestThemisScanner extends ClientTestBase {
       scanner.close();
     }
     
+    // scan family and column with lock in another column
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(ANOTHER_FAMILY)
+        .addColumn(FAMILY, ANOTHER_QUALIFIER));
+    checkScanRow(
+      new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER },
+      scanner.next());
+    checkAndCloseScanner(scanner);
+    
     // scan entire row with lock conflict
     scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);

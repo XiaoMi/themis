@@ -19,6 +19,7 @@ public class ColumnUtil {
   }
   
   public static boolean containPreservedCharacter(Column column) {
+    // TODO : use byte[] array match
     return (Bytes.toString(column.getFamily()).indexOf(PRESERVED_COLUMN_CHARACTER) >= 0 ||
         Bytes.toString(column.getQualifier()).indexOf(PRESERVED_COLUMN_CHARACTER) >= 0);
   }
