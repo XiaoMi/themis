@@ -138,7 +138,7 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
-    long beginTs = System.currentTimeMillis();
+    long beginTs = System.nanoTime();
     boolean lockClean = false;
     try {
       Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
@@ -191,7 +191,7 @@ public class Transaction extends Configured implements TransactionInterface {
     if (mutationCache.size() == 0) {
       return;
     }
-    long beginTs = System.currentTimeMillis();
+    long beginTs = System.nanoTime();
     
     try {
       indexer.addIndexMutations(mutationCache);
