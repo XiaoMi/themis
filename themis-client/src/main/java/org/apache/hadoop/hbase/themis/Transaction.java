@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
+import org.apache.hadoop.hbase.themis.cp.ThemisStatisticsBase;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.MultiRowExceptions;
@@ -69,7 +70,6 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean enableSingleRowWrite;
   protected Indexer indexer;
   protected boolean disableLockClean = false;
-  protected int slowLatencyCutoff;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -98,8 +98,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
     this.indexer = Indexer.getIndexer(conf);
     this.disableLockClean = getConf().getBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
-    this.slowLatencyCutoff = getConf().getInt(TransactionConstant.THEMIS_SLOW_OPERATION_CUTOFF_KEY,
-      TransactionConstant.DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF);
+    ThemisStatistics.init(getConf());
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -151,17 +150,11 @@ public class Transaction extends Configured implements TransactionInterface {
       }
       return pResult;
     } finally {
-      logSlowOperation(System.currentTimeMillis() - beginTs, "themisGet",
+      ThemisStatisticsBase.logSlowOperation("themisGet", beginTs,
         "rowkey=" + Bytes.toStringBinary(userGet.getRow()) + ", lockClean=" + lockClean);
     }
   }
   
-  protected void logSlowOperation(long latency, String operation, String message) {
-    if (latency > slowLatencyCutoff) {
-      LOG.warn("slow " + operation + ", latency=" + latency + ", " + message);
-    }
-  }
-
   protected Result tryToCleanLockAndGetAgain(byte[] tableName, Get get,
       List<KeyValue> lockKvs) throws IOException {
     if (disableLockClean) {
@@ -221,7 +214,7 @@ public class Transaction extends Configured implements TransactionInterface {
         commitSecondaries();
       }
     } finally {
-      logSlowOperation(System.currentTimeMillis() - beginTs, "themisCommit", "rowSize="
+      ThemisStatisticsBase.logSlowOperation("themisCommit", beginTs, "rowSize="
           + mutationCache.getMutations().size() + ", columnSize=" + mutationCache.size());
     }
   }
@@ -354,7 +347,8 @@ public class Transaction extends Configured implements TransactionInterface {
         throw new ThemisFatalException("prewrite returned non-data conflict column, tableName="
             + Bytes.toString(tableName) + ", RowMutation=" + mutation + ", returned column=" + lock.getColumn());
       }
-      lockCleaner.tryToCleanLock(lock);
+      // TODO : get lock expired in server side for the first time to check ttl
+      lockCleaner.checkLockExpiredAndTryToCleanLock(lock);
       // try one more time after clean lock successfully
       lock = prewriteRow(tableName, mutation, containPrimary);
       if (lock != null) {

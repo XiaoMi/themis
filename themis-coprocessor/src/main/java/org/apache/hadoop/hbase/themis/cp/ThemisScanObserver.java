@@ -46,7 +46,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
         ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), s.getStartTs(),
           currentRow(values));
         if (!values.isEmpty()) {
-          Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getScan().getFamilyMap(),
+          Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getDataScan().getFamilyMap(),
             new Result(values));
           Pair<List<KeyValue>, List<KeyValue>> pResult = ThemisCpUtil
               .seperateLockAndWriteKvs(result.list());
@@ -74,7 +74,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
         }
         values.clear();
       } catch (Throwable e) {
-        LOG.error("themis error when scan for write_kvs=" + values);
+        LOG.error("themis error when scan.next for kvs=" + values);
         throw new IOException(e);
       }
     }
@@ -114,7 +114,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
           PRE_SCANNER_OPEN_FEEK_ROW);
         Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
         ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment().getRegion()
-            .getScanner(internalScan), internalScan, themisStartTs, scan.getFilter());
+            .getScanner(internalScan), internalScan, themisStartTs, scan);
         e.bypass();
         return pScanner;
       }

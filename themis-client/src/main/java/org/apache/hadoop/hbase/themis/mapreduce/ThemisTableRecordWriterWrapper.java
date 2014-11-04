@@ -55,6 +55,7 @@ public class ThemisTableRecordWriterWrapper<K, V> extends RecordWriter<K, V> {
       }
     } finally {
       ++totalTransactionCount;
+      // will retry once default
       if (++transactionCount >= this.logPerWriteTransaction) {
         long now = System.currentTimeMillis();
         LOG.info("Themis Reduce took " + (now - timestamp) + "ms to process " + transactionCount

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -54,12 +55,18 @@ public class TransactionTestBase extends TestBase {
   protected static long timestampBase;
   protected static long prewriteTs;
   protected static long commitTs;
+  protected static final boolean useMiniCluster = true;
   protected ThemisCoprocessorClient cpClient;
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    useMiniCluster();
-    startMiniCluster(conf);
+    if (useMiniCluster) {
+      useMiniCluster();
+      TransactionTTL.timestampType = TimestampType.MS;
+      startMiniCluster(conf);
+    } else {
+      useOnebox((conf = HBaseConfiguration.create()));
+    }
   }
   
   public static void useMiniCluster() throws Exception {
@@ -71,6 +78,7 @@ public class TransactionTestBase extends TestBase {
     conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
     conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+    TransactionTTL.timestampType = TimestampType.MS;
     TransactionTTL.init(conf);
   }
 
@@ -97,7 +105,6 @@ public class TransactionTestBase extends TestBase {
       ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
     resetCps(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, ThemisMasterObserver.class.getName());
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
     // timestampBase will increase by 100 each test which will cause the prewriteTs/commitTs is small
     // than real timestamp, so that set TransactionWriteTTL to 1 hour to avoid this situation
     conf.setInt(TransactionTTL.THEMIS_WRITE_TRANSACTION_TTL_KEY, 3600);

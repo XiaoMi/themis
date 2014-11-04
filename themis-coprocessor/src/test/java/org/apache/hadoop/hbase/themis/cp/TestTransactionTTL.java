@@ -1,7 +1,6 @@
 package org.apache.hadoop.hbase.themis.cp;
 
 import java.io.IOException;
-import java.security.Timestamp;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -23,7 +22,8 @@ public class TestTransactionTTL extends TestBase {
   public void testGetExpiredTime() throws IOException {
     Configuration conf = HBaseConfiguration.create();
     
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
+    TimestampType type = TransactionTTL.timestampType;
+    TransactionTTL.timestampType = TimestampType.MS;
     TransactionTTL.init(conf);
     long ms = System.currentTimeMillis();
     long expiredTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(ms);
@@ -36,7 +36,7 @@ public class TestTransactionTTL extends TestBase {
     Assert.assertEquals(ms, expiredTs + TransactionTTL.writeTransactionTTL
         + TransactionTTL.transactionTTLTimeError);
     
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.CHRONOS.toString());
+    TransactionTTL.timestampType = TimestampType.CHRONOS;
     TransactionTTL.init(conf);
     ms = System.currentTimeMillis();
     expiredTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(ms);
@@ -54,6 +54,7 @@ public class TestTransactionTTL extends TestBase {
       ms,
       TransactionTTL.toMs(expiredTs) + TransactionTTL.writeTransactionTTL
           + TransactionTTL.transactionTTLTimeError);
+    TransactionTTL.timestampType = type;
   }
   
   @Test

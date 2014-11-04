@@ -86,7 +86,6 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       return region.get(get, lockId);
     } finally {
       ThemisCpStatistics.updateLatency(latency, beginTs);
-      
     }
   }
   

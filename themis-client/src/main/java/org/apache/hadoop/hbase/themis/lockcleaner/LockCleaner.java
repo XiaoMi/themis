@@ -18,7 +18,6 @@ import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
-import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -32,7 +31,6 @@ public class LockCleaner extends ServerLockCleaner {
   private final int retry;
   private final int pause;
   private final int clientLockTTl;
-  private final TimestampType timestampType;
   
   public static LockCleaner getLockCleaner(Configuration conf, HConnection conn,
       WorkerRegister register, ThemisCoprocessorClient cpClient) throws IOException {
@@ -61,8 +59,6 @@ public class LockCleaner extends ServerLockCleaner {
       TransactionConstant.DEFAULT_THEMIS_PAUSE);
     clientLockTTl = conf.getInt(TransactionConstant.CLIENT_LOCK_TTL_KEY,
       TransactionConstant.DEFAULT_CLIENT_LOCK_TTL);
-    timestampType = TimestampType.valueOf(conf.get(TransactionConstant.THEMIS_TIMESTAMP_TYPE_KEY,
-      TransactionConstant.DEFAULT_THEMIS_TIMESTAMP_TYPE));
   }
   
   public boolean shouldCleanLock(ThemisLock lock) throws IOException {
@@ -75,12 +71,7 @@ public class LockCleaner extends ServerLockCleaner {
   }
 
   public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
-      ThemisCoprocessorClient cpClient, TimestampType type) throws IOException {
-    return constructLocks(tableName, lockKvs, cpClient, 0, type);
-  }
-
-  public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
-      ThemisCoprocessorClient cpClient, int clientLockTTL, TimestampType type) throws IOException {
+      ThemisCoprocessorClient cpClient, int clientLockTTL) throws IOException {
     List<ThemisLock> locks = new ArrayList<ThemisLock>();
     if (lockKvs != null) {
       for (KeyValue kv : lockKvs) {
@@ -93,31 +84,28 @@ public class LockCleaner extends ServerLockCleaner {
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
-        checkLockExpired(lock, cpClient, clientLockTTL, type);
+        checkLockExpired(lock, cpClient, clientLockTTL);
         locks.add(lock);
       }
     }
     return locks;
   }
   
-  protected static void checkLockExpired(ThemisLock lock, ThemisCoprocessorClient cpClient,
-      int clientLockTTL, TimestampType type) throws IOException {
-    // TODO : get lock expired in server side when get return
+  public static void checkLockExpired(ThemisLock lock, ThemisCoprocessorClient cpClient,
+      int clientLockTTL) throws IOException {
     if (clientLockTTL == 0) {
+      // TODO : get lock expired in server side for the first time to check ttl
       lock.setLockExpired(cpClient.isLockExpired(lock.getColumn().getTableName(), lock.getColumn()
           .getRow(), lock.getTimestamp()));
     } else {
-      // TODO : compatible with different timestamp type
-      long writeTs = (type == TimestampType.MS ? lock.getTimestamp() : TransactionTTL.toMs(lock
-          .getTimestamp()));
-      lock.setLockExpired(System.currentTimeMillis() >= writeTs + clientLockTTL);
+      lock.setLockExpired(TransactionTTL.isLockExpired(lock.getTimestamp(), clientLockTTL));
       LOG.info("check lock expired by client lock ttl, lock=" + lock + ", clientLockTTL="
-          + clientLockTTL + ", type=" + type);
+          + clientLockTTL + ", type=" + TransactionTTL.timestampType);
     }
   }
   
   public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
-    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient, clientLockTTl, timestampType);
+    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient, clientLockTTl);
     long startTs = lockColumns.get(0).getTimestamp();
     for (ThemisLock lock : locks) {
       if (tryToCleanLock(lock)) {
@@ -125,6 +113,11 @@ public class LockCleaner extends ServerLockCleaner {
             + lock + ", prewriteTs=" + lock.getTimestamp());
       }
     }
+  }
+  
+  public boolean checkLockExpiredAndTryToCleanLock(ThemisLock lock) throws IOException {
+    checkLockExpired(lock, cpClient, clientLockTTl);
+    return tryToCleanLock(lock);
   }
   
   // try to clean lock, throw LockConflictException if the lock can't be cleaned after retry
@@ -140,10 +133,10 @@ public class LockCleaner extends ServerLockCleaner {
       }
       if (current + 1 < retry) {
         LOG.warn("sleep " + pause + " to clean lock, current=" + current + ", retry=" + retry
-            + ", clientLockTTL=" + clientLockTTl + ", type=" + timestampType);
+            + ", clientLockTTL=" + clientLockTTl + ", type=" + TransactionTTL.timestampType);
         Threads.sleep(pause);
         // must check expired between retry
-        checkLockExpired(lock, cpClient, clientLockTTl, timestampType);
+        checkLockExpired(lock, cpClient, clientLockTTl);
       }
     }
     // check the whether the lock has been cleaned by other transaction
