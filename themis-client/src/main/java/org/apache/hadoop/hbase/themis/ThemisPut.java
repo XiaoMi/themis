@@ -15,7 +15,8 @@ public class ThemisPut extends ThemisMutation {
     put = new Put(row);
   }
   
-  protected ThemisPut(Put put) {
+  // TODO : check put is legal for themis
+  public ThemisPut(Put put) {
     setHBasePut(put);
   }
 
