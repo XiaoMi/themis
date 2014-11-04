@@ -247,6 +247,8 @@ public class ThemisCpUtil {
         }
       }
     } else if (scan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)) {
+      // before ThemisScanObserver.preScannerOpen is invoked, all families of the table will
+      // be added the the scan if scan the whole row, so that we need remove lock family
       scan.getFamilyMap().remove(ColumnUtil.LOCK_FAMILY_NAME);
     }
   }
