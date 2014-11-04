@@ -13,6 +13,7 @@ import org.apache.hadoop.hbase.mapreduce.TableInputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Writable;
@@ -66,7 +67,7 @@ public class ThemisTableMapReduceUtil {
     conf.set(TableInputFormat.INPUT_TABLE, table);
     conf.set(TableInputFormat.SCAN, convertScanToString(scan));
     if (addDependencyJars) {
-      TableMapReduceUtil.addDependencyJars(job);
+      addDependencyJars(job);
     }
     TableMapReduceUtil.initCredentials(job);
   }
@@ -75,5 +76,10 @@ public class ThemisTableMapReduceUtil {
   static String convertScanToString(Scan scan) throws IOException {
     ClientProtos.Scan proto = ProtobufUtil.toScan(scan);
     return Base64.encodeBytes(proto.toByteArray());
+  }
+  
+  public static void addDependencyJars(Job job) throws IOException {
+    TableMapReduceUtil.addDependencyJars(job);
+    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), ThemisEndpointClient.class);
   }
 }
