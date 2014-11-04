@@ -32,6 +32,7 @@ import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.MultiRowExceptions;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
+import org.apache.hadoop.hbase.themis.index.Indexer;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -67,6 +68,7 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean enableConcurrentRpc;
   protected boolean singleRowTransaction = false;
   protected boolean enableSingleRowWrite;
+  protected Indexer indexer;
   
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
@@ -93,6 +95,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
+    this.indexer = Indexer.getIndexer(conf);
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -162,6 +165,10 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public ThemisScanner getScanner(byte[] tableName, ThemisScan userScan) throws IOException {
+    ThemisScanner indexScanner = indexer.getScanner(tableName, userScan);
+    if (indexScanner != null) {
+      return indexScanner;
+    }
     ThemisRequest.checkContainColumn(userScan);
     return new ThemisScanner(tableName, userScan.getHBaseScan(), this);
   }
@@ -170,6 +177,9 @@ public class Transaction extends Configured implements TransactionInterface {
     if (mutationCache.size() == 0) {
       return;
     }
+    
+    indexer.addIndexMutations(mutationCache);
+    
     selectPrimaryAndSecondaries();
 
     // must prewrite primary successfully before prewriting secondaries

@@ -138,7 +138,7 @@ public abstract class BaseTimestampOracle {
       Pair<Long, Long> result = impl.getRequestIdWithTimestamp();
       // make sure startTs and commitTs come from different batch request
       if (result.getFirst() == lastRequestId) {
-        throw new ThemisFatalException("get commitTs in the same batch requestwith" +
+        throw new ThemisFatalException("get commitTs in the same batch request with " +
         		"startTs, startTsRequestId=" + lastRequestId + ", commitTs=" + result.getSecond());
       }
       return result.getSecond();
