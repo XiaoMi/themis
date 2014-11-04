@@ -30,11 +30,13 @@ public class IndexTestBase extends ClientTestBase {
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    useMiniCluster();
-    TransactionTTL.timestampType = TimestampType.MS;
-    conf.set(TransactionConstant.INDEXER_CLASS_KEY, DefaultIndexer.class.getName());
-    conf.set(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, IndexMasterObserver.class.getName());
-    startMiniCluster(conf);
+    if (useMiniCluster) {
+      useMiniCluster();
+      TransactionTTL.timestampType = TimestampType.MS;
+      conf.set(TransactionConstant.INDEXER_CLASS_KEY, DefaultIndexer.class.getName());
+      conf.set(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, IndexMasterObserver.class.getName());
+      startMiniCluster(conf);
+    }
     createTableForIndexTest();
   }
   

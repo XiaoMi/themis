@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -54,13 +55,18 @@ public class TransactionTestBase extends TestBase {
   protected static long timestampBase;
   protected static long prewriteTs;
   protected static long commitTs;
+  protected static final boolean useMiniCluster = true;
   protected ThemisCoprocessorClient cpClient;
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    useMiniCluster();
-    TransactionTTL.timestampType = TimestampType.MS;
-    startMiniCluster(conf);
+    if (useMiniCluster) {
+      useMiniCluster();
+      TransactionTTL.timestampType = TimestampType.MS;
+      startMiniCluster(conf);
+    } else {
+      useOnebox((conf = HBaseConfiguration.create()));
+    }
   }
   
   public static void useMiniCluster() throws Exception {
