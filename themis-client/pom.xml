@@ -78,7 +78,8 @@
       <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-server</artifactId>
       <version>${hbase.version}</version>
-      <scope>test</scope>
+      <!-- for themis mr -->
+      <!-- <scope>test</scope> -->
       <exclusions>
         <exclusion>
           <groupId>org.apache.hadoop</groupId>
