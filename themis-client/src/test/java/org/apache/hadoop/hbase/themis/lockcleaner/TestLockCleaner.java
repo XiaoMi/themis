@@ -7,6 +7,7 @@ import java.util.List;
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
@@ -20,6 +21,7 @@ import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
+import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -140,6 +142,44 @@ public class TestLockCleaner extends ClientTestBase {
   }
   
   @Test
+  public void testLockCleanByClientTTl() throws IOException {
+    boolean[] cleanLocksOptions = new boolean[]{false, true};
+    for (boolean cleanLocks : cleanLocksOptions) {
+      Configuration testConf = HBaseConfiguration.create(conf);
+      // lock should be cleaned but clean fail
+      ThemisLock lc = getLock(COLUMN);
+      writeLockAndData(COLUMN);
+      Mockito.when(mockRegister.isWorkerAlive(lc.getClientAddress())).thenReturn(true);
+
+      // lock could be cleaned because client lock ttl is set
+      // make sure the lock is expired by client ttl
+      Assert.assertTrue(System.currentTimeMillis() - lc.getTimestamp() > 1);
+      testConf.set(TransactionConstant.CLIENT_LOCK_TTL_KEY, String.valueOf("1"));
+      testConf.setInt(TransactionConstant.THEMIS_PAUSE, 500);
+      lockCleaner = new LockCleaner(testConf, connection, mockRegister, cpClient);
+      if (!cleanLocks) {
+        LockCleaner.checkLockExpired(lc, cpClient, 1);
+      }
+      long startTs = System.currentTimeMillis();
+      invokeTryToCleanLock(lc, cleanLocks);
+      checkColumnRollback(COLUMN);
+      Assert.assertTrue(System.currentTimeMillis() - startTs < 500);
+      
+      // lock should be cleaned after retry
+      lc.setTimestamp(System.currentTimeMillis());
+      testConf.set(TransactionConstant.CLIENT_LOCK_TTL_KEY, String.valueOf("500"));
+      lockCleaner = new LockCleaner(testConf, connection, mockRegister, cpClient);
+      if (!cleanLocks) {
+        LockCleaner.checkLockExpired(lc, cpClient, 500);
+      }
+      startTs = System.currentTimeMillis();
+      invokeTryToCleanLock(lc, cleanLocks);
+      checkColumnRollback(COLUMN);
+      Assert.assertTrue(System.currentTimeMillis() - startTs >= 500);
+    }
+  }
+  
+  @Test
   public void testHasLock() throws IOException {
     ThemisLock lc = getLock(COLUMN);
     Assert.assertFalse(lockCleaner.hasLock(lc));
@@ -152,15 +192,22 @@ public class TestLockCleaner extends ClientTestBase {
     ThemisLock expectLock = getPrimaryLock();
     List<KeyValue> kvs = new ArrayList<KeyValue>();
     kvs.add(getLockKv(KEYVALUE, ThemisLock.toByte(expectLock)));
-    List<ThemisLock> locks = LockCleaner.constructLocks(TABLENAME, kvs, cpClient);
+    String rawClientLockTTL = conf.get(TransactionConstant.CLIENT_LOCK_TTL_KEY);
+    int clientLockTTL = 10;
+    Threads.sleep(clientLockTTL);
+    Assert.assertTrue(System.currentTimeMillis() - expectLock.getTimestamp() > clientLockTTL);
+    List<ThemisLock> locks = LockCleaner.constructLocks(TABLENAME, kvs, cpClient, clientLockTTL);
     Assert.assertEquals(1, locks.size());
     Assert.assertTrue(expectLock.equals(locks.get(0)));
     Assert.assertTrue(COLUMN.equals(locks.get(0).getColumn()));
+    Assert.assertTrue(locks.get(0).isLockExpired());
+    conf.set(TransactionConstant.CLIENT_LOCK_TTL_KEY, rawClientLockTTL != null ? rawClientLockTTL
+        : "0");
     
     // with no-lock column, should throw exception
     kvs.add(KEYVALUE);
     try {
-      LockCleaner.constructLocks(TABLENAME, kvs, cpClient);
+      LockCleaner.constructLocks(TABLENAME, kvs, cpClient, 0);
       Assert.fail();
     } catch (ThemisFatalException e) {}
   }  

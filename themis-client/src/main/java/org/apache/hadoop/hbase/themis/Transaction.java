@@ -347,7 +347,8 @@ public class Transaction extends Configured implements TransactionInterface {
         throw new ThemisFatalException("prewrite returned non-data conflict column, tableName="
             + Bytes.toString(tableName) + ", RowMutation=" + mutation + ", returned column=" + lock.getColumn());
       }
-      lockCleaner.tryToCleanLock(lock);
+      // TODO : get lock expired in server side for the first time to check ttl
+      lockCleaner.checkLockExpiredAndTryToCleanLock(lock);
       // try one more time after clean lock successfully
       lock = prewriteRow(tableName, mutation, containPrimary);
       if (lock != null) {
