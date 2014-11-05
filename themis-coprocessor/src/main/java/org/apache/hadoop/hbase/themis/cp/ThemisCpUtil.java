@@ -205,7 +205,12 @@ public class ThemisCpUtil {
           Column dataColumn = ColumnUtil.getDataColumnFromLockColumn(new Column(kv.getFamily(), kv
               .getQualifier()));
           if (familyMap.containsKey(dataColumn.getFamily())) {
-            kvs.add(kv);
+            Set<byte[]> qualifiers= familyMap.get(dataColumn.getFamily());
+            // for scan, after serialization, the null qualifiers will be set to empty set
+            if (qualifiers == null || qualifiers.size() == 0
+                || qualifiers.contains(dataColumn.getQualifier())) {
+              kvs.add(kv);
+            }
           }
         } else {
           kvs.add(kv);
@@ -274,8 +279,12 @@ public class ThemisCpUtil {
   }
 
   public static void addLockAndWriteColumnToScan(Column column, Scan scan) {
-    Column lockColumn = ColumnUtil.getLockColumn(column);
-    scan.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
+    // avoid overwrite the whole lock family
+    if (!(scan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME) && scan
+        .getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME) == null)) {
+      Column lockColumn = ColumnUtil.getLockColumn(column);
+      scan.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
+    }
     Column writeColumn = ColumnUtil.getPutColumn(column);
     scan.addColumn(writeColumn.getFamily(), writeColumn.getQualifier());
     Column deleteColumn = ColumnUtil.getDeleteColumn(column);
@@ -370,5 +379,5 @@ public class ThemisCpUtil {
       }
     }
     return new Pair<List<KeyValue>, List<KeyValue>>(lockKvs, writeKvs);
-  }
+  }  
 }

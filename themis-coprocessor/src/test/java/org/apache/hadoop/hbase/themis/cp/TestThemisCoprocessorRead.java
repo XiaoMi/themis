@@ -22,7 +22,6 @@ import org.apache.hadoop.hbase.filter.KeyOnlyFilter;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
-import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -293,6 +292,15 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addColumn(ANOTHER_FAMILY, QUALIFIER);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     checkGetOneColumnConflictResult(COLUMN_WITH_ANOTHER_FAMILY, iResult, prewriteTs + 20);
+    
+    // get entire family with lock in another column which is not requested
+    get = new Get(ROW);
+    get.addFamily(FAMILY);
+    get.addColumn(ANOTHER_FAMILY, ANOTHER_QUALIFIER);
+    iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
+    Assert.assertEquals(2, iResult.size());
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(0));
+    checkResultKvColumn(COLUMN, iResult.list().get(1));
   }
   
   @Test
