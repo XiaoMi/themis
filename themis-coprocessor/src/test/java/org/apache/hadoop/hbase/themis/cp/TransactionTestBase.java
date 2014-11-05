@@ -59,15 +59,47 @@ public class TransactionTestBase extends TestBase {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    TEST_UTIL = new HBaseTestingUtility();
-    conf = TEST_UTIL.getConfiguration();
-    conf.setStrings("hbase.coprocessor.user.region.classes", ThemisEndpoint.class.getName(),
-      ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
-    conf.setStrings(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY,
-      ThemisMasterObserver.class.getName());
+    useMiniCluster();
+    startMiniCluster(conf);
+  }
+
+  public static void useMiniCluster() throws Exception {
+     TEST_UTIL = new HBaseTestingUtility();
+     conf = TEST_UTIL.getConfiguration();
+  }
+
+  public static void useOnebox(Configuration conf) throws Exception {
+    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
-    // timestampBase will increase by 100 each test which will cause the prewriteTs/commitTs is small
+    TransactionTTL.init(conf);
+  }
+
+  protected static String[] mergeCps(String[] existCps, String... cps) {
+    String[] results = new String[(existCps == null ? 0 : existCps.length) + cps.length];
+    int i = 0;
+    if (existCps != null) {
+      for (int j = 0; j < existCps.length; ++j) {
+        results[i++] = existCps[j];
+      }
+    }
+    for (int j = 0; j < cps.length; ++j) {
+      results[i++] = cps[j];
+    }
+    return results;
+  }
+  
+  protected static void resetCps(String key, String... cps) {
+    conf.setStrings(key, mergeCps(conf.getStrings(key), cps));
+  }
+
+  public static void startMiniCluster(Configuration conf) throws Exception {
+    resetCps("hbase.coprocessor.user.region.classes", ThemisEndpoint.class.getName(),
+       ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
+    resetCps(CoprocessorHost.MASTER_COPROCESSOR_CONF_KEY, ThemisMasterObserver.class.getName());
+     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+     conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
+     // timestampBase will increase by 100 each test which will cause the prewriteTs/commitTs is small
     // than real timestamp, so that set TransactionWriteTTL to 1 hour to avoid this situation
     conf.setInt(TransactionTTL.THEMIS_WRITE_TRANSACTION_TTL_KEY, 3600);
     // We need more than one region server in this test
@@ -85,12 +117,7 @@ public class TransactionTestBase extends TestBase {
     }
     admin.close();
     TransactionTTL.init(conf);
-//    conf = HBaseConfiguration.create();
-//    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-//    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
-//    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
-//    TransactionTTL.init(conf);
-  }
+   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
@@ -109,11 +136,19 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void deleteOldDataAndUpdateTs() throws IOException {
+    deleteOldDataAndUpdateTs(table, anotherTable);
+  }
+
+  protected void deleteOldDataAndUpdateTs(HTableInterface table) throws IOException {
+    deleteOldDataAndUpdateTs(new HTableInterface[]{table});
+  }
+
+  protected void deleteOldDataAndUpdateTs(HTableInterface... tables) throws IOException {
     boolean allDataCleaned = false;
     do {
       nextTransactionTs();
       for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
-        for (HTableInterface hTable : new HTableInterface[] { table, anotherTable }) {
+        for (HTableInterface hTable : tables) {
           hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
               .deleteFamily(ANOTHER_FAMILY, timestampBase)
               .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));

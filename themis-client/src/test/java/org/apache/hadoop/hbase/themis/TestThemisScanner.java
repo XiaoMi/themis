@@ -50,15 +50,6 @@ public class TestThemisScanner extends ClientTestBase {
       get.getFamilyMap().get(ANOTHER_FAMILY).iterator().next());
   }
   
-  protected void prepareScanData(ColumnCoordinate[] columns) throws IOException {
-    deleteOldDataAndUpdateTs();
-    for (ColumnCoordinate columnCoordinate : columns) {
-      writePutAndData(columnCoordinate, prewriteTs, commitTs);
-    }
-    nextTransactionTs();
-    createTransactionWithMock();
-  }
-  
   protected ThemisScan prepareScan(ColumnCoordinate[] columns) throws IOException {
     return prepareScan(columns, null);
   }
@@ -91,11 +82,6 @@ public class TestThemisScanner extends ClientTestBase {
       Assert.assertEquals(lastTs(prewriteTs), result.list().get(i).getTimestamp());
     }
     Assert.assertArrayEquals(columns[0].getRow(), result.getRow());
-  }
-  
-  protected void checkAndCloseScanner(ThemisScanner scanner) throws IOException {
-    Assert.assertNull(scanner.next());
-    scanner.close();
   }
   
   @Test

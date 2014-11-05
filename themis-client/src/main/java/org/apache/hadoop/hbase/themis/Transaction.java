@@ -164,7 +164,7 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public ThemisScanner getScanner(byte[] tableName, ThemisScan userScan) throws IOException {
-    ThemisScanner indexScanner = indexer.getScanner(tableName, userScan);
+    ThemisScanner indexScanner = indexer.getScanner(tableName, userScan, this);
     if (indexScanner != null) {
       return indexScanner;
     }

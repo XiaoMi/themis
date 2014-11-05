@@ -6,6 +6,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.ThemisScanner;
+import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.TransactionConstant;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 
@@ -35,7 +36,9 @@ public abstract class Indexer extends Configured {
     super(conf);
   }
   
-  public abstract ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException;
+  public abstract ThemisScanner getScanner(byte[] tableName, ThemisScan scan,
+      Transaction transaction) throws IOException;
+
   public abstract void addIndexMutations(ColumnMutationCache mutationCache) throws IOException;
   
   // NullIndexer do nothing
@@ -45,7 +48,8 @@ public abstract class Indexer extends Configured {
     }
     
     @Override
-    public ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException {
+    public ThemisScanner getScanner(byte[] tableName, ThemisScan scan, Transaction transaction)
+        throws IOException {
       return null;
     }
 

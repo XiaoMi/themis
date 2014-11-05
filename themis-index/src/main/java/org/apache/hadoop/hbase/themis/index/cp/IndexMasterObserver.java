@@ -136,6 +136,12 @@ public class IndexMasterObserver extends BaseMasterObserver {
         + columnName + "_" + indexName;
   }
   
+  protected static byte[] constructSecondaryIndexTableName(byte[] tableName, byte[] familyName,
+      byte[] columnName, byte[] indexName) {
+    return Bytes.toBytes(constructSecondaryIndexTableName(Bytes.toString(tableName), Bytes.toString(familyName),
+      Bytes.toString(columnName), Bytes.toString(indexName)));
+  }
+  
   protected static HTableDescriptor getSecondaryIndexTableDesc(String tableName) throws IOException {
     // TODO : add split keys for index table
     HTableDescriptor indexTableDesc = new HTableDescriptor(tableName);
