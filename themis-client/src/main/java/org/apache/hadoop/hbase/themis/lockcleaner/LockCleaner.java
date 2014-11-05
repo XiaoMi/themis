@@ -71,11 +71,6 @@ public class LockCleaner extends ServerLockCleaner {
   }
   
   public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
-      ThemisEndpointClient cpClient) throws IOException {
-    return constructLocks(tableName, lockKvs, cpClient, 0);
-  }
-
-  public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
       ThemisEndpointClient cpClient, int clientLockTTL) throws IOException {
     List<ThemisLock> locks = new ArrayList<ThemisLock>();
     if (lockKvs != null) {
@@ -96,7 +91,7 @@ public class LockCleaner extends ServerLockCleaner {
     return locks;
   }
   
-  protected static void checkLockExpired(ThemisLock lock, ThemisEndpointClient cpClient,
+  public static void checkLockExpired(ThemisLock lock, ThemisEndpointClient cpClient,
       int clientLockTTL) throws IOException {
     if (clientLockTTL == 0) {
       // TODO : get lock expired in server side for the first time to check ttl
@@ -110,7 +105,7 @@ public class LockCleaner extends ServerLockCleaner {
   }
   
   public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
-    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient);
+    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient, clientLockTTl);
     long startTs = lockColumns.get(0).getTimestamp();
     for (ThemisLock lock : locks) {
       if (tryToCleanLock(lock)) {
@@ -118,6 +113,11 @@ public class LockCleaner extends ServerLockCleaner {
             + lock + ", prewriteTs=" + lock.getTimestamp());
       }
     }
+  }
+  
+  public boolean checkLockExpiredAndTryToCleanLock(ThemisLock lock) throws IOException {
+    checkLockExpired(lock, cpClient, clientLockTTl);
+    return tryToCleanLock(lock);
   }
   
   // try to clean lock, throw LockConflictException if the lock can't be cleaned after retry

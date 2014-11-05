@@ -104,8 +104,8 @@ public class TransactionTTL {
   }
   
   public static boolean isLockExpired(long lockTs, long clientLockTTL) {
-    long writeTs = (TransactionTTL.timestampType == TimestampType.MS ? lockTs : TransactionTTL
+    long writeMs = (TransactionTTL.timestampType == TimestampType.MS ? lockTs : TransactionTTL
         .toMs(lockTs));
-    return (System.currentTimeMillis() >= writeTs + clientLockTTL);
+    return (System.currentTimeMillis() >= writeMs + clientLockTTL);
   }
 }
