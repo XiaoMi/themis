@@ -206,7 +206,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
           }
           ThemisCpStatistics.updateLatency(
             ThemisCpStatistics.getThemisCpStatistics().prewriteCheckConflictRowLatency, beginTs,
-            "row=" + Bytes.toStringBinary(row) + ", mutationsSize=" + mutations.size());
+            false);
 
           Put prewritePut = new Put(row);
           byte[] primaryQualifier = null;
@@ -238,15 +238,14 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
             prewritePut.setAttribute(ThemisRegionObserver.SINGLE_ROW_PRIMARY_QUALIFIER,
               primaryQualifier);
           }
-          mutateToRegion(region, Lists.<Mutation> newArrayList(prewritePut),
+          mutateToRegion(region, row, Lists.<Mutation> newArrayList(prewritePut),
             ThemisCpStatistics.getThemisCpStatistics().prewriteWriteLatency);
           return null;
         }
       }.run();
     } finally {
       ThemisCpStatistics.updateLatency(
-        ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs,
-        "row=" + Bytes.toStringBinary(row) + ", mutationSize=" + mutations.size());
+        ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs, false);
     }
   }
   
@@ -256,14 +255,23 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     return prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock, primaryIndex, true);
   }
   
-  protected void mutateToRegion(HRegion region, List<Mutation> mutations,
+  protected long mutationsSize(List<Mutation> mutations) {
+    long size = 0;
+    for (Mutation mutation : mutations) {
+      size += mutation.size();
+    }
+    return size;
+  }
+  
+  protected void mutateToRegion(HRegion region, byte[] row, List<Mutation> mutations,
       MetricsTimeVaryingRate latency) throws IOException {
     long beginTs = System.nanoTime();
     try {
       // we have obtained lock, do not need to require lock in mutateRowsWithLocks
       region.mutateRowsWithLocks(mutations, Collections.<byte[]>emptySet());
     } finally {
-      ThemisCpStatistics.updateLatency(latency, beginTs, "mutationSize=" + mutations.size());
+      ThemisCpStatistics.updateLatency(latency, beginTs, "row=" + Bytes.toStringBinary(row)
+          + ", mutationCount=" + mutations.size() + ", mutationSize=" + mutationsSize(mutations));
     }
   }
   
@@ -348,8 +356,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       }.run();
     } finally {
       ThemisCpStatistics.updateLatency(
-        ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs,
-        "row=" + Bytes.toStringBinary(row) + ", mutationSize=" + mutations.size());
+        ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs, false);
     }
   }
   
@@ -391,7 +398,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       setLockFamilyDelete(lockDelete);
       rowMutations.add(lockDelete);
     }
-    mutateToRegion(region, rowMutations, ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
+    mutateToRegion(region, row, rowMutations, ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
   }
   
   protected byte[] readLockBytes(HRegion region, byte[] row, Integer lid, Column column,
@@ -417,7 +424,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
         Delete delete = new Delete(row);
         setLockFamilyDelete(delete);
         delete.deleteColumn(lockColumn.getFamily(), lockColumn.getQualifier(), prewriteTs);
-        mutateToRegion(region, Lists.<Mutation> newArrayList(delete),
+        mutateToRegion(region, row, Lists.<Mutation> newArrayList(delete),
         ThemisCpStatistics.getThemisCpStatistics().getLockAndEraseReadLatency);
         return lockBytes;
       }
