@@ -18,15 +18,20 @@ public abstract class ThemisStatisticsBase implements Updater {
       ThemisCpStatistics.DEFAULT_THEMIS_SLOW_OPERATION_CUTOFF) * 1000;
   }
   
-  public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs) {
-    updateLatency(metric, beginTs, true);
-  }  
+  public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs, String message) {
+    updateLatency(metric, beginTs, true, message);
+  }
   
   public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs, boolean logSlowOp) {
+    updateLatency(metric, beginTs, logSlowOp, EmptySlowOperationMsg);
+  }
+  
+  public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs, boolean logSlowOp,
+      String message) {
     long consumeInUs = (System.nanoTime() - beginTs) / 1000;
     metric.inc(consumeInUs);
     if (logSlowOp) {
-      logSlowOperationInternal(metric.getName(), consumeInUs, EmptySlowOperationMsg);
+      logSlowOperationInternal(metric.getName(), consumeInUs, message);
     }
   }
   
