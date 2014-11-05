@@ -1,6 +1,10 @@
 package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 
 import junit.framework.Assert;
 
@@ -8,6 +12,9 @@ import org.apache.hadoop.hbase.filter.ColumnRangeFilter;
 import org.apache.hadoop.hbase.filter.DependentColumnFilter;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
+import org.apache.hadoop.hbase.themis.columns.Column;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Test;
 
 public class TestThemisRead extends TestBase {
@@ -41,4 +48,22 @@ public class TestThemisRead extends TestBase {
       Assert.assertEquals(FilterList.class.getName(), reader.getFilter().getClass().getName());
     }
   }*/
+  
+  @Test
+  public void testCheckContainingPreservedColumns() {
+    Map<byte[], NavigableSet<byte[]>> familyMap = new HashMap<byte[], NavigableSet<byte[]>>();
+    familyMap.put(FAMILY, new TreeSet<byte[]>(Bytes.BYTES_COMPARATOR));
+    familyMap.get(FAMILY).add(QUALIFIER);
+    try {
+      ThemisRead.checkContainingPreservedColumns(familyMap);
+    } catch (IOException e) {
+      Assert.fail();
+    }
+    familyMap.get(FAMILY).add(ColumnUtil.getPutColumn(new Column(FAMILY, QUALIFIER)).getQualifier());
+    try {
+      ThemisRead.checkContainingPreservedColumns(familyMap);
+      Assert.fail();
+    } catch (IOException e) {
+    }
+  }
 }

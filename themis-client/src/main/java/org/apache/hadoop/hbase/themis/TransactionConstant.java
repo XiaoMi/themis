@@ -28,6 +28,9 @@ public class TransactionConstant {
   // secondary index
   public static final String INDEXER_CLASS_KEY = "themis.indexer.class";
   public static final String DEFAULT_INDEXER_CLASS = NullIndexer.class.getName();
+  // lock clean
+  public static final String CLIENT_LOCK_TTL_KEY = "themis.client.lock.clean.ttl";
+  public static final int DEFAULT_CLIENT_LOCK_TTL = 0;
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
   public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";

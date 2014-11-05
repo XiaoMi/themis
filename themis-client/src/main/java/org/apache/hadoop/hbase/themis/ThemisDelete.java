@@ -15,8 +15,8 @@ public class ThemisDelete extends ThemisMutation {
     this.delete = new Delete(row);
   }
   
-  // TODO : check delete is legal for themis
-  public ThemisDelete(Delete delete) {
+  public ThemisDelete(Delete delete) throws IOException {
+    checkContainingPreservedColumns(delete.getFamilyMap());
     setHBaseDelete(delete);
   }
   

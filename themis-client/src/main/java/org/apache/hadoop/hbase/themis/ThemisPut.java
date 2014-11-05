@@ -15,8 +15,8 @@ public class ThemisPut extends ThemisMutation {
     put = new Put(row);
   }
   
-  // TODO : check put is legal for themis
-  public ThemisPut(Put put) {
+  public ThemisPut(Put put) throws IOException {
+    checkContainingPreservedColumns(put.getFamilyMap());
     setHBasePut(put);
   }
 

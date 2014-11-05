@@ -17,6 +17,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -29,6 +30,7 @@ public class LockCleaner extends ServerLockCleaner {
   private WorkerRegister register;
   private final int retry;
   private final int pause;
+  private final int clientLockTTl;
   
   public static LockCleaner getLockCleaner(Configuration conf, HConnection conn,
       WorkerRegister register, ThemisEndpointClient cpClient) throws IOException {
@@ -55,6 +57,8 @@ public class LockCleaner extends ServerLockCleaner {
       TransactionConstant.DEFAULT_THEMIS_RETRY_COUNT);
     pause = conf.getInt(TransactionConstant.THEMIS_PAUSE,
       TransactionConstant.DEFAULT_THEMIS_PAUSE);
+    clientLockTTl = conf.getInt(TransactionConstant.CLIENT_LOCK_TTL_KEY,
+      TransactionConstant.DEFAULT_CLIENT_LOCK_TTL);
   }
   
   public boolean shouldCleanLock(ThemisLock lock) throws IOException {
@@ -68,6 +72,11 @@ public class LockCleaner extends ServerLockCleaner {
   
   public static List<ThemisLock> constructLocks(byte[] tableName,
       List<KeyValue> lockKvs, ThemisEndpointClient cpClient) throws IOException {
+    return constructLocks(tableName, lockKvs, cpClient, 0);
+  }
+
+  public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
+      ThemisEndpointClient cpClient, int clientLockTTL) throws IOException {
     List<ThemisLock> locks = new ArrayList<ThemisLock>();
     if (lockKvs != null) {
       for (KeyValue kv : lockKvs) {
@@ -81,7 +90,13 @@ public class LockCleaner extends ServerLockCleaner {
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
         // TODO : get lock expired in server side when get return
-        lock.setLockExpired(cpClient.isLockExpired(tableName, kv.getRow(), kv.getTimestamp()));
+        if (clientLockTTL == 0) {
+          lock.setLockExpired(cpClient.isLockExpired(tableName, kv.getRow(), kv.getTimestamp()));
+        } else {
+          // TODO : compatible with different timestamp type
+          long writeTs = TransactionTTL.toMs(kv.getTimestamp());
+          lock.setLockExpired(System.currentTimeMillis() >= writeTs + clientLockTTL);
+        }
         locks.add(lock);
       }
     }
@@ -89,7 +104,7 @@ public class LockCleaner extends ServerLockCleaner {
   }
   
   public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
-    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient);
+    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient, clientLockTTl);
     long startTs = lockColumns.get(0).getTimestamp();
     for (ThemisLock lock : locks) {
       if (tryToCleanLock(lock)) {
