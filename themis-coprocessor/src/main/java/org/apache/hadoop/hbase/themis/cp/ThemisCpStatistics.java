@@ -17,6 +17,8 @@ public class ThemisCpStatistics extends ThemisStatisticsBase {
   public final MetricsTimeVaryingRate getDataLatency = new MetricsTimeVaryingRate("getDataLatency", registry);
   public final MetricsTimeVaryingRate prewriteReadLockLatency = new MetricsTimeVaryingRate("prewriteReadLockLatency", registry);
   public final MetricsTimeVaryingRate prewriteReadWriteLatency = new MetricsTimeVaryingRate("prewriteReadWriteLatency", registry);
+  public final MetricsTimeVaryingRate prewriteCheckConflictRowLatency = new MetricsTimeVaryingRate(
+      "prewriteCheckConflictRowLatency", registry);
   public final MetricsTimeVaryingRate prewriteWriteLatency = new MetricsTimeVaryingRate("prewriteWriteLatency", registry);
   public final MetricsTimeVaryingRate prewriteTotalLatency = new MetricsTimeVaryingRate("prewriteTotalLatency", registry); 
   public final MetricsTimeVaryingRate commitPrimaryReadLatency = new MetricsTimeVaryingRate("commitPrimaryReadLatency", registry);
@@ -43,6 +45,7 @@ public class ThemisCpStatistics extends ThemisStatisticsBase {
     getDataLatency.pushMetric(metricsRecord);
     prewriteReadLockLatency.pushMetric(metricsRecord);
     prewriteReadWriteLatency.pushMetric(metricsRecord);
+    prewriteCheckConflictRowLatency.pushMetric(metricsRecord);
     prewriteWriteLatency.pushMetric(metricsRecord);
     prewriteTotalLatency.pushMetric(metricsRecord);
     commitPrimaryReadLatency.pushMetric(metricsRecord);
