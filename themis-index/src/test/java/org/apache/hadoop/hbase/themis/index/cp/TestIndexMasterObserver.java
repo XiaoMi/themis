@@ -70,22 +70,23 @@ public class TestIndexMasterObserver extends IndexTestBase {
       Assert.assertTrue(e.getMessage().indexOf("is preserved") >= 0);
     }
     
-    byte[] test_main_table = Bytes.toBytes("temp_test");
-    byte[] test_index_table = Bytes.toBytes("__themis_index_temp_test_ThemisCF_Qualifier_test_index");
+    byte[] testMainTable = Bytes.toBytes("temp_test");
+    byte[] testIndexTable = Bytes.toBytes("__themis_index_temp_test_ThemisCF_Qualifier_test_index");
 
+    deleteTable(admin, testMainTable);
     // create themis table without index enable
-    tableDesc = new HTableDescriptor(test_main_table);
+    tableDesc = new HTableDescriptor(testMainTable);
     tableDesc.addFamily(IndexMasterObserver.getSecondaryIndexFamily());
     admin.createTable(tableDesc);
     HTableDescriptor[] tableDescs = admin.listTables();
     for (HTableDescriptor desc : tableDescs) {
-      Assert.assertFalse(Bytes.equals(test_index_table, desc.getName()));
+      Assert.assertFalse(Bytes.equals(testIndexTable, desc.getName()));
     }
-    admin.disableTable(test_main_table);
-    admin.deleteTable(test_main_table);
+    admin.disableTable(testMainTable);
+    admin.deleteTable(testMainTable);
     
     // create table with index attribute but without themis enable key
-    tableDesc = new HTableDescriptor(test_main_table);
+    tableDesc = new HTableDescriptor(testMainTable);
     HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_FAMILY);
     columnDesc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
       Boolean.TRUE.toString());
@@ -98,31 +99,23 @@ public class TestIndexMasterObserver extends IndexTestBase {
     
     // create themis table with secondary index attribute
     
-    createTableForIndexTest(test_main_table);
-    tableDescs = admin.listTables();
-    boolean containMainTable = false;
-    boolean containIndexTable = false;
-    for (HTableDescriptor desc : tableDescs) {
-      if (Bytes.equals(desc.getName(), test_main_table)) {
-        containMainTable = true;
-        Assert.assertNotNull(desc.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
-      } else if (Bytes.equals(desc.getName(), test_index_table)) {
-        containIndexTable = true;
-        Assert.assertNotNull(desc.getFamily(Bytes
-            .toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY)));
-        Assert.assertNotNull(desc.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
-      }
-    }
-    Assert.assertTrue(containMainTable);
-    Assert.assertTrue(containIndexTable);
+    createTableForIndexTest(testMainTable);
+    HTableDescriptor desc = admin.getTableDescriptor(testMainTable);
+    Assert.assertNotNull(desc);
+    Assert.assertNotNull(desc.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
+    desc = admin.getTableDescriptor(testIndexTable);
+    Assert.assertNotNull(desc);
+    Assert.assertNotNull(desc.getFamily(Bytes
+        .toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY)));
+    Assert.assertNotNull(desc.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
     
-    deleteTableForIndexTest(test_main_table);
+    deleteTableForIndexTest(testMainTable);
     tableDescs = admin.listTables();
-    for (HTableDescriptor desc : tableDescs) {
-      if (Bytes.equals(desc.getName(), test_main_table)) {
-        Assert.fail("fail to delete table:" + Bytes.toString(test_main_table));
-      } else if (Bytes.equals(desc.getName(), test_index_table)) {
-        Assert.fail("fail to delete table:" + Bytes.toString(test_index_table));
+    for (HTableDescriptor tempDesc : tableDescs) {
+      if (Bytes.equals(tempDesc.getName(), testMainTable)) {
+        Assert.fail("fail to delete table:" + Bytes.toString(testMainTable));
+      } else if (Bytes.equals(tempDesc.getName(), testIndexTable)) {
+        Assert.fail("fail to delete table:" + Bytes.toString(testIndexTable));
       }
     }
   }
