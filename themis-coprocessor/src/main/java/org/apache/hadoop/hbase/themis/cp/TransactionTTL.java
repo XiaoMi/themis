@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 
 public class TransactionTTL {
+  public static final String THEMIS_TRANSACTION_TTL_ENABLE_KEY = "themis.transaction.ttl.enable";
   public static final String THEMIS_READ_TRANSACTION_TTL_KEY = "themis.read.transaction.ttl";
   public static final int DEFAULT_THEMIS_READ_TRANSACTION_TTL = 86400; // in second
   public static final String THEMIS_WRITE_TRANSACTION_TTL_KEY = "themis.write.transaction.ttl";
@@ -17,6 +18,7 @@ public class TransactionTTL {
   public static int writeTransactionTTL;
   public static int transactionTTLTimeError;
   public static TimestampType timestampType;
+  public static boolean transactionTTLEnable;
   
   public static enum TimestampType {
     CHRONOS,
@@ -24,6 +26,7 @@ public class TransactionTTL {
   }
   
   public static void init(Configuration conf) throws IOException {
+    transactionTTLEnable = conf.getBoolean(THEMIS_TRANSACTION_TTL_ENABLE_KEY, true);
     readTransactionTTL = conf.getInt(THEMIS_READ_TRANSACTION_TTL_KEY,
       DEFAULT_THEMIS_READ_TRANSACTION_TTL) * 1000;
     writeTransactionTTL = conf.getInt(THEMIS_WRITE_TRANSACTION_TTL_KEY,

@@ -39,7 +39,9 @@
     <module>themis-protocol</module>
     <module>themis-coprocessor</module>
     <module>themis-client</module>
+    <!--
     <module>themis-index</module>
+    -->
   </modules>
 
   <distributionManagement>

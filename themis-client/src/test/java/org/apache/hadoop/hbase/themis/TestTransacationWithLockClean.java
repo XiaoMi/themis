@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
@@ -31,10 +32,20 @@ public class TestTransacationWithLockClean extends ClientTestBase {
   public void testPrewriteRowWithLockClean() throws IOException {
     // lock will be cleaned and prewrite will success
     nextTransactionTs();
-    preparePrewrite();
     writeLockAndData(COLUMN, prewriteTs - 2);
     ThemisLock lock = getLock(COLUMN);
     Mockito.when(mockRegister.isWorkerAlive(lock.getClientAddress())).thenReturn(false);
+    conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, true);
+    preparePrewrite();
+    try {
+      transaction.prewriteRowWithLockClean(TABLENAME, transaction.primaryRow, true);
+      Assert.fail();
+    } catch (IOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("lockClean disabled") >= 0);
+    }
+    
+    conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
+    preparePrewrite();
     transaction.prewriteRowWithLockClean(TABLENAME, transaction.primaryRow, true);
     Assert.assertNull(readLockBytes(COLUMN, prewriteTs - 2));
     checkPrewriteRowSuccess(TABLENAME, transaction.primaryRow);
@@ -63,6 +74,16 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     writePutAndData(COLUMN, prewriteTs - 4, commitTs - 4);
     writeLockAndData(COLUMN, prewriteTs - 2);
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
+    conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, true);
+    createTransactionWithMock();
+    try {
+      transaction.get(TABLENAME, getThemisGet(COLUMN));
+      Assert.fail();
+    } catch (IOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("lockClean disabled") >= 0);
+    }
+    conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
+    createTransactionWithMock();
     Result result = transaction.get(TABLENAME, getThemisGet(COLUMN));
     Assert.assertNull(readLockBytes(COLUMN, prewriteTs - 2));
     Assert.assertEquals(1, result.size());
@@ -96,6 +117,17 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     byte[] lockBytes = ThemisLock.toByte(getLock(COLUMN, prewriteTs - 2));
     KeyValue lockKv = new KeyValue(COLUMN.getRow(), lc.getFamily(), lc.getQualifier(), prewriteTs - 2,
         Type.Put, lockBytes);
+    conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, true);
+    createTransactionWithMock();
+    try {
+      transaction.tryToCleanLockAndGetAgain(TABLENAME,
+        getThemisGet(COLUMN).getHBaseGet(), Arrays.asList(lockKv));
+      Assert.fail();
+    } catch (IOException e) {
+      Assert.assertTrue(e.getMessage().indexOf("lockClean disabled") >= 0);
+    }
+    conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
+    createTransactionWithMock();
     Result result = transaction.tryToCleanLockAndGetAgain(TABLENAME,
       getThemisGet(COLUMN).getHBaseGet(), Arrays.asList(lockKv));
     Assert.assertEquals(1, result.size());

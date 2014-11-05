@@ -30,4 +30,5 @@ public class TransactionConstant {
   public static final String DEFAULT_INDEXER_CLASS = NullIndexer.class.getName();
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
+  public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";
 }

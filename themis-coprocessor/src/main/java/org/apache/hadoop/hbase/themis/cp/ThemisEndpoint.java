@@ -85,7 +85,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       Get clientGet = ProtobufUtil.toGet(request.getGet());
       ThemisCpUtil.prepareGet(clientGet, region.getTableDesc().getFamilies());
       checkFamily(clientGet);
-      checkReadTTL(System.currentTimeMillis(), request.getStartTs());
+      checkReadTTL(System.currentTimeMillis(), request.getStartTs(), clientGet.getRow());
       Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(clientGet, request.getStartTs());
       Result result = ThemisCpUtil.removeNotRequiredLockColumns(
         clientGet.getFamilyMap(),
@@ -114,22 +114,29 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     callback.run(clientResult);
   }
   
-  public static void checkReadTTL(long currentMs, long startTs)
+  public static void checkReadTTL(long currentMs, long startTs, byte[] row)
       throws TransactionExpiredException {
+    if (!TransactionTTL.transactionTTLEnable) {
+      return;
+    }
     long expiredTimestamp = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
     if (startTs < TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs)) {
       throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
-          + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs);
+          + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs + ", row="
+          + Bytes.toString(row));
     }
   }
   
-  public static void checkWriteTTL(long currentMs, long startTs)
+  public static void checkWriteTTL(long currentMs, long startTs, byte[] row)
       throws TransactionExpiredException {
+    if (!TransactionTTL.transactionTTLEnable) {
+      return;
+    }
     long expiredTimestamp = TransactionTTL.getExpiredTimestampForWrite(currentMs);
     if (startTs < expiredTimestamp) {
       throw new TransactionExpiredException(
           "Expired Write Transaction, write transaction start Ts:" + startTs + ", expired Ts:"
-              + expiredTimestamp + ", currentMs=" + currentMs);
+              + expiredTimestamp + ", currentMs=" + currentMs + ", row=" + Bytes.toString(row));
     }
   }
   
@@ -292,7 +299,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(System.currentTimeMillis(), prewriteTs);
+      checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
       return new MutationCallable<byte[][]>(row) {
         public byte[][] doMutation(HRegion region, RowLock rowLock) throws IOException {
@@ -413,7 +420,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(System.currentTimeMillis(), prewriteTs);
+      checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {
