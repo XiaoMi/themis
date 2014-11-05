@@ -54,6 +54,7 @@ public class TestThemisRead extends TestBase {
     Map<byte[], NavigableSet<byte[]>> familyMap = new HashMap<byte[], NavigableSet<byte[]>>();
     familyMap.put(FAMILY, new TreeSet<byte[]>(Bytes.BYTES_COMPARATOR));
     familyMap.get(FAMILY).add(QUALIFIER);
+    familyMap.put(ANOTHER_FAMILY, null);
     try {
       ThemisRead.checkContainingPreservedColumns(familyMap);
     } catch (IOException e) {

@@ -1,8 +1,6 @@
 package org.apache.hadoop.hbase.themis.columns;
 
 import org.apache.hadoop.hbase.themis.TestBase;
-import org.apache.hadoop.hbase.themis.columns.Column;
-import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
 import org.junit.Test;
@@ -98,5 +96,17 @@ public class TestColumnUtil extends TestBase {
       Bytes.toBytes("qualifier#"))));
     Assert.assertFalse(ColumnUtil.containPreservedCharacter(new Column(Bytes.toBytes("family"),
         Bytes.toBytes("qualifier"))));
+  }
+  
+  @Test
+  public void testConcatQualifierWithSuffix() {
+    byte[] actual = ColumnUtil.concatQualifierWithSuffix(QUALIFIER, ColumnUtil.PUT_QUALIFIER_SUFFIX_BYTES);
+    Assert.assertEquals(QUALIFIER.length + ColumnUtil.PUT_QUALIFIER_SUFFIX.length(), actual.length);
+    Assert.assertTrue(Bytes.equals(QUALIFIER, 0, QUALIFIER.length, actual, 0, QUALIFIER.length));
+    
+    byte[] from = new byte[]{0x00, 0x00, 0x07, (byte)((int)0xDC)};
+    actual = ColumnUtil.concatQualifierWithSuffix(from, ColumnUtil.PUT_QUALIFIER_SUFFIX_BYTES);
+    Assert.assertEquals(from.length + ColumnUtil.PUT_QUALIFIER_SUFFIX.length(), actual.length);
+    Assert.assertTrue(Bytes.equals(from, 0, from.length, actual, 0, from.length));
   }
 }
