@@ -40,6 +40,13 @@ public class ThemisScan extends ThemisRead {
     this.scan.addColumn(family, qualifier);
     return this;
   }
+  
+  @Override
+  public ThemisScan addFamily(byte[] family) throws IOException {
+    checkContainingPreservedColumn(family, null);
+    this.scan.addFamily(family);
+    return this;
+  }
 
   @Override
   public Map<byte[], NavigableSet<byte[]>> getFamilyMap() {

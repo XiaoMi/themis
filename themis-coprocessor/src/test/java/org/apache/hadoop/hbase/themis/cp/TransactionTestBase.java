@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
@@ -58,7 +59,6 @@ public class TransactionTestBase extends TestBase {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    /*
     TEST_UTIL = new HBaseTestingUtility();
     conf = TEST_UTIL.getConfiguration();
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisEndpoint.class.getName(),
@@ -84,12 +84,12 @@ public class TransactionTestBase extends TestBase {
       admin.createTable(tableDesc);
     }
     admin.close();
-    TransactionTTL.init(conf);*/
-    conf = HBaseConfiguration.create();
-    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
-    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
-    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
     TransactionTTL.init(conf);
+//    conf = HBaseConfiguration.create();
+//    conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "2181");
+//    conf.set("hbase.rpc.engine", "org.apache.hadoop.hbase.ipc.WritableRpcEngine");
+//    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+//    TransactionTTL.init(conf);
   }
 
   @AfterClass
@@ -490,5 +490,13 @@ public class TransactionTestBase extends TestBase {
     admin.createTable(desc);
     connection.clearRegionCache(tableName);
     admin.close();
+  }
+  
+  protected void checkResultKvColumn(Column expect, KeyValue kv) {
+    Column column = expect;
+    if (expect instanceof ColumnCoordinate) {
+      column = getColumn((ColumnCoordinate)expect);
+    }
+    Assert.assertTrue(column.equals(new Column(kv.getFamily(), kv.getQualifier())));
   }
 }

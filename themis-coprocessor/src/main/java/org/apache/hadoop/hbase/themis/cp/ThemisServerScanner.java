@@ -7,9 +7,11 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
+import org.apache.hadoop.hbase.client.Scan;
 
 // themis scanner wrapper for RegionScanner which will be created by ThemisScanObserver
 public class ThemisServerScanner implements RegionScanner {
+  private final Scan scan;
   private final Filter dataColumnFilter;
   private final RegionScanner scanner;
   private final long startTs;
@@ -19,13 +21,18 @@ public class ThemisServerScanner implements RegionScanner {
   }
 
   public ThemisServerScanner(RegionScanner scanner, long startTs) {
-    this(scanner, startTs, null);
+    this(scanner, null, startTs, null);
   }
   
-  public ThemisServerScanner(RegionScanner scanner, long startTs, Filter dataColumnFilter) {
+  public ThemisServerScanner(RegionScanner scanner, Scan scan, long startTs, Filter dataColumnFilter) {
+    this.scan = scan;
     this.scanner = scanner;
     this.startTs = startTs;
     this.dataColumnFilter = dataColumnFilter;
+  }
+
+  public Scan getScan() {
+    return this.scan;
   }
   
   public boolean next(List<Cell> results) throws IOException {

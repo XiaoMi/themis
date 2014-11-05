@@ -118,6 +118,25 @@ public class TestThemisScanner extends ClientTestBase {
     result = scanner.next();
     checkScanRow(columns, result);
     checkAndCloseScanner(scanner);
+    
+    // test scan family
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan().addFamily(FAMILY));
+    result = scanner.next();
+    checkScanRow(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_QUALIFIER}, result);
+    checkAndCloseScanner(scanner);
+    
+    // test scan entire row
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan());
+    result = scanner.next();
+    checkScanRow(columns, result);
+    checkAndCloseScanner(scanner);
+    
+    // test scan family together with column
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan().addFamily(ANOTHER_FAMILY)
+        .addColumn(FAMILY, QUALIFIER));
+    result = scanner.next();
+    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_FAMILY, COLUMN}, result);
+    checkAndCloseScanner(scanner);
   }
   
   protected void checkResultForROW(Result result) throws IOException {
@@ -212,6 +231,39 @@ public class TestThemisScanner extends ClientTestBase {
     } finally {
       scanner.close();
     }
+    
+    // scan family with lock in another family
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(ANOTHER_FAMILY));
+    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_FAMILY}, scanner.next());
+    checkAndCloseScanner(scanner);
+    
+    // scan family with lock in the read family
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(FAMILY));
+    Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
+    try {
+      scanner.next();
+      Assert.fail();
+    } catch (LockConflictException e) {
+    } finally {
+      scanner.close();
+    }
+    
+    // scan entire row with lock conflict
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
+    Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
+    try {
+      scanner.next();
+      Assert.fail();
+    } catch (LockConflictException e) {
+    } finally {
+      scanner.close();
+    }
+    
+    // scan entire row with lock conflict resolved
+    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
+    Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
+    checkResultForROW(scanner.next());
+    checkAndCloseScanner(scanner);
   }
   
   @Test

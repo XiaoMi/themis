@@ -135,7 +135,6 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
-    ThemisRequest.checkContainColumn(userGet);
     Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
     // if the result contains KeyValues from lock columns, it means we encounter conflict
     // locks and need to clean lock before retry
@@ -169,7 +168,6 @@ public class Transaction extends Configured implements TransactionInterface {
     if (indexScanner != null) {
       return indexScanner;
     }
-    ThemisRequest.checkContainColumn(userScan);
     return new ThemisScanner(tableName, userScan.getHBaseScan(), this);
   }
   

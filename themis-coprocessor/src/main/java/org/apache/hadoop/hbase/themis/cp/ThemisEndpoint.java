@@ -81,13 +81,16 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     // first get lock and write columns to check conflicted lock and get commitTs
     ClientProtos.Result clientResult = ProtobufUtil.toResult(new Result());
     try {
+      HRegion region = env.getRegion();
       Get clientGet = ProtobufUtil.toGet(request.getGet());
+      ThemisCpUtil.prepareGet(clientGet, region.getTableDesc().getFamilies());
       checkFamily(clientGet);
       checkReadTTL(System.currentTimeMillis(), request.getStartTs());
       Get lockAndWriteGet = ThemisCpUtil.constructLockAndWriteGet(clientGet, request.getStartTs());
-      HRegion region = env.getRegion();
-      Result result = getFromRegion(region, lockAndWriteGet,
-        ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency);
+      Result result = ThemisCpUtil.removeNotRequiredLockColumns(
+        clientGet.getFamilyMap(),
+        getFromRegion(region, lockAndWriteGet,
+          ThemisCpStatistics.getThemisCpStatistics().getLockAndWriteLatency));
       Pair<List<KeyValue>, List<KeyValue>> lockAndWriteKvs = ThemisCpUtil
           .seperateLockAndWriteKvs(result.list());
       List<KeyValue> lockKvs = lockAndWriteKvs.getFirst();

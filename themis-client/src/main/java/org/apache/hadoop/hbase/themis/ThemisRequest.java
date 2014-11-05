@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
@@ -12,7 +13,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 abstract class ThemisRequest {
   // check whether the requested family/qualifier refers to preserved family/qualifier
   protected void checkContainingPreservedColumn(byte[] family, byte[] qualifier) throws IOException {
-    Column column = new Column(family, qualifier);
+    Column column = new Column(family, qualifier == null ? HConstants.EMPTY_BYTE_ARRAY : qualifier);
     if (ColumnUtil.isPreservedColumn(column)) {
       throw new IOException("can not query preserved column : " + column);
     }
