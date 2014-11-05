@@ -19,7 +19,6 @@ public class ColumnUtil {
   }
   
   public static boolean containPreservedCharacter(Column column) {
-    // TODO : use byte[] array match
     for (int i = 0; i < column.getFamily().length; ++i) {
       if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == column.getFamily()[i]) {
         return true;

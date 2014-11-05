@@ -55,13 +55,18 @@ public class TransactionTestBase extends TestBase {
   protected static long timestampBase;
   protected static long prewriteTs;
   protected static long commitTs;
+  protected static final boolean useMiniCluster = true;
   protected ThemisEndpointClient cpClient;
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    useMiniCluster();
-    TransactionTTL.timestampType = TimestampType.MS;
-    startMiniCluster(conf);
+    if (useMiniCluster) {
+      useMiniCluster();
+      TransactionTTL.timestampType = TimestampType.MS;
+      startMiniCluster(conf);
+    } else {
+      useOnebox((conf = HBaseConfiguration.create()));
+    }
   }
 
   public static void useMiniCluster() throws Exception {
