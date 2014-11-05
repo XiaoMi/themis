@@ -4,11 +4,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
-import org.apache.hadoop.hbase.themis.ClientTestBase;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
+import org.apache.hadoop.hbase.themis.TestBase;
 import org.junit.Test;
 
-public class TestMultiRowExceptions extends ClientTestBase {
+public class TestMultiRowExceptions extends TestBase {
   @Test
   public void testConstructMessage() {
     Map<TableAndRow, IOException> exceptions = new TreeMap<TableAndRow, IOException>();
