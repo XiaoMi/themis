@@ -85,7 +85,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     try {
       return region.get(get, lockId);
     } finally {
-      ThemisCpStatistics.updateLatency(latency, beginTs);
+      ThemisCpStatistics.updateLatency(latency, beginTs,
+        "row=" + Bytes.toStringBinary(get.getRow()));
     }
   }
   
@@ -204,7 +205,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
             }
           }
           ThemisCpStatistics.updateLatency(
-            ThemisCpStatistics.getThemisCpStatistics().prewriteCheckConflictRowLatency, beginTs);
+            ThemisCpStatistics.getThemisCpStatistics().prewriteCheckConflictRowLatency, beginTs,
+            "row=" + Bytes.toStringBinary(row) + ", mutationsSize=" + mutations.size());
 
           Put prewritePut = new Put(row);
           byte[] primaryQualifier = null;
@@ -243,7 +245,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       }.run();
     } finally {
       ThemisCpStatistics.updateLatency(
-        ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs);
+        ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs,
+        "row=" + Bytes.toStringBinary(row) + ", mutationSize=" + mutations.size());
     }
   }
   
@@ -260,7 +263,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       // we have obtained lock, do not need to require lock in mutateRowsWithLocks
       region.mutateRowsWithLocks(mutations, Collections.<byte[]>emptySet());
     } finally {
-      ThemisCpStatistics.updateLatency(latency, beginTs);
+      ThemisCpStatistics.updateLatency(latency, beginTs, "mutationSize=" + mutations.size());
     }
   }
   
@@ -345,7 +348,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       }.run();
     } finally {
       ThemisCpStatistics.updateLatency(
-        ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs);
+        ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs,
+        "row=" + Bytes.toStringBinary(row) + ", mutationSize=" + mutations.size());
     }
   }
   
