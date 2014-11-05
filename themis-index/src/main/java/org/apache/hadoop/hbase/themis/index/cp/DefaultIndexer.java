@@ -27,6 +27,8 @@ public class DefaultIndexer extends Indexer {
 
   public DefaultIndexer(Configuration conf) throws IOException {
     super(conf);
+    // could only load secondary indexes created before this construction
+    // TODO : add/remove secondary index dynamically when setting/unsetting secondary attribute for table
     loadSecondaryIndexes();
   }
   

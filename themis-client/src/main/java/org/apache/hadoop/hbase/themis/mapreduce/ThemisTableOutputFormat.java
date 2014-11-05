@@ -65,7 +65,8 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
   public RecordWriter<KEY, Writable> getRecordWriter(
     TaskAttemptContext context)
   throws IOException, InterruptedException {
-    return new ThemisTableRecordWriter<KEY>(tableName, conf);
+    return new ThemisTableRecordWriterWrapper<KEY, Writable>(new ThemisTableRecordWriter<KEY>(
+        tableName, conf), conf);
   }
   */
   

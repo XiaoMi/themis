@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
+import org.apache.hadoop.hbase.themis.cp.ThemisStatisticsBase;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
@@ -98,6 +99,7 @@ public class Transaction extends Configured implements TransactionInterface {
     this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
     this.indexer = Indexer.getIndexer(conf);
     this.disableLockClean = getConf().getBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
+    ThemisStatistics.init(getConf());
   }
   
   protected static void setThreadPool(ExecutorService threadPool) {
@@ -137,15 +139,23 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
-    Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
-    // if the result contains KeyValues from lock columns, it means we encounter conflict
-    // locks and need to clean lock before retry
-    if (ThemisCpUtil.isLockResult(pResult)) {
-      return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.list());
+    long beginTs = System.currentTimeMillis();
+    boolean lockClean = false;
+    try {
+      Result pResult = this.cpClient.themisGet(tableName, userGet.getHBaseGet(), startTs);
+      // if the result contains KeyValues from lock columns, it means we encounter conflict
+      // locks and need to clean lock before retry
+      if (ThemisCpUtil.isLockResult(pResult)) {
+        lockClean = true;
+        return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.list());
+      }
+      return pResult;
+    } finally {
+      ThemisStatisticsBase.logSlowOperation("themisGet", beginTs,
+        "rowkey=" + Bytes.toStringBinary(userGet.getRow()) + ", lockClean=" + lockClean);
     }
-    return pResult;
   }
-
+  
   protected Result tryToCleanLockAndGetAgain(byte[] tableName, Get get,
       List<KeyValue> lockKvs) throws IOException {
     if (disableLockClean) {
@@ -182,25 +192,31 @@ public class Transaction extends Configured implements TransactionInterface {
     if (mutationCache.size() == 0) {
       return;
     }
+    long beginTs = System.currentTimeMillis();
     
-    indexer.addIndexMutations(mutationCache);
-    
-    selectPrimaryAndSecondaries();
+    try {
+      indexer.addIndexMutations(mutationCache);
 
-    // must prewrite primary successfully before prewriting secondaries
-    prewritePrimary();
-    if (enableConcurrentRpc) {
-      concurrentPrewriteSecondaries();
-    } else {
-      prewriteSecondaries();
-    }
-    // must get commitTs after doing prewrite successfully
-    commitTs = timestampOracle.getCommitTs();
-    commitPrimary();
-    if (enableConcurrentRpc) {
-      concurrentCommitSecondaries();
-    } else {
-      commitSecondaries();
+      selectPrimaryAndSecondaries();
+
+      // must prewrite primary successfully before prewriting secondaries
+      prewritePrimary();
+      if (enableConcurrentRpc) {
+        concurrentPrewriteSecondaries();
+      } else {
+        prewriteSecondaries();
+      }
+      // must get commitTs after doing prewrite successfully
+      commitTs = timestampOracle.getCommitTs();
+      commitPrimary();
+      if (enableConcurrentRpc) {
+        concurrentCommitSecondaries();
+      } else {
+        commitSecondaries();
+      }
+    } finally {
+      ThemisStatisticsBase.logSlowOperation("themisCommit", beginTs, "rowSize="
+          + mutationCache.getMutations().size() + ", columnSize=" + mutationCache.size());
     }
   }
   

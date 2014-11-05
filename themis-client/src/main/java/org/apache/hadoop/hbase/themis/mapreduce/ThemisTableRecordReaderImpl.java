@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.ScannerCallable;
 import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
@@ -48,6 +49,7 @@ public class ThemisTableRecordReaderImpl {
   private long numRestarts = 0;
   private long timestamp;
   private int rowcount;
+  private long totalRowCount;
   private boolean logScannerActivity = false;
   private int logPerRowCount = 100;
 
@@ -73,6 +75,7 @@ public class ThemisTableRecordReaderImpl {
       LOG.info("Current scan=" + currentScan.toString());
       timestamp = System.currentTimeMillis();
       rowcount = 0;
+      totalRowCount = 0;
     }
   }
 
@@ -82,6 +85,9 @@ public class ThemisTableRecordReaderImpl {
   
   public void setConf(Configuration conf) {
     this.conf = conf;
+    logScannerActivity = conf.getBoolean(
+      ScannerCallable.LOG_SCANNER_ACTIVITY, false);
+    logPerRowCount = conf.getInt(LOG_PER_ROW_COUNT, 100);
   }
 
   // the following methods are all coped from TableRecordReaderImpl.java
@@ -139,9 +145,11 @@ public class ThemisTableRecordReaderImpl {
         value = this.scanner.next();
         if (logScannerActivity) {
           rowcount++;
+          totalRowCount++;
           if (rowcount >= logPerRowCount) {
             long now = System.currentTimeMillis();
-            LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows");
+            LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows"
+                + ", totalReadRows=" + totalRowCount);
             timestamp = now;
             rowcount = 0;
           }
@@ -176,7 +184,8 @@ public class ThemisTableRecordReaderImpl {
     } catch (IOException ioe) {
       if (logScannerActivity) {
         long now = System.currentTimeMillis();
-        LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows");
+        LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount
+            + " rows, totalReadRows=" + totalRowCount);
         LOG.info(ioe);
         String lastRow = lastSuccessfulRow == null ? "null" : Bytes
             .toStringBinary(lastSuccessfulRow);

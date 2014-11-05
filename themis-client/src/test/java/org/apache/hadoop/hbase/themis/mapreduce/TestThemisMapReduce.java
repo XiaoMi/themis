@@ -9,6 +9,7 @@ import java.util.List;
 import junit.framework.Assert;
 
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -25,7 +26,9 @@ import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.mapreduce.Job;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+@Category(MediumTests.class)
 public class TestThemisMapReduce extends TestThemisMapReduceBase {
   protected void writeTestData() throws IOException {
     Transaction transaction = new Transaction(connection);

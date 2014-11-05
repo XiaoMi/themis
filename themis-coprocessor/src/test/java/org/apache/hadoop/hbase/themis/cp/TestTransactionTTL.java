@@ -22,7 +22,8 @@ public class TestTransactionTTL extends TestBase {
   public void testGetExpiredTime() throws IOException {
     Configuration conf = HBaseConfiguration.create();
     
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.MS.toString());
+    TimestampType type = TransactionTTL.timestampType;
+    TransactionTTL.timestampType = TimestampType.MS;
     TransactionTTL.init(conf);
     long ms = System.currentTimeMillis();
     long expiredTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(ms);
@@ -35,7 +36,7 @@ public class TestTransactionTTL extends TestBase {
     Assert.assertEquals(ms, expiredTs + TransactionTTL.writeTransactionTTL
         + TransactionTTL.transactionTTLTimeError);
     
-    conf.set(TransactionTTL.THEMIS_TIMESTAMP_TYPE_KEY, TimestampType.CHRONOS.toString());
+    TransactionTTL.timestampType = TimestampType.CHRONOS;
     TransactionTTL.init(conf);
     ms = System.currentTimeMillis();
     expiredTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(ms);
@@ -53,5 +54,14 @@ public class TestTransactionTTL extends TestBase {
       ms,
       TransactionTTL.toMs(expiredTs) + TransactionTTL.writeTransactionTTL
           + TransactionTTL.transactionTTLTimeError);
+    TransactionTTL.timestampType = type;
+  }
+  
+  @Test
+  public void testTypeEqual() {
+    TimestampType type = TimestampType.valueOf(TimestampType.MS.toString());
+    Assert.assertTrue(type == TimestampType.MS && type != TimestampType.CHRONOS);
+    type = TimestampType.valueOf(TimestampType.CHRONOS.toString());
+    Assert.assertTrue(type == TimestampType.CHRONOS && type != TimestampType.MS);
   }
 }

@@ -32,6 +32,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
+import org.apache.hadoop.hbase.themis.cp.ThemisCpStatistics;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -58,6 +59,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   public void start(CoprocessorEnvironment ctx) throws IOException {
     if (ctx.getConfiguration().getBoolean(THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true)) {
       TransactionTTL.init(ctx.getConfiguration());
+      ThemisCpStatistics.init(ctx.getConfiguration());
       startExpiredTimestampCalculator((MasterEnvironment) ctx);
     }
   }

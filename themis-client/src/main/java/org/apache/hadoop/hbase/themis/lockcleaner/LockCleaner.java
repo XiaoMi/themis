@@ -70,8 +70,8 @@ public class LockCleaner extends ServerLockCleaner {
     return lock.isLockExpired();
   }
   
-  public static List<ThemisLock> constructLocks(byte[] tableName,
-      List<KeyValue> lockKvs, ThemisEndpointClient cpClient) throws IOException {
+  public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
+      ThemisEndpointClient cpClient) throws IOException {
     return constructLocks(tableName, lockKvs, cpClient, 0);
   }
 
@@ -89,22 +89,28 @@ public class LockCleaner extends ServerLockCleaner {
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
-        // TODO : get lock expired in server side when get return
-        if (clientLockTTL == 0) {
-          lock.setLockExpired(cpClient.isLockExpired(tableName, kv.getRow(), kv.getTimestamp()));
-        } else {
-          // TODO : compatible with different timestamp type
-          long writeTs = TransactionTTL.toMs(kv.getTimestamp());
-          lock.setLockExpired(System.currentTimeMillis() >= writeTs + clientLockTTL);
-        }
+        checkLockExpired(lock, cpClient, clientLockTTL);
         locks.add(lock);
       }
     }
     return locks;
   }
   
+  protected static void checkLockExpired(ThemisLock lock, ThemisEndpointClient cpClient,
+      int clientLockTTL) throws IOException {
+    if (clientLockTTL == 0) {
+      // TODO : get lock expired in server side for the first time to check ttl
+      lock.setLockExpired(cpClient.isLockExpired(lock.getColumn().getTableName(), lock.getColumn()
+          .getRow(), lock.getTimestamp()));
+    } else {
+      lock.setLockExpired(TransactionTTL.isLockExpired(lock.getTimestamp(), clientLockTTL));
+      LOG.info("check lock expired by client lock ttl, lock=" + lock + ", clientLockTTL="
+          + clientLockTTL + ", type=" + TransactionTTL.timestampType);
+    }
+  }
+  
   public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
-    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient, clientLockTTl);
+    List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient);
     long startTs = lockColumns.get(0).getTimestamp();
     for (ThemisLock lock : locks) {
       if (tryToCleanLock(lock)) {
@@ -126,8 +132,11 @@ public class LockCleaner extends ServerLockCleaner {
         return true;
       }
       if (current + 1 < retry) {
-        LOG.warn("sleep " + pause + " to clean lock, current=" + current + ", retry=" + retry);
+        LOG.warn("sleep " + pause + " to clean lock, current=" + current + ", retry=" + retry
+            + ", clientLockTTL=" + clientLockTTl + ", type=" + TransactionTTL.timestampType);
         Threads.sleep(pause);
+        // must check expired between retry
+        checkLockExpired(lock, cpClient, clientLockTTl);
       }
     }
     // check the whether the lock has been cleaned by other transaction

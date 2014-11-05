@@ -72,7 +72,8 @@ public class MultiThemisTableOutputFormat extends OutputFormat<ImmutableBytesWri
   public RecordWriter<ImmutableBytesWritable, MultiTableMutations> getRecordWriter(TaskAttemptContext context)
       throws IOException, InterruptedException {
     Configuration conf = context.getConfiguration();
-    return new MultiThemisTableRecordWriter(HBaseConfiguration.create(conf));
+    return new ThemisTableRecordWriterWrapper<ImmutableBytesWritable, MultiTableMutations>(
+        new MultiThemisTableRecordWriter(HBaseConfiguration.create(conf)), conf);
   }
 
 }

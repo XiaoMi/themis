@@ -59,14 +59,17 @@ public class ThemisScanner extends AbstractClientScanner {
   
   public Result next() throws IOException {
     long beginTs = System.nanoTime();
+    Result pResult = null;
+    boolean lockClean = false;
     try {
-      Result pResult = this.scanner.next();
+      pResult = this.scanner.next();
       if (pResult == null) {
         return null;
       }
 
       // if we encounter conflict locks, we need to clean lock for this row and read again
       if (ThemisCpUtil.isLockResult(pResult)) {
+        lockClean = true;
         Get rowGet = createGetFromScan(scan, pResult.getRow());
         pResult = transaction.tryToCleanLockAndGetAgain(tableName, rowGet, pResult.list());
         // empty result indicates the current row has been erased, we should get next row
@@ -79,6 +82,7 @@ public class ThemisScanner extends AbstractClientScanner {
       return pResult;
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().nextLatency, beginTs);
+      ThemisStatistics.logSlowOperation("themisNext", beginTs, "row=" + pResult + ", lockClean=" + lockClean);
     }
   }
 

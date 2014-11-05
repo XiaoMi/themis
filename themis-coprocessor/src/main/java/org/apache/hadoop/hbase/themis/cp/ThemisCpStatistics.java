@@ -3,13 +3,12 @@ package org.apache.hadoop.hbase.themis.cp;
 import org.apache.hadoop.metrics.MetricsContext;
 import org.apache.hadoop.metrics.MetricsRecord;
 import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.Updater;
 import org.apache.hadoop.metrics.util.MetricsRegistry;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingLong;
 import org.apache.hadoop.metrics.util.MetricsTimeVaryingRate;
 
 // latency statistics for key steps of themis coprocessor
-public class ThemisCpStatistics implements Updater {
+public class ThemisCpStatistics extends ThemisStatisticsBase {
   private static final ThemisCpStatistics statistcs = new ThemisCpStatistics();
   private final MetricsRegistry registry = new MetricsRegistry();
   private final MetricsContext context;
@@ -61,9 +60,5 @@ public class ThemisCpStatistics implements Updater {
 
   public static ThemisCpStatistics getThemisCpStatistics() {
     return statistcs;
-  }
-  
-  public static void updateLatency(MetricsTimeVaryingRate metric, long beginTs) {
-    metric.inc((System.nanoTime() - beginTs) / 1000);
-  }
+  }  
 }
