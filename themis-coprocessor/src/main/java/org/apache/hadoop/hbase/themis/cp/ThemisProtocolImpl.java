@@ -188,7 +188,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final int primaryIndex, final boolean singleRow) throws IOException {
     checkFamily(mutations);
     // TODO : use ms enough?
-    long beginTs = System.nanoTime();
+    final long beginTs = System.nanoTime();
     checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
     try {
       checkPrimaryLockAndIndex(primaryLock, primaryIndex);
@@ -203,6 +203,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
               return conflict;
             }
           }
+          ThemisCpStatistics.updateLatency(
+            ThemisCpStatistics.getThemisCpStatistics().prewriteCheckConflictRowLatency, beginTs);
 
           Put prewritePut = new Put(row);
           byte[] primaryQualifier = null;
