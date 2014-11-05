@@ -96,6 +96,13 @@ public class TestColumnUtil extends TestBase {
       Bytes.toBytes("qualifier#"))));
     Assert.assertFalse(ColumnUtil.containPreservedCharacter(new Column(Bytes.toBytes("family"),
         Bytes.toBytes("qualifier"))));
+    byte[] qualifier = new byte[]{0x00, 0x00, 0x07, (byte)((int)0xDC)};
+    Assert.assertFalse(ColumnUtil.containPreservedCharacter(new Column(Bytes.toBytes("family"),
+        qualifier)));
+    qualifier = new byte[] { 0x00, 0x00, 0x07, (byte) ((int) 0xDC),
+        ColumnUtil.PRESERVED_COLUMN_CHARACTER_BYTES[0] };
+    Assert.assertTrue(ColumnUtil.containPreservedCharacter(new Column(Bytes.toBytes("family"),
+      qualifier)));
   }
   
   @Test

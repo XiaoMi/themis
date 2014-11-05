@@ -20,8 +20,17 @@ public class ColumnUtil {
   
   public static boolean containPreservedCharacter(Column column) {
     // TODO : use byte[] array match
-    return (Bytes.toString(column.getFamily()).indexOf(PRESERVED_COLUMN_CHARACTER) >= 0 ||
-        Bytes.toString(column.getQualifier()).indexOf(PRESERVED_COLUMN_CHARACTER) >= 0);
+    for (int i = 0; i < column.getFamily().length; ++i) {
+      if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == column.getFamily()[i]) {
+        return true;
+      }
+    }
+    for (int i = 0; i < column.getQualifier().length; ++i) {
+      if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == column.getQualifier()[i]) {
+        return true;
+      }
+    }
+    return false;
   }
   
   public static boolean isLockColumn(Column column) {

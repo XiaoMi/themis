@@ -74,7 +74,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
         }
         values.clear();
       } catch (Throwable e) {
-        LOG.error("themis error when scan for write_kvs=" + values);
+        LOG.error("themis error when scan.next for kvs=" + values);
         throw new IOException(e);
       }
     }
