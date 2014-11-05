@@ -258,7 +258,11 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   protected long mutationsSize(List<Mutation> mutations) {
     long size = 0;
     for (Mutation mutation : mutations) {
-      size += mutation.size();
+      for(List<KeyValue> kvList : mutation.getFamilyMap().values()) {
+        for (KeyValue kv : kvList) {
+          size += kv.getLength();
+        }
+      }
     }
     return size;
   }
