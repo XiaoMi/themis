@@ -146,7 +146,8 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     try {
       return region.get(get);
     } finally {
-      ThemisCpStatistics.updateLatency(latency, beginTs);
+      ThemisCpStatistics.updateLatency(latency, beginTs,
+        "row=" + Bytes.toStringBinary(get.getRow()));
     }
   }
 
@@ -296,7 +297,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       final long prewriteTs, final byte[] secondaryLock, final byte[] primaryLock,
       final int primaryIndex, final boolean singleRow) throws IOException {
     // TODO : use ms enough?
-    long beginTs = System.nanoTime();
+    final long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
       checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
@@ -312,6 +313,9 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
               return conflict;
             }
           }
+          ThemisCpStatistics.updateLatency(
+            ThemisCpStatistics.getThemisCpStatistics().prewriteCheckConflictRowLatency, beginTs,
+            false);
 
           Put prewritePut = new Put(row);
           byte[] primaryQualifier = null;
@@ -343,25 +347,26 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
             prewritePut.setAttribute(ThemisRegionObserver.SINGLE_ROW_PRIMARY_QUALIFIER,
               primaryQualifier);
           }
-          mutateToRegion(region, Lists.<Mutation> newArrayList(prewritePut),
+          mutateToRegion(region, row, Lists.<Mutation> newArrayList(prewritePut),
             ThemisCpStatistics.getThemisCpStatistics().prewriteWriteLatency);
           return null;
         }
       }.run();
     } finally {
       ThemisCpStatistics.updateLatency(
-        ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs);
+        ThemisCpStatistics.getThemisCpStatistics().prewriteTotalLatency, beginTs, false);
     }
   }
   
-  protected void mutateToRegion(HRegion region, List<Mutation> mutations,
+  protected void mutateToRegion(HRegion region, byte[] row, List<Mutation> mutations,
       MetricsTimeVaryingRate latency) throws IOException {
     long beginTs = System.nanoTime();
     try {
       // we have obtained lock, do not need to require lock in mutateRowsWithLocks
       region.mutateRowsWithLocks(mutations, Collections.<byte[]>emptySet());
     } finally {
-      ThemisCpStatistics.updateLatency(latency, beginTs);
+      ThemisCpStatistics.updateLatency(latency, beginTs, "row=" + Bytes.toStringBinary(row)
+          + ", mutationCount=" + mutations.size());
     }
   }
   
@@ -442,7 +447,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       }.run();
     } finally {
       ThemisCpStatistics.updateLatency(
-        ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs);
+        ThemisCpStatistics.getThemisCpStatistics().commitTotalLatency, beginTs, false);
     }
   }
   
@@ -473,7 +478,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       setLockFamilyDelete(lockDelete);
       rowMutations.add(lockDelete);
     }
-    mutateToRegion(region, rowMutations, ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
+    mutateToRegion(region, row, rowMutations, ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
   }
   
   protected byte[] readLockBytes(HRegion region, byte[] row, Column column, long prewriteTs,
@@ -499,7 +504,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
         Delete delete = new Delete(row);
         setLockFamilyDelete(delete);
         delete.deleteColumn(lockColumn.getFamily(), lockColumn.getQualifier(), prewriteTs);
-        mutateToRegion(region, Lists.<Mutation> newArrayList(delete),
+        mutateToRegion(region, row, Lists.<Mutation> newArrayList(delete),
         ThemisCpStatistics.getThemisCpStatistics().getLockAndEraseReadLatency);
         return lockBytes;
       }

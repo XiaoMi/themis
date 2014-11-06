@@ -63,7 +63,8 @@ public class ServerLockCleaner {
       ThemisCpStatistics.getThemisCpStatistics().cleanLockFailCount.inc();
       throw e;
     } finally {
-      ThemisCpStatistics.updateLatency(ThemisCpStatistics.getThemisCpStatistics().cleanLockLatency, beginTs);
+      ThemisCpStatistics.updateLatency(ThemisCpStatistics.getThemisCpStatistics().cleanLockLatency,
+        beginTs, "lock=" + lock);
     }
   }
   
