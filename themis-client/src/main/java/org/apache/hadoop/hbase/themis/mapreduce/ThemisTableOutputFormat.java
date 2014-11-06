@@ -8,8 +8,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat;
 import org.apache.hadoop.hbase.themis.ThemisDelete;
@@ -26,28 +24,18 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
   private Configuration conf;
   private byte[] tableName;
   
-  protected static class ThemisTableRecordWriter<KEY>
-  extends RecordWriter<KEY, Writable> {
-    private HConnection connection;
+  protected static class ThemisTableRecordWriter<KEY> extends
+      ThemisTableRecordWriterBase<KEY, Writable> {
     private byte[] tableName;
     
     public ThemisTableRecordWriter(byte[] tableName, Configuration conf) throws IOException {
-      connection = HConnectionManager.createConnection(conf);
+      super(conf);
       this.tableName = tableName;
     }
 
     @Override
-    public void close(TaskAttemptContext context)
-    throws IOException {
-      if (connection != null) {
-        connection.close();
-      }
-    }
-
-    @Override
-    public void write(KEY key, Writable value)
-    throws IOException {
-      Transaction transaction = new Transaction(connection);
+    public void doWrite(KEY key, Writable value, Transaction transaction) throws IOException,
+        InterruptedException {
       if (value instanceof Put) {
         transaction.put(tableName, new ThemisPut((Put)value));
       } else if (value instanceof Delete) {
@@ -55,18 +43,15 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
       } else {
         throw new IOException("Pass a Delete or a Put");
       }
-      transaction.commit();
     }
   }
 
   // TODO : make this compatiable
   /*
   @Override
-  public RecordWriter<KEY, Writable> getRecordWriter(
-    TaskAttemptContext context)
-  throws IOException, InterruptedException {
-    return new ThemisTableRecordWriterWrapper<KEY, Writable>(new ThemisTableRecordWriter<KEY>(
-        tableName, conf), conf);
+  public RecordWriter<KEY, Writable> getRecordWriter(TaskAttemptContext context)
+      throws IOException, InterruptedException {
+    return new ThemisTableRecordWriter<KEY>(tableName, conf);
   }
   */
   

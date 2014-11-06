@@ -5,8 +5,6 @@ import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
@@ -22,36 +20,26 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 
 public class MultiThemisTableOutputFormat extends OutputFormat<ImmutableBytesWritable, MultiTableMutations> {
   protected static class MultiThemisTableRecordWriter extends
-      RecordWriter<ImmutableBytesWritable, MultiTableMutations> {
-    private HConnection connection;
+      ThemisTableRecordWriterBase<ImmutableBytesWritable, MultiTableMutations> {
 
     public MultiThemisTableRecordWriter(Configuration conf) throws IOException {
-      connection = HConnectionManager.createConnection(conf);
+      super(conf);
     }
 
     @Override
-    public void close(TaskAttemptContext context) throws IOException {
-      if (connection != null) {
-        connection.close();
-      }
-    }
-
-    @Override
-    public void write(ImmutableBytesWritable reduceKey, MultiTableMutations mutations) throws IOException,
-        InterruptedException {
-      Transaction transaction = new Transaction(connection);
+    public void doWrite(ImmutableBytesWritable k, MultiTableMutations mutations, Transaction transaction)
+        throws IOException, InterruptedException {
       for (TableMutations tableMutation : mutations.mutations) {
         for (Mutation mutation : tableMutation.getMutations()) {
           if (mutation instanceof Put) {
-            transaction.put(tableMutation.getTableName(), new ThemisPut((Put)mutation));
+            transaction.put(tableMutation.getTableName(), new ThemisPut((Put) mutation));
           } else if (mutation instanceof Delete) {
-            transaction.delete(tableMutation.getTableName(), new ThemisDelete((Delete)mutation));
+            transaction.delete(tableMutation.getTableName(), new ThemisDelete((Delete) mutation));
           } else {
             throw new IOException("action must be put or delete, but is:" + mutation);
-          }          
+          }
         }
       }
-      transaction.commit();
     }
   }
 
@@ -71,9 +59,7 @@ public class MultiThemisTableOutputFormat extends OutputFormat<ImmutableBytesWri
   @Override
   public RecordWriter<ImmutableBytesWritable, MultiTableMutations> getRecordWriter(TaskAttemptContext context)
       throws IOException, InterruptedException {
-    Configuration conf = context.getConfiguration();
-    return new ThemisTableRecordWriterWrapper<ImmutableBytesWritable, MultiTableMutations>(
-        new MultiThemisTableRecordWriter(HBaseConfiguration.create(conf)), conf);
+    return new MultiThemisTableRecordWriter(HBaseConfiguration.create(context.getConfiguration()));
   }
 
 }
