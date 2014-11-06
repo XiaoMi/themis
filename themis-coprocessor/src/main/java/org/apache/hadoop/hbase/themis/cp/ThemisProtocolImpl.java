@@ -255,18 +255,6 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     return prewriteRow(row, mutations, prewriteTs, secondaryLock, primaryLock, primaryIndex, true);
   }
   
-  protected long mutationsSize(List<Mutation> mutations) {
-    long size = 0;
-    for (Mutation mutation : mutations) {
-      for(List<KeyValue> kvList : mutation.getFamilyMap().values()) {
-        for (KeyValue kv : kvList) {
-          size += kv.getLength();
-        }
-      }
-    }
-    return size;
-  }
-  
   protected void mutateToRegion(HRegion region, byte[] row, List<Mutation> mutations,
       MetricsTimeVaryingRate latency) throws IOException {
     long beginTs = System.nanoTime();
@@ -275,7 +263,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       region.mutateRowsWithLocks(mutations, Collections.<byte[]>emptySet());
     } finally {
       ThemisCpStatistics.updateLatency(latency, beginTs, "row=" + Bytes.toStringBinary(row)
-          + ", mutationCount=" + mutations.size() + ", mutationSize=" + mutationsSize(mutations));
+          + ", mutationCount=" + mutations.size());
     }
   }
   
