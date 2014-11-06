@@ -8,6 +8,7 @@ import org.apache.hadoop.hbase.themis.ClientTestBase;
 import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Pair;
 import org.junit.Test;
 
 public class TestColumnMutationCache extends TestBase {
@@ -36,5 +37,10 @@ public class TestColumnMutationCache extends TestBase {
     Assert.assertFalse(cache.addMutation(TABLENAME, deleteKv));
     Assert.assertEquals(2, cache.size());
     Assert.assertEquals(Type.DeleteColumn, cache.getMutation(COLUMN).getFirst());
+    
+    cache.addMutation(TABLENAME, ClientTestBase.getKeyValue(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS));
+    Pair<Integer, Integer> mutationsCount = cache.getMutationsCount();
+    Assert.assertEquals(2, mutationsCount.getFirst().intValue());
+    Assert.assertEquals(3, mutationsCount.getSecond().intValue());
   }  
 }

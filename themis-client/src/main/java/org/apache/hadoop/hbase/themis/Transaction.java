@@ -478,4 +478,8 @@ public class Transaction extends Configured implements TransactionInterface {
       }
     }
   }
+  
+  public ColumnMutationCache getMutations() {
+    return this.mutationCache;
+  }
 }
