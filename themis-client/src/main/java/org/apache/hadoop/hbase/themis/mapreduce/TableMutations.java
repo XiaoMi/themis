@@ -11,8 +11,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Mutation;
-// import org.apache.hadoop.hbase.io.HbaseObjectWritable; // TODO
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto;
+import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto.MutationType;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Writable;
 
@@ -36,20 +40,27 @@ public class TableMutations implements Writable {
     this.tableName = Bytes.readByteArray(in);
     int numMutations = in.readInt();
     mutations.clear();
-    // TODO : make this compatiable
-    //for(int i = 0; i < numMutations; i++) {
-    //  mutations.add((Mutation) HbaseObjectWritable.readObject(in, null));
-    //}
+    for(int i = 0; i < numMutations; i++) {
+      MutationProto proto = MutationProto.parseDelimitedFrom((DataInputStream)in);
+      mutations.add(ProtobufUtil.toMutation(proto));
+    }
   }
 
   @Override
   public void write(final DataOutput out) throws IOException {
     Bytes.writeByteArray(out, this.tableName);
     out.writeInt(mutations.size());
-    // TODO : make this compatiable
-    //for (Mutation m : mutations) {
-    //  HbaseObjectWritable.writeObject(out, m, m.getClass(), null);
-    //}
+    for (Mutation mutation : mutations) {
+      MutationType type;
+      if (mutation instanceof Put) {
+        type = MutationType.PUT;
+      } else if (mutation instanceof Delete) {
+        type = MutationType.DELETE;
+      } else {
+        throw new IllegalArgumentException("Only Put and Delete are supported");
+      }
+      ProtobufUtil.toMutation(type, mutation).writeDelimitedTo((DataOutputStream)out);
+    }
   }
   
   public TableMutations cloneTableMuations() throws IOException {

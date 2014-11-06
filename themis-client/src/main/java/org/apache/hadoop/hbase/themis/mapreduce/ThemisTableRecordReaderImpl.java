@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.themis.mapreduce;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -207,22 +208,18 @@ public class ThemisTableRecordReaderImpl {
     }
 
     ScanMetrics scanMetrics = ProtobufUtil.toScanMetrics(serializedMetrics);
-    // TODO : extends code from 0.98
-    /*
-    MetricsTimeVaryingLong[] mlvs = scanMetrics.getMetricsTimeVaryingLongArray();
-
     try {
-      for (MetricsTimeVaryingLong mlv : mlvs) {
-        Counter ct = (Counter) this.getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME,
-          mlv.getName());
-        ct.increment(mlv.getCurrentIntervalValue());
+      for (Map.Entry<String, Long> entry:scanMetrics.getMetricsMap().entrySet()) {
+        Counter ct = (Counter)getCounter.invoke(context,
+            HBASE_COUNTER_GROUP_NAME, entry.getKey());
+
+        ct.increment(entry.getValue());
       }
-      ((Counter) this.getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME, "NUM_SCANNER_RESTARTS"))
-          .increment(numRestarts);
+      ((Counter) getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME,
+          "NUM_SCANNER_RESTARTS")).increment(numRestarts);
     } catch (Exception e) {
       LOG.debug("can't update counter." + StringUtils.stringifyException(e));
     }
-    */
   }
 
   public float getProgress() {

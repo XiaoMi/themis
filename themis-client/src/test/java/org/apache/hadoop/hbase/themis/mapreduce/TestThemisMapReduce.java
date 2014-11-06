@@ -99,9 +99,8 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
       scans.add(thisScan);
     }
     
-    // TODO : make this compatiable
-    // ThemisTableMapReduceUtil.initTableMapperJob(scans, IdentityTableMapper.class,
-    //   ImmutableBytesWritable.class, Result.class, job);
+    ThemisTableMapReduceUtil.initTableMapperJob(scans, IdentityTableMapper.class,
+      ImmutableBytesWritable.class, Result.class, job);
     ThemisTableMapReduceUtil.initTableReducerJob(Bytes.toString(TABLENAME), RowSumReducer.class, job);
     TableMapReduceUtil.addDependencyJars(job.getConfiguration(), RowSumReducer.class);
     TableMapReduceUtil.addDependencyJars(job.getConfiguration(), TransactionTestBase.class);

@@ -3,10 +3,11 @@ package org.apache.hadoop.hbase.themis.mapreduce;
 import java.io.IOException;
 
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.hadoop.hbase.mapreduce.TableReducer;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapreduce.Reducer;
 
 public class MultiThemisTableReducer
-extends TableReducer<ImmutableBytesWritable, TableMutations, ImmutableBytesWritable> {
+extends Reducer<ImmutableBytesWritable, TableMutations, ImmutableBytesWritable, Writable> {
   @Override
   public void reduce(ImmutableBytesWritable key, Iterable<TableMutations> values, Context context)
       throws IOException, InterruptedException {
@@ -15,7 +16,6 @@ extends TableReducer<ImmutableBytesWritable, TableMutations, ImmutableBytesWrita
       TableMutations mutation = value.cloneTableMuations();
       mutations.add(mutation);
     }
-    // TODO : make this compatiable
-    // context.write(key, mutations);    
+    context.write(key, mutations);
  }
 }

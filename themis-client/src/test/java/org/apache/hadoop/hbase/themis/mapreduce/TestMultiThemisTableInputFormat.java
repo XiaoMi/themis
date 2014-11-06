@@ -62,9 +62,8 @@ public class TestMultiThemisTableInputFormat extends TestThemisRowCounter {
     }
     
     job.setOutputFormatClass(NullOutputFormat.class);
-    // TODO : make this compatible
-    // ThemisTableMapReduceUtil.initTableMapperJob(scans, RowCounterMapper.class,
-    //   ImmutableBytesWritable.class, Result.class, job);
+    ThemisTableMapReduceUtil.initTableMapperJob(scans, RowCounterMapper.class,
+      ImmutableBytesWritable.class, Result.class, job);
     job.setNumReduceTasks(0);
     return job;
   }
