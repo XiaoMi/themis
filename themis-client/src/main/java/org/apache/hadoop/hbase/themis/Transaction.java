@@ -214,8 +214,9 @@ public class Transaction extends Configured implements TransactionInterface {
         commitSecondaries();
       }
     } finally {
+      // TODO : do not calculate the message if not a slow log
       ThemisStatisticsBase.logSlowOperation("themisCommit", beginTs, "rowSize="
-          + mutationCache.getMutations().size() + ", columnSize=" + mutationCache.size());
+          + mutationCache.getMutationsCount().getFirst() + ", columnSize=" + mutationCache.size());
     }
   }
   
@@ -477,5 +478,9 @@ public class Transaction extends Configured implements TransactionInterface {
             + ", will continue committing next column", e);
       }
     }
+  }
+  
+  public ColumnMutationCache getMutations() {
+    return this.mutationCache;
   }
 }

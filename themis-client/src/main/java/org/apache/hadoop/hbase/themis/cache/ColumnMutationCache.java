@@ -37,6 +37,19 @@ public class ColumnMutationCache {
     return mutations.entrySet();
   }
   
+  // return <rowCount, columnCount>
+  public Pair<Integer, Integer> getMutationsCount() {
+    int rowCount = 0;
+    int columnCount = 0;
+    for (Entry<byte[], Map<byte[], RowMutation>> tableEntry : mutations.entrySet()) {
+      for (Entry<byte[], RowMutation> rowEntry : tableEntry.getValue().entrySet()) {
+        ++rowCount;
+        columnCount += rowEntry.getValue().size();
+      }
+    }
+    return new Pair<Integer, Integer>(rowCount, columnCount);
+  }
+  
   public int size() {
     int size = 0;
     for (Entry<byte[], Map<byte[], RowMutation>> tableEntry : mutations.entrySet()) {
