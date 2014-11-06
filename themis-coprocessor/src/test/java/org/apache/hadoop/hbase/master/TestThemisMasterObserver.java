@@ -121,8 +121,6 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     deleteTable(admin, testTable);
   }
 
-  // TODO : make it compatiable
-  /*
   @Test
   public void testTruncateTable() throws IOException {
     deleteTable(admin, testTable);
@@ -136,7 +134,6 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     table.close();
     deleteTable(admin, testTable);
   }
-  */
   
   @Test
   public void testSetExpiredTsToZk() throws Exception {

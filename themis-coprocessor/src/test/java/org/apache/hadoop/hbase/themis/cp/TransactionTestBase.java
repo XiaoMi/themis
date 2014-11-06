@@ -527,7 +527,6 @@ public class TransactionTestBase extends TestBase {
     HTableDescriptor desc = admin.getTableDescriptor(tableName);
     admin.disableTable(tableName);
     admin.deleteTable(tableName);
-    desc.removeFamily(ColumnUtil.LOCK_FAMILY_NAME);
     admin.createTable(desc);
     connection.clearRegionCache(tableName);
     admin.close();
