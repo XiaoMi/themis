@@ -99,6 +99,7 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
       watcher = new ZooKeeperWatcher(conf, clientNameStr, new TimeoutOrDeletedHandler(),
           false);
       clientTracker = new ClientTracker(watcher);
+      LOG.info("create ZookeeperWorkerRegister, clientPath=" + aliveClientParentPath);
     } catch (Exception e) {
       LOG.error("init ZookeeperWorkerRegister fail", e);
       throw new IOException(e);
