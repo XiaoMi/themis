@@ -210,11 +210,12 @@ We evaluate the performance of themis under similar test conditions with percola
 
 Evaluation of themisGet. Load 30g data into HBase before testing themisGet by reading loaded rows. We set the heap size of region server to 10g and hfile.block.cache.size=0.45.
 
-| Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-| 5             | 10000000 | 1029.88               | 1191.21              | 0.86     | 
-| 10            | 20000000 | 1230.44               | 1407.93              | 0.87     | 
-| 20            | 20000000 | 1848.05               | 2190.00              | 0.84     | 
-| 50            | 30000000 | 4529.80               | 5382.87              | 0.84     | 
+| Client Thread | GetCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
+|-------------  |---------- |-----------------------|----------------------|----------|
+| 5             | 10000000  | 1029.88               | 1191.21              | 0.86     | 
+| 10            | 20000000  | 1230.44               | 1407.93              | 0.87     | 
+| 20            | 20000000  | 1848.05               | 2190.00              | 0.84     | 
+| 50            | 30000000  | 4529.80               | 5382.87              | 0.84     | 
 
 
 Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing themisPut. We config 256M cache size to buffer locks for transaction. 
@@ -227,7 +228,7 @@ Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing them
 | 20            | 20000000  | 2761.66               | 1902.79              | 0.69     |
 | 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
-The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 85% of HBase's get and the performance of themisPut is about 60% of HBase's put. For themisGet, the result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. The themisPut performance is much better compared to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
+The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 85% of HBase's get and the performance of themisPut is about 60% of HBase's put. For themisGet, the result is about 10% lower to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. The themisPut performance is much better compared to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
 
 1. In prewrite phase, we only write the lock to MemStore;  
 
