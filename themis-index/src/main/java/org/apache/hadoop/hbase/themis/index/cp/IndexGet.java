@@ -4,7 +4,7 @@ import org.apache.hadoop.hbase.themis.ThemisScan;
 
 public class IndexGet extends IndexRead {
 
-  public IndexGet(IndexColumn indexColumn, ThemisScan indexScan, DataGet dataGet) {
+  private IndexGet(IndexColumn indexColumn, ThemisScan indexScan, DataGet dataGet) {
     super(indexColumn, indexScan, dataGet);
   }
   
