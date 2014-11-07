@@ -12,6 +12,7 @@ import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.coprocessor.BaseMasterObserver;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
@@ -169,22 +170,21 @@ public class IndexMasterObserver extends BaseMasterObserver {
     return desc.getValue(THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY) != null;
   }
  
-  //TODO: make this compatiable
-  /*
   @Override
   public void preDeleteTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      byte[] tableName) throws IOException {
-    HTableDescriptor tableDesc = null; // ctx.getEnvironment().getMasterServices().getTableDescriptors()
-        // .get(tableName); // TODO : make this compatiable
+      TableName tableName) throws IOException {
+    HTableDescriptor tableDesc = ctx.getEnvironment().getMasterServices().getTableDescriptors()
+        .get(tableName);
     if (isSecondaryIndexEnableTable(tableDesc)) {
-      LOG.info("keep table desc for secondary index enable table, tableName=" + tableDesc.getNameAsString());
+      LOG.info("keep table desc for secondary index enable table, tableName="
+          + tableDesc.getNameAsString());
       deletedTableDesc.set(tableDesc);
     }
   }
   
   @Override
   public void postDeleteTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      byte[] tableName) throws IOException {
+      TableName tableName) throws IOException {
     HTableDescriptor tableDesc = deletedTableDesc.get();
     if (tableDesc != null) {
       HBaseAdmin admin = new HBaseAdmin(ctx.getEnvironment().getConfiguration());
@@ -206,5 +206,4 @@ public class IndexMasterObserver extends BaseMasterObserver {
       }
     }
   }
-  */
 }
