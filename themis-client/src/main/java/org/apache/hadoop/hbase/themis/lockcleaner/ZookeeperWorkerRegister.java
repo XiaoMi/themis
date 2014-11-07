@@ -10,6 +10,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.themis.lockcleaner.ClientName.ClientNameWithProcessId;
+import org.apache.hadoop.hbase.themis.lockcleaner.ClientName.ClientNameWithThreadId;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperListener;
@@ -92,7 +93,7 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
   public ZookeeperWorkerRegister(Configuration conf) throws IOException {
     super(conf);
     try {
-      clientNameStr = new ClientNameWithProcessId().toString();
+      clientNameStr = constructClientName();
       clusterName = conf.get("hbase.cluster.name");
       aliveClientParentPath = getAliveClientParentPath();
       aliveClientPath = getAliveClientPath();
@@ -103,6 +104,10 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
       LOG.error("init ZookeeperWorkerRegister fail", e);
       throw new IOException(e);
     }
+  }
+  
+  protected String constructClientName() throws IOException {
+    return new ClientNameWithProcessId().toString();
   }
   
   protected synchronized void setAborted(Throwable e) {
@@ -173,6 +178,17 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
   public void close() throws IOException {
     if (watcher != null) {
       watcher.close();
+    }
+  }
+  
+  public static class ZookeeperWorkerRegisterByThread extends ZookeeperWorkerRegister {
+
+    public ZookeeperWorkerRegisterByThread(Configuration conf) throws IOException {
+      super(conf);
+    }
+    
+    protected String constructClientName() throws IOException {
+      return new ClientNameWithThreadId().toString();
     }
   }
 }
