@@ -145,7 +145,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 These settings could be set in hbase-site.xml of server-side.
 
-### depends themis-client
+### Depends themis-client
 
 add the themis-client dependency to pom of project which needs cross-row transactions.
 
@@ -155,7 +155,7 @@ add the themis-client dependency to pom of project which needs cross-row transac
        <version>1.0-SNAPSHOT</version>
      </dependency>
 
-### run example code
+### Run example code
 
 1. the master branch depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
    
@@ -173,6 +173,7 @@ add the themis-client dependency to pom of project which needs cross-row transac
   
 The result of themisPut/themisGet/themisDelete/themisScan will output to screen.
 
+**Use Chronos**
 Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
 
 1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/themis/.
