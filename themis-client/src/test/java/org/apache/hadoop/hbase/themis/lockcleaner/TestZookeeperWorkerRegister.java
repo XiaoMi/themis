@@ -7,6 +7,8 @@ import org.apache.hadoop.hbase.themis.ClientTestBase;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
+import org.apache.hadoop.hbase.themis.lockcleaner.ClientName.ClientNameWithProcessId;
+import org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister.ZookeeperWorkerRegisterByThread;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
@@ -173,5 +175,13 @@ public class TestZookeeperWorkerRegister extends ClientTestBase {
     Assert.assertArrayEquals(lockBytes, readLockBytes(COLUMN, prewriteTs));
     Assert.assertArrayEquals(VALUE, readDataValue(COLUMN, prewriteTs));
     regB.close();
+  }
+  
+  @Test
+  public void TestZookeeperWorkerRegisterByThread() throws IOException {
+    ZookeeperWorkerRegisterByThread register = new ZookeeperWorkerRegisterByThread(conf);
+    Assert.assertEquals(String.valueOf(Thread.currentThread().getId()), register.getClientAddress().split(",")[1]);
+    Assert.assertFalse(register.getClientAddress().split(",")[1].equals(new ClientNameWithProcessId().id));
+    register.close();
   }
 }

@@ -43,6 +43,7 @@ import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 public class ThemisMasterObserver extends BaseMasterObserver {
   private static final Log LOG = LogFactory.getLog(ThemisMasterObserver.class);
 
+  public static final String RETURNED_THEMIS_TABLE_DESC = "__themis.returned.table.desc__"; // support truncate table
   public static final String THEMIS_ENABLE_KEY = "THEMIS_ENABLE";
   public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
   public static final String THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY = "themis.expired.data.clean.enable";
@@ -74,7 +75,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   @Override
   public void preCreateTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
       HTableDescriptor desc, HRegionInfo[] regions) throws IOException {
-    if (desc instanceof UnmodifyableHTableDescriptor) {
+    if (isReturnedThemisTableDesc(desc)) {
       return;
     }
     boolean themisEnable = false;
@@ -109,6 +110,23 @@ public class ThemisMasterObserver extends BaseMasterObserver {
       desc.addFamily(createLockFamily());
       LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc.getNameAsString());
     }    
+  }
+  
+  protected static void setReturnedThemisTableDesc(HTableDescriptor desc) {
+    desc.setValue(RETURNED_THEMIS_TABLE_DESC, "true");
+  }
+  
+  protected static boolean isReturnedThemisTableDesc(HTableDescriptor desc) {
+    return desc.getValue(RETURNED_THEMIS_TABLE_DESC) != null
+        && Boolean.parseBoolean(desc.getValue(RETURNED_THEMIS_TABLE_DESC));
+  }
+  
+  @Override
+  public void postGetTableDescriptors(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      List<HTableDescriptor> descriptors) throws IOException {
+    for (HTableDescriptor desc : descriptors) {
+      setReturnedThemisTableDesc(desc);
+    }
   }
   
   protected static HColumnDescriptor createLockFamily() {
