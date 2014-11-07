@@ -137,14 +137,6 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor in table create script. 
 
-### Server Side Settings
-
-1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
-
-2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'.
-
-These settings could be set in hbase-site.xml of server-side.
-
 ### Depends themis-client
 
 add the themis-client dependency to pom of project which needs cross-row transactions.
@@ -173,21 +165,29 @@ add the themis-client dependency to pom of project which needs cross-row transac
   
 The result of themisPut/themisGet/themisDelete/themisScan will output to screen.
 
-**Use Chronos**
+### Themis Options
+
+**Use Chronos As Timestamp Oracle**
+
 Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
 
-1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/themis/.
+1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/chronos/.
 
-2. add the following config to the hbase-site.xml which located under the classpath of themis-client side:
+2. set themis.timestamp.oracle.class="org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in config of themis-cliet side. With this config, themis will connect Chronos cluster in local machine.
 
-     ```
-     <property>
-       <name>themis.timestamp.oracle.class</name>
-	     <value>org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy</value>
-     </property>
-     ```
+3. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'.
 
-With this config, themis will connect Chronos cluster in local machine. Then, run the example code as introduced above, and themis will use the timestamp from Chronos to do transactions(The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername').
+**Data Clean Options**
+
+1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
+
+2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'.
+
+These settings could be set in hbase-site.xml of server-side.
+
+**LockClean Options**
+1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help clean up persistent lock more efficiently. In themis, ZookeeperWorkerRegister implements this function and we can set themis.worker.register.class="org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
+2. themis.client.lock.clean.ttl & themis.pause
 
 ## Test 
 
