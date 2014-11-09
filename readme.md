@@ -186,8 +186,20 @@ Themis will use a LocalTimestampOracle class to provide incremental timestamp fo
 These settings could be set in hbase-site.xml of server-side.
 
 **LockClean Options**
+
 1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help clean up persistent lock more efficiently. In themis, ZookeeperWorkerRegister implements this function and we can set themis.worker.register.class="org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
-2. themis.client.lock.clean.ttl & themis.pause
+
+2. Themis will retry lock clean where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
+
+**Customer Filter**
+
+1. Themis use timestamp and version attribute of HBase internally. Therefore, users should not set filters using timestamp or version attribute to do themis read.
+
+2. For filters only use rowkey, such as PrefixFilter defined in HBase, users could make them implement "RowLevelFilter" interface which could help do themis read more efficiently. 
+
+### MapReduce Support
+
+### Global Secondary Index Support
 
 ## Test 
 
