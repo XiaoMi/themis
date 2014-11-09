@@ -199,7 +199,25 @@ These settings could be set in hbase-site.xml of server-side.
 
 ### MapReduce Support
 
+Themis implement InputFormat and OutputFormat interface in MapReduce framework:
+
+1. ThemisTableInputFormat is implemented to read data from themis-enable table in Mapper. To read data from multi-tables, please use MultiThemisTableInputFormat.
+
+2. ThemisTableOutputFormat is implemented to write data by themis to themis-enable table in Reducer. To write data across multi-tables, please use MultiThemisTableOutputFormat.
+
+3. ThemisTableMapReduceUtil provides some utility methods to start a MapReduce job using themis-enable tables.
+
 ### Global Secondary Index Support
+
+Based on the cross table data consistent guaranteed by themis transaction, we build an expiremental sub-project themis-index to support global secondary index, including:
+
+1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}.
+
+2. When mutating columns which contain secondary index definitions, mutations corresponding to the index table will be applied automatically.
+
+3. Users could read data by secondary index with IndexGet / IndexScan.
+
+Themis-index is also expiremental, we will improve this sub-project after studying the demands better.
 
 ## Test 
 
