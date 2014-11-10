@@ -4,7 +4,7 @@
 
 Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
 
-Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The APIs of themis are similar with HBase's, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, the performance of themis in current version is similar to the result reported in paper of [percolator](http://research.google.com/pubs/pub36726.html). 
+Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The APIs of themis are similar with HBase's, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, and try to optimize the [percolator](http://research.google.com/pubs/pub36726.html) algorithm to achieve better performance.
 
 ## Example of Themis API
 
@@ -135,7 +135,7 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
      ```
 
-3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor in table create script. 
+3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
 
 ### Depends themis-client
 
@@ -173,7 +173,7 @@ Themis will use a LocalTimestampOracle class to provide incremental timestamp fo
 
 1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/chronos/.
 
-2. set themis.timestamp.oracle.class="org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in config of themis-cliet side. With this config, themis will connect Chronos cluster in local machine.
+2. set themis.timestamp.oracle.class="org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in the config of cliet-side. With this config, themis will connect Chronos cluster in local machine.
 
 3. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'.
 
@@ -185,17 +185,17 @@ Themis will use a LocalTimestampOracle class to provide incremental timestamp fo
 
 These settings could be set in hbase-site.xml of server-side.
 
-**LockClean Options**
+**Conflict Resolution Options**
 
-1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help clean up persistent lock more efficiently. In themis, ZookeeperWorkerRegister implements this function and we can set themis.worker.register.class="org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
+1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help resolve conflict lock more efficiently. In themis, we can set themis.worker.register.class="org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
 
-2. Themis will retry lock clean where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
+2. Themis will retry conflict resolution where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
 
 **Customer Filter**
 
-1. Themis use timestamp and version attribute of HBase internally. Therefore, users should not set filters using timestamp or version attribute to do themis read.
+1. Themis use timestamp and version attribute of HBase internally. Therefore, users should not set filters using timestamp or version attribute.
 
-2. For filters only use rowkey, such as PrefixFilter defined in HBase, users could make them implement "RowLevelFilter" interface which could help do themis read more efficiently. 
+2. For filters only use rowkey, such as PrefixFilter defined in HBase, users could make them implement "RowLevelFilter" interface(defined in themis) which could help do themis read more efficiently. 
 
 ### MapReduce Support
 
@@ -205,13 +205,21 @@ Themis implement InputFormat and OutputFormat interface in MapReduce framework:
 
 2. ThemisTableOutputFormat is implemented to write data by themis to themis-enable table in Reducer. To write data across multi-tables, please use MultiThemisTableOutputFormat.
 
-3. ThemisTableMapReduceUtil provides some utility methods to start a MapReduce job using themis-enable tables.
+3. ThemisTableMapReduceUtil provides utility methods to start a MapReduce job.
 
 ### Global Secondary Index Support
 
-Based on the cross table data consistent guaranteed by themis transaction, we build an expiremental sub-project themis-index to support global secondary index, including:
+Based on the cross table data consistent guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, including:
 
-1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}.
+1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}, and users need the following configuration to support this schema.
+
+     ```
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver,org.apache.hadoop.hbase.themis.index.cp.IndexMasterObserver</value>
+     </property>
+
+     ```
 
 2. When mutating columns which contain secondary index definitions, mutations corresponding to the index table will be applied automatically.
 
@@ -249,7 +257,7 @@ Evaluation of themisGet. Load 30g data into HBase before testing themisGet by re
 | 50            | 30000000  | 4529.80               | 5382.87              | 0.84     | 
 
 
-Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing themisPut. We config 256M cache size to buffer locks for transaction. 
+Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing themisPut. We config 256M cache size to keep locks in memory for write transaction. 
 
 | Client Thread | PutCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |---------- |-----------------------|----------------------|----------|
@@ -265,10 +273,10 @@ The above tests are all done in a single region server. From the results, we can
 
 2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
 
-The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction. After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent and the transaction will fail, this won't break correctness of the algorithm.
+The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction(also for single-row transaction). After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent lock and the transaction will fail, this won't break correctness of the algorithm.
 
 **ConcurrentThemis Result:**
-The prewrite of different rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
+The prewrite and commit of secondary rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
 
 | TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
 |-----------------|--------- |-----------------------|------------------------------|------------------|
@@ -286,5 +294,7 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 
 1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
 2. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
-3. Resolve lock conflict more efficiently. Each client could register a temporary lock in Zookeeper, and the client will lose the lock after it fails. Then, other clients could know the failure client and clean lock more quickly.
-4. Support different ioslation levels.
+3. Support different ioslation levels.
+4. Use a different family to save commit information and compare the performance with the current way.
+5. Commit secondary rows in background to improve latency.
+6. Release the correctness validate program AccountTransfer.
