@@ -236,6 +236,8 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 ### Performance Test 
 
+The Performance Test is copyied from readme.md from master branch of Themis which is based on HBase 0.94. Because the core algorithm of themis in this branch is the same as master branch, we believe the test will get similar results for this branch. We will do the same tests on HBase 0.98 and update this part. 
+
 **Percolator Result:**
 
 [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
@@ -298,3 +300,4 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 4. Use a different family to save commit information and compare the performance with the current way(currently, we save commit information under the same family with data column).
 5. Commit secondary rows in background to improve latency.
 6. Release the correctness validate program AccountTransfer.
+7. Test the performance of themis for HBase 0.98.
