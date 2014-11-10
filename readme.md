@@ -80,7 +80,7 @@ Themis provides the guarantee to read all transactions with commitTs smaller tha
 
 **Conflict Resolution:**
 
-There might be write/write and read/write conflicts as described above. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
+There might be write/write and read/write conflicts as described. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
 
 Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
 
@@ -173,7 +173,7 @@ Themis will use a LocalTimestampOracle class to provide incremental timestamp fo
 
 1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/chronos/.
 
-2. set themis.timestamp.oracle.class="org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in the config of cliet-side. With this config, themis will connect Chronos cluster in local machine.
+2. set themis.timestamp.oracle.class to "org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in the config of cliet-side. With this config, themis will connect Chronos cluster in local machine.
 
 3. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'.
 
@@ -187,7 +187,7 @@ These settings could be set in hbase-site.xml of server-side.
 
 **Conflict Resolution Options**
 
-1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help resolve conflict lock more efficiently. In themis, we can set themis.worker.register.class="org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
+1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help resolve conflict lock more efficiently. In themis, we can set themis.worker.register.class to "org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
 
 2. Themis will retry conflict resolution where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
 
@@ -209,7 +209,7 @@ Themis implement InputFormat and OutputFormat interface in MapReduce framework:
 
 ### Global Secondary Index Support
 
-Based on the cross table data consistent guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, including:
+Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, including:
 
 1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}, and users need the following configuration to support this schema.
 
@@ -292,9 +292,9 @@ TransactionSize is number of rows in one transaction. The 'Relative Improve' is 
 
 ## Future Works
 
-1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only need to keep persistent locks of un-committed transactions in memory.
+1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only keeping persistent locks of un-committed transactions in memory.
 2. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
 3. Support different ioslation levels.
-4. Use a different family to save commit information and compare the performance with the current way.
+4. Use a different family to save commit information and compare the performance with the current way(currently, we save commit information under the same family with data column).
 5. Commit secondary rows in background to improve latency.
 6. Release the correctness validate program AccountTransfer.
