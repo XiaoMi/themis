@@ -236,7 +236,7 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 ### Performance Test 
 
-The Performance Test is copyied from readme.md from master branch of Themis which is based on HBase 0.94. Because the core algorithm of themis in this branch is the same as master branch, we believe the test will get similar results for this branch. We will do the same tests on HBase 0.98 and update this part. 
+The Performance Test is copyied from [readme.md](https://github.com/XiaoMi/themis/) from master branch of Themis which is based on HBase 0.94. Because the core algorithm of themis in this branch is the same as master branch, we believe the test will get similar results for this branch. We will do the same tests on HBase 0.98 and update this part. 
 
 **Percolator Result:**
 
