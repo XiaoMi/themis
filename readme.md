@@ -149,17 +149,13 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 ### Run example code
 
-1. this branch depends on hbase 0.98.5 with hadoop.version=2.2.0. We need download source code of hbase 0.98.5 and install in maven local repository by(in the directory of hbase 0.98.5):
-   
-     mvn clean install -DskipTests -P hadoop-2.0
-
-2. install themis in maven local repository(in the directory of themis):
+1. install themis in maven local repository(in the directory of themis):
 
      mvn clean install -DskipTests
 
-3. start a standalone HBase cluster(0.98.5 with hadoop.version=2.2.0) and make sure themis-coprocessor is loaded as above steps.
+2. start a standalone HBase cluster(0.98.5 with hadoop.version=2.2.0) and make sure themis-coprocessor is loaded as above steps.
 
-4. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
+3. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
      
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
   
