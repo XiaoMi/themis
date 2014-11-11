@@ -8,6 +8,13 @@
   <name>Themis Implementationn for HBase</name>
   <packaging>pom</packaging>
 
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <hbase.version>0.98.5-hadoop2</hbase.version>
+    <hadoop.version>2.2.0</hadoop.version>
+    <themis.version>1.0-SNAPSHOT</themis.version>
+  </properties>
+
   <licenses>
     <license>
       <name>The Apache Software License, Version 2.0</name>
