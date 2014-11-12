@@ -9,7 +9,6 @@ import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
@@ -25,7 +24,6 @@ import org.apache.hadoop.mapreduce.lib.output.NullOutputFormat;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-@Category(MediumTests.class)
 public class TestMultiThemisTableInputFormat extends TestThemisRowCounter {
   protected Job createSubmittableJob(Configuration conf, String[] args)
   throws IOException {
