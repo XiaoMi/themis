@@ -67,6 +67,11 @@
             </goals>
           </execution>
         </executions>
+        <configuration>
+          <excludes>
+            <exclude>log4j.properties</exclude>
+          </excludes>
+        </configuration>
       </plugin>
     </plugins>
   </build>
