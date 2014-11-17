@@ -126,14 +126,27 @@ public class ColumnUtil {
   }
 
   public static Column getDataColumnFromLockColumn(Column lockColumn) {
-    String qualifierString = Bytes.toString(lockColumn.getQualifier());
-    int index = qualifierString.indexOf(PRESERVED_COLUMN_CHARACTER);
-    if (index <= 0) {
+    byte[] lockQualifier = lockColumn.getQualifier();
+    if (lockQualifier == null) {
       // TODO : throw exception or log an error
       return lockColumn;
+    }
+    int index = -1;
+    for (int i = 0; i < lockQualifier.length; ++i) {
+      // the first PRESERVED_COLUMN_CHARACTER_BYTES exist in lockQualifier is the delimiter
+      if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == lockQualifier[i]) {
+        index = i;
+        break;
+      }
+    }
+    if (index <= 0) {
+      return lockColumn;
     } else {
-      return new Column(Bytes.toBytes(qualifierString.substring(0, index)),
-          Bytes.toBytes(qualifierString.substring(index + 1, qualifierString.length())));
+      byte[] family = new byte[index];
+      byte[] qualifier = new byte[lockQualifier.length - index - 1];
+      System.arraycopy(lockQualifier, 0, family, 0, index);
+      System.arraycopy(lockQualifier, index + 1, qualifier, 0, lockQualifier.length - index - 1);
+      return new Column(family, qualifier);
     }
   }
   
