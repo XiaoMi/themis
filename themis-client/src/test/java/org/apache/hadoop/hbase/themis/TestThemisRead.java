@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil.CommitFamily;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Test;
 
@@ -50,6 +51,7 @@ public class TestThemisRead extends TestBase {
   
   @Test
   public void testCheckContainingPreservedColumns() {
+    useCommitFamily(CommitFamily.SAME_WITH_DATA_FAMILY);
     Map<byte[], NavigableSet<byte[]>> familyMap = new HashMap<byte[], NavigableSet<byte[]>>();
     familyMap.put(FAMILY, new TreeSet<byte[]>(Bytes.BYTES_COMPARATOR));
     familyMap.get(FAMILY).add(QUALIFIER);
@@ -60,6 +62,28 @@ public class TestThemisRead extends TestBase {
       Assert.fail();
     }
     familyMap.get(FAMILY).add(ColumnUtil.getPutColumn(new Column(FAMILY, QUALIFIER)).getQualifier());
+    try {
+      ThemisRead.checkContainingPreservedColumns(familyMap);
+      Assert.fail();
+    } catch (IOException e) {
+    }
+  }
+  
+  @Test
+  public void testCheckContainingPreservedColumnsForCommitToDifferentFamily() {
+    useCommitFamily(CommitFamily.DIFFERNT_FAMILY);
+    Map<byte[], NavigableSet<byte[]>> familyMap = new HashMap<byte[], NavigableSet<byte[]>>();
+    familyMap.put(FAMILY, new TreeSet<byte[]>(Bytes.BYTES_COMPARATOR));
+    familyMap.get(FAMILY).add(QUALIFIER);
+    familyMap.put(ANOTHER_FAMILY, null);
+    try {
+      ThemisRead.checkContainingPreservedColumns(familyMap);
+    } catch (IOException e) {
+      Assert.fail();
+    }
+    Column putColumn = ColumnUtil.getPutColumn(new Column(FAMILY, QUALIFIER));
+    familyMap.put(putColumn.getFamily(), new TreeSet<byte[]>(Bytes.BYTES_COMPARATOR));
+    familyMap.get(putColumn.getFamily()).add(QUALIFIER);
     try {
       ThemisRead.checkContainingPreservedColumns(familyMap);
       Assert.fail();

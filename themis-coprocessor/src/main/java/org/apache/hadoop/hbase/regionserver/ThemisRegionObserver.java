@@ -32,6 +32,7 @@ public class ThemisRegionObserver extends BaseRegionObserver {
   @Override
   public void start(CoprocessorEnvironment e) throws IOException {
     super.start(e);
+    ColumnUtil.init(e.getConfiguration());
     expiredDataCleanEnable = e.getConfiguration().getBoolean(
       ThemisMasterObserver.THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true);
     if (expiredDataCleanEnable) {
@@ -99,7 +100,9 @@ public class ThemisRegionObserver extends BaseRegionObserver {
   public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
       final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
       throws IOException {
-    if (expiredDataCleanEnable && ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
+    if (expiredDataCleanEnable
+        && (ThemisMasterObserver.isThemisEnableFamily(store.getFamily()) || ColumnUtil
+            .isCommitFamily(store.getFamily().getName()))) {
       InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.scanInfo,
         Collections.singletonList(memstoreScanner), ScanType.MINOR_COMPACT, store.getHRegion()
             .getSmallestReadPoint(), HConstants.OLDEST_TIMESTAMP);
@@ -115,7 +118,9 @@ public class ThemisRegionObserver extends BaseRegionObserver {
       final Store store, List<? extends KeyValueScanner> scanners, final ScanType scanType,
       final long earliestPutTs, final InternalScanner s, CompactionRequest request)
       throws IOException {
-    if (expiredDataCleanEnable && ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
+    if (expiredDataCleanEnable
+        && (ThemisMasterObserver.isThemisEnableFamily(store.getFamily()) || ColumnUtil
+            .isCommitFamily(store.getFamily().getName()))) {
       InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.getScanInfo(),
         scanners, scanType, store.getHRegion().getSmallestReadPoint(), earliestPutTs);
       if (scanner != null) {

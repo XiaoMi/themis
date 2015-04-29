@@ -1,5 +1,6 @@
 package org.apache.hadoop.hbase.themis.columns;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.util.Bytes;
 
 public class ColumnUtil {
@@ -13,6 +14,33 @@ public class ColumnUtil {
   public static final byte[] LOCK_FAMILY_NAME = Bytes.toBytes("L");
   public static final String LOCK_FAMILY_NAME_STRING = Bytes.toString(LOCK_FAMILY_NAME);
   
+  public static final String PUT_FAMILY_NAME = "#p";
+  public static final byte[] PUT_FAMILY_NAME_BYTES = Bytes.toBytes(PUT_FAMILY_NAME);
+  public static final String DELETE_FAMILY_NAME = "#d";
+  public static final byte[] DELETE_FAMILY_NAME_BYTES = Bytes.toBytes(DELETE_FAMILY_NAME);
+  public static final byte[][] COMMIT_FAMILY_NAME_BYTES = new byte[][] { PUT_FAMILY_NAME_BYTES,
+      DELETE_FAMILY_NAME_BYTES };
+  public static final String THEMIS_COMMIT_FAMILY_TYPE = "themis.commit.family.type";
+  protected static CommitFamily commitFamily;
+
+  public static enum CommitFamily {
+    SAME_WITH_DATA_FAMILY,
+      DIFFERNT_FAMILY
+  }
+
+  public static void init(Configuration conf) {
+    commitFamily = CommitFamily.valueOf(conf.get(THEMIS_COMMIT_FAMILY_TYPE,
+      CommitFamily.DIFFERNT_FAMILY.toString()));
+  }
+  
+  public static boolean isCommitToSameFamily() {
+    return commitFamily == CommitFamily.SAME_WITH_DATA_FAMILY;
+  }
+
+  public static boolean isCommitToDifferentFamily() {
+    return commitFamily == CommitFamily.DIFFERNT_FAMILY;
+  }
+  
   public static boolean isPreservedColumn(Column column) {
     return containPreservedCharacter(column) || isLockColumn(column) || isPutColumn(column)
         || isDeleteColumn(column);
@@ -24,9 +52,11 @@ public class ColumnUtil {
         return true;
       }
     }
-    for (int i = 0; i < column.getQualifier().length; ++i) {
-      if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == column.getQualifier()[i]) {
-        return true;
+    if (isCommitToSameFamily()) {
+      for (int i = 0; i < column.getQualifier().length; ++i) {
+        if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == column.getQualifier()[i]) {
+          return true;
+        }
       }
     }
     return false;
@@ -41,6 +71,11 @@ public class ColumnUtil {
     }
     return false;
   }
+  
+  public static boolean isCommitFamily(byte[] family) {
+    return Bytes.equals(PUT_FAMILY_NAME_BYTES, family)
+        || Bytes.equals(DELETE_FAMILY_NAME_BYTES, family);
+  }
 
   // judge the data/lock/write column
   public static boolean isLockColumn(byte[] family, byte[] qualifier) {
@@ -52,11 +87,19 @@ public class ColumnUtil {
   }
   
   public static boolean isPutColumn(Column column) {
-    return isQualifierWithSuffix(column.getQualifier(), PUT_QUALIFIER_SUFFIX_BYTES);
+    if (isCommitToSameFamily()) {
+      return isQualifierWithSuffix(column.getQualifier(), PUT_QUALIFIER_SUFFIX_BYTES);
+    } else {
+      return Bytes.equals(PUT_FAMILY_NAME_BYTES, column.getFamily());
+    }
   }
 
   public static boolean isDeleteColumn(Column column) {
-    return isQualifierWithSuffix(column.getQualifier(), DELETE_QUALIFIER_SUFFIX_BYTES);
+    if (isCommitToSameFamily()) {
+      return isQualifierWithSuffix(column.getQualifier(), DELETE_QUALIFIER_SUFFIX_BYTES);
+    } else {
+      return Bytes.equals(DELETE_FAMILY_NAME_BYTES, column.getFamily());
+    }
   }
   
   public static boolean isWriteColumn(byte[] family, byte[] qualifier) {
@@ -78,33 +121,45 @@ public class ColumnUtil {
   }
   
   public static Column getLockColumn(Column dataColumn) {
-    return new Column(LOCK_FAMILY_NAME, constructLockColumnQualifier(dataColumn));
+    return new Column(LOCK_FAMILY_NAME, constructQualifierFromColumn(dataColumn));
   }
 
   public static Column getPutColumn(Column dataColumn) {
-    return new Column(dataColumn.getFamily(),
-      concatQualifierWithSuffix(dataColumn.getQualifier(), PUT_QUALIFIER_SUFFIX_BYTES));
+    if (isCommitToSameFamily()) {
+      return new Column(dataColumn.getFamily(), concatQualifierWithSuffix(
+        dataColumn.getQualifier(), PUT_QUALIFIER_SUFFIX_BYTES));
+    } else {
+      return new Column(PUT_FAMILY_NAME_BYTES, constructQualifierFromColumn(dataColumn));
+    }
   }
 
   public static Column getDeleteColumn(Column dataColumn) {
-    return new Column(dataColumn.getFamily(),
-      concatQualifierWithSuffix(dataColumn.getQualifier(), DELETE_QUALIFIER_SUFFIX_BYTES));
+    if (isCommitToSameFamily()) {
+      return new Column(dataColumn.getFamily(), concatQualifierWithSuffix(
+        dataColumn.getQualifier(), DELETE_QUALIFIER_SUFFIX_BYTES));
+    } else {
+      return new Column(DELETE_FAMILY_NAME_BYTES, constructQualifierFromColumn(dataColumn));
+    }
   }
 
   public static Column getDataColumn(Column lockOrWriteColumn) {
-    if (isLockColumn(lockOrWriteColumn)) {
-      return getDataColumnFromLockColumn(lockOrWriteColumn);
-    } else {
-      byte[] qualifier = lockOrWriteColumn.getQualifier();
-      if (isPutColumn(lockOrWriteColumn)) {
-        return new Column(lockOrWriteColumn.getFamily(), Bytes.head(qualifier, qualifier.length
-            - PUT_QUALIFIER_SUFFIX_BYTES.length));
-      } else if (isDeleteColumn(lockOrWriteColumn)) {
-        return new Column(lockOrWriteColumn.getFamily(), Bytes.head(qualifier, qualifier.length
-            - DELETE_QUALIFIER_SUFFIX_BYTES.length));
+    if (isCommitToSameFamily()) {
+      if (isLockColumn(lockOrWriteColumn)) {
+        return getDataColumnFromConstructedQualifier(lockOrWriteColumn);
       } else {
-        return lockOrWriteColumn;
+        byte[] qualifier = lockOrWriteColumn.getQualifier();
+        if (isPutColumn(lockOrWriteColumn)) {
+          return new Column(lockOrWriteColumn.getFamily(), Bytes.head(qualifier, qualifier.length
+              - PUT_QUALIFIER_SUFFIX_BYTES.length));
+        } else if (isDeleteColumn(lockOrWriteColumn)) {
+          return new Column(lockOrWriteColumn.getFamily(), Bytes.head(qualifier, qualifier.length
+              - DELETE_QUALIFIER_SUFFIX_BYTES.length));
+        } else {
+          return lockOrWriteColumn;
+        }
       }
+    } else {
+      return getDataColumnFromConstructedQualifier(lockOrWriteColumn);
     }
   }
   
@@ -125,16 +180,16 @@ public class ColumnUtil {
     return true;
   }
 
-  public static Column getDataColumnFromLockColumn(Column lockColumn) {
-    byte[] lockQualifier = lockColumn.getQualifier();
-    if (lockQualifier == null) {
+  public static Column getDataColumnFromConstructedQualifier(Column lockColumn) {
+    byte[] constructedQualifier = lockColumn.getQualifier();
+    if (constructedQualifier == null) {
       // TODO : throw exception or log an error
       return lockColumn;
     }
     int index = -1;
-    for (int i = 0; i < lockQualifier.length; ++i) {
+    for (int i = 0; i < constructedQualifier.length; ++i) {
       // the first PRESERVED_COLUMN_CHARACTER_BYTES exist in lockQualifier is the delimiter
-      if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == lockQualifier[i]) {
+      if (PRESERVED_COLUMN_CHARACTER_BYTES[0] == constructedQualifier[i]) {
         index = i;
         break;
       }
@@ -143,14 +198,15 @@ public class ColumnUtil {
       return lockColumn;
     } else {
       byte[] family = new byte[index];
-      byte[] qualifier = new byte[lockQualifier.length - index - 1];
-      System.arraycopy(lockQualifier, 0, family, 0, index);
-      System.arraycopy(lockQualifier, index + 1, qualifier, 0, lockQualifier.length - index - 1);
+      byte[] qualifier = new byte[constructedQualifier.length - index - 1];
+      System.arraycopy(constructedQualifier, 0, family, 0, index);
+      System.arraycopy(constructedQualifier, index + 1, qualifier, 0, constructedQualifier.length
+          - index - 1);
       return new Column(family, qualifier);
     }
   }
   
-  protected static byte[] constructLockColumnQualifier(Column column) {
+  protected static byte[] constructQualifierFromColumn(Column column) {
     return Bytes.add(column.getFamily(), PRESERVED_COLUMN_CHARACTER_BYTES, column.getQualifier());
   }
 }

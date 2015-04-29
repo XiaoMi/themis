@@ -57,6 +57,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   
   @Override
   public void start(CoprocessorEnvironment ctx) throws IOException {
+    ColumnUtil.init(ctx.getConfiguration());
     if (ctx.getConfiguration().getBoolean(THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true)) {
       TransactionTTL.init(ctx.getConfiguration());
       ThemisCpStatistics.init(ctx.getConfiguration());
@@ -108,6 +109,11 @@ public class ThemisMasterObserver extends BaseMasterObserver {
       }
       desc.addFamily(createLockFamily());
       LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc.getNameAsString());
+      if (!ColumnUtil.isCommitToSameFamily()) {
+        addCommitFamilies(desc);
+        LOG.info("add commit family '" + ColumnUtil.PUT_FAMILY_NAME + "' and '"
+            + ColumnUtil.DELETE_FAMILY_NAME + "' for table:" + desc.getNameAsString());
+      }
     }    
   }
   
@@ -135,6 +141,19 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     desc.setTimeToLive(HConstants.FOREVER);
     // TODO(cuijianwei) : choose the best bloom filter type
     // desc.setBloomFilterType(BloomType.ROWCOL);
+    return desc;
+  }
+  
+  protected static void addCommitFamilies(HTableDescriptor desc) {
+    for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
+      desc.addFamily(getCommitFamily(family));
+    }
+  }
+  
+  protected static HColumnDescriptor getCommitFamily(byte[] familyName) {
+    HColumnDescriptor desc = new HColumnDescriptor(familyName);
+    desc.setTimeToLive(HConstants.FOREVER);
+    desc.setMaxVersions(Integer.MAX_VALUE);
     return desc;
   }
   
@@ -269,7 +288,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
         while ((result = scanner.next()) != null) {
           for (KeyValue kv : result.list()) {
             ThemisLock lock = ThemisLock.parseFromByte(kv.getValue());
-            Column dataColumn = ColumnUtil.getDataColumnFromLockColumn(new Column(kv.getFamily(),
+            Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(new Column(kv.getFamily(),
                 kv.getQualifier()));
             lock.setColumn(new ColumnCoordinate(tableNameBytes, kv.getRow(),
                 dataColumn.getFamily(), dataColumn.getQualifier()));

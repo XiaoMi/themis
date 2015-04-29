@@ -74,13 +74,11 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       admin.flush(TABLENAME);
       Result result = getRowByScan();
       Assert.assertEquals(3, result.size());
-      Assert.assertArrayEquals(QUALIFIER, result.list().get(0).getQualifier());
-      Column deleteColumn = ColumnUtil.getDeleteColumn(new Column(result.list().get(0).getFamily(),
-          result.list().get(0).getQualifier()));
-      Assert.assertArrayEquals(deleteColumn.getQualifier(), result.list().get(1).getQualifier());
-      Column putColumn = ColumnUtil.getPutColumn(new Column(result.list().get(0).getFamily(),
-          result.list().get(0).getQualifier()));
-      Assert.assertArrayEquals(putColumn.getQualifier(), result.list().get(2).getQualifier());
+      Assert.assertNotNull(result.getValue(FAMILY, QUALIFIER));
+      Column deleteColumn = ColumnUtil.getDeleteColumn(COLUMN);
+      Assert.assertNotNull(result.getValue(deleteColumn.getFamily(), deleteColumn.getQualifier()));
+      Column putColumn = ColumnUtil.getPutColumn(COLUMN);
+      Assert.assertNotNull(result.getValue(putColumn.getFamily(), putColumn.getQualifier()));
       deleteOldDataAndUpdateTs();
 
       admin.close();
@@ -135,17 +133,15 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       Threads.sleep(5000); // wait compaction complete
       Result result = getRowByScan();
       Assert.assertEquals(3, result.size());
-      Assert.assertArrayEquals(QUALIFIER, result.list().get(0).getQualifier());
-      Column deleteColumn = ColumnUtil.getDeleteColumn(new Column(result.list().get(0).getFamily(),
-          result.list().get(0).getQualifier()));
-      Assert.assertArrayEquals(deleteColumn.getQualifier(), result.list().get(1).getQualifier());
-      Column putColumn = ColumnUtil.getPutColumn(new Column(result.list().get(0).getFamily(),
-          result.list().get(0).getQualifier()));
-      Assert.assertArrayEquals(putColumn.getQualifier(), result.list().get(2).getQualifier());
+      Assert.assertNotNull(result.getValue(FAMILY, QUALIFIER));
+      Column deleteColumn = ColumnUtil.getDeleteColumn(COLUMN);
+      Assert.assertNotNull(result.getValue(deleteColumn.getFamily(), deleteColumn.getQualifier()));
+      Column putColumn = ColumnUtil.getPutColumn(COLUMN);
+      Assert.assertNotNull(result.getValue(putColumn.getFamily(), putColumn.getQualifier()));
       deleteOldDataAndUpdateTs();
 
       admin.close();
       zk.close();
     }
-  }
+  }  
 }

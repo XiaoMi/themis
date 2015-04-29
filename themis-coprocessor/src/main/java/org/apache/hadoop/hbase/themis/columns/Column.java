@@ -71,7 +71,7 @@ public class Column implements Writable, Comparable<Column> {
 
   @Override
   public String toString() {
-    return "family=" + Bytes.toString(family) + "/qualifier=" + Bytes.toString(qualifier);
+    return "family=" + Bytes.toString(family) + "/qualifier=" + Bytes.toStringBinary(qualifier);
   }
 
   public int compareTo(Column other) {
