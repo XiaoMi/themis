@@ -10,12 +10,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil.CommitFamily;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
@@ -183,6 +186,10 @@ public class TestBase {
     ColumnCoordinate dc = new ColumnCoordinate(column.getTableName(), column.getRow(), deleteColumn);
     return getKeyValue(dc, ts);
   }
+  
+  public static ColumnCoordinate getDeleteColumnCoordinate(ColumnCoordinate column) {
+    return new ColumnCoordinate(column.getTableName(), column.getRow(), ColumnUtil.getDeleteColumn(column));
+  }
 
   public static KeyValue getKeyValue(ColumnCoordinate c, long ts) {
     return new KeyValue(c.getRow(), c.getFamily(), c.getQualifier(), ts, Type.Put, VALUE);
@@ -199,5 +206,11 @@ public class TestBase {
   
   public static Column getColumn(ColumnCoordinate columnCoordinate) {
     return new Column(columnCoordinate.getFamily(), columnCoordinate.getQualifier());
+  }
+  
+  public static void useCommitFamily(CommitFamily commitFamily) {
+    Configuration conf = HBaseConfiguration.create();
+    conf.set(ColumnUtil.THEMIS_COMMIT_FAMILY_TYPE, commitFamily.toString());
+    ColumnUtil.init(conf);
   }
 }

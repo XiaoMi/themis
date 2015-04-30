@@ -12,7 +12,9 @@ import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.junit.After;
@@ -50,10 +52,30 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     checkLockFamilyDesc(tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
   }
   
+  @Test
+  public void testGetThemisCommitFamily() throws Exception {
+    for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
+      HColumnDescriptor columnDesc = ThemisMasterObserver.getCommitFamily(family);
+      checkCommitFamilyDesc(columnDesc);
+    }
+  }
+  
   protected void checkLockFamilyDesc(HColumnDescriptor columnDesc) {
     Assert.assertArrayEquals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName());
     Assert.assertEquals(1, columnDesc.getMaxVersions());
     Assert.assertTrue(columnDesc.isInMemory());
+    Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
+  }
+  
+  protected void checkCommitFamilyDesc(HTableDescriptor desc) {
+    for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
+      Assert.assertNotNull(desc.getFamily(family));
+      checkCommitFamilyDesc(desc.getFamily(family));
+    }
+  }
+  
+  protected void checkCommitFamilyDesc(HColumnDescriptor columnDesc) {
+    Assert.assertEquals(Integer.MAX_VALUE, columnDesc.getMaxVersions());
     Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
   }
   
@@ -96,8 +118,13 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     createTestTable(true);
     Assert.assertTrue(admin.getTableDescriptor(testTable).getFamiliesKeys()
       .contains(ColumnUtil.LOCK_FAMILY_NAME));
-    checkLockFamilyDesc(admin.getTableDescriptor(testTable));
-    HColumnDescriptor dataColumnDesc = admin.getTableDescriptor(testTable).getFamily(testFamily);
+    tableDesc = admin.getTableDescriptor(testTable);
+    checkLockFamilyDesc(tableDesc);
+    if (ColumnUtil.isCommitToSameFamily()) {
+      Assert.assertTrue(tableDesc.getFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES) == null);
+      Assert.assertTrue(tableDesc.getFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES) == null);
+    }
+    HColumnDescriptor dataColumnDesc = tableDesc.getFamily(testFamily);
     Assert.assertEquals(Integer.MAX_VALUE, dataColumnDesc.getMaxVersions());
     Assert.assertEquals(HConstants.FOREVER, dataColumnDesc.getTimeToLive());
     // exception when set MaxVersion
@@ -119,6 +146,20 @@ public class TestThemisMasterObserver extends TransactionTestBase {
       Assert.assertTrue(e.getMessage().indexOf("can not set TTL for family") >= 0);
     }
     deleteTable(admin, testTable);
+  }
+  
+  @Test
+  public void testAddCommitFamilyForThemisTable() throws Exception {
+    if (ColumnUtil.isCommitToDifferentFamily()) {
+      deleteTable(admin, testTable);
+      createTestTable(true);
+      HTableDescriptor tableDesc = admin.getTableDescriptor(testTable);
+      checkLockFamilyDesc(tableDesc);
+      checkCommitFamilyDesc(tableDesc);
+      HColumnDescriptor dataColumnDesc = tableDesc.getFamily(testFamily);
+      Assert.assertEquals(Integer.MAX_VALUE, dataColumnDesc.getMaxVersions());
+      Assert.assertEquals(HConstants.FOREVER, dataColumnDesc.getTimeToLive());
+    }
   }
   
   @Test

@@ -42,6 +42,7 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
   public void start(CoprocessorEnvironment env) {
     super.start(env);
     try {
+      ColumnUtil.init(env.getConfiguration());
       TransactionTTL.init(env.getConfiguration());
       ThemisCpStatistics.init(env.getConfiguration());
     } catch (IOException e) {

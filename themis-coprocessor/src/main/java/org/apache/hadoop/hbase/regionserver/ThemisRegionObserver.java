@@ -25,17 +25,22 @@ import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 public class ThemisRegionObserver extends BaseRegionObserver {
   private static final Log LOG = LogFactory.getLog(ThemisRegionObserver.class);
   
+  public static final String THEMIS_DELETE_THEMIS_DELETED_DATA_WHEN_COMPACT = "themis.delete.themis.deleted.data.when.compact";
   public static final String SINGLE_ROW_PRIMARY_QUALIFIER = "_themisSingleRowPrewritePrimaryQualifier_";
   public static final String LOCK_FAMILY_DELETE = "_themisLockFamilyDelete_";
   private boolean expiredDataCleanEnable;
-  
+  protected boolean deleteThemisDeletedDataWhenCompact;
+
   @Override
   public void start(CoprocessorEnvironment e) throws IOException {
     super.start(e);
+    ColumnUtil.init(e.getConfiguration());
     expiredDataCleanEnable = e.getConfiguration().getBoolean(
       ThemisMasterObserver.THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true);
+    deleteThemisDeletedDataWhenCompact =  e.getConfiguration().getBoolean(
+      THEMIS_DELETE_THEMIS_DELETED_DATA_WHEN_COMPACT, false);
     if (expiredDataCleanEnable) {
-      LOG.info("themis expired data clean enable");
+      LOG.info("themis expired data clean enable, deleteThemisDeletedDataWhenCompact=" + deleteThemisDeletedDataWhenCompact);
     }
   }
   
@@ -99,10 +104,12 @@ public class ThemisRegionObserver extends BaseRegionObserver {
   public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
       final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
       throws IOException {
-    if (expiredDataCleanEnable && ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
+    if (expiredDataCleanEnable
+        && (ThemisMasterObserver.isThemisEnableFamily(store.getFamily()) || ColumnUtil
+            .isCommitFamily(store.getFamily().getName()))) {
       InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.scanInfo,
         Collections.singletonList(memstoreScanner), ScanType.MINOR_COMPACT, store.getHRegion()
-            .getSmallestReadPoint(), HConstants.OLDEST_TIMESTAMP);
+            .getSmallestReadPoint(), HConstants.OLDEST_TIMESTAMP, false);
       if (scanner != null) {
         return scanner;
       }
@@ -115,9 +122,11 @@ public class ThemisRegionObserver extends BaseRegionObserver {
       final Store store, List<? extends KeyValueScanner> scanners, final ScanType scanType,
       final long earliestPutTs, final InternalScanner s, CompactionRequest request)
       throws IOException {
-    if (expiredDataCleanEnable && ThemisMasterObserver.isThemisEnableFamily(store.getFamily())) {
+    if (expiredDataCleanEnable
+        && (ThemisMasterObserver.isThemisEnableFamily(store.getFamily()) || ColumnUtil
+            .isCommitFamily(store.getFamily().getName()))) {
       InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.getScanInfo(),
-        scanners, scanType, store.getHRegion().getSmallestReadPoint(), earliestPutTs);
+        scanners, scanType, store.getHRegion().getSmallestReadPoint(), earliestPutTs, true);
       if (scanner != null) {
         return scanner;
       }
@@ -127,7 +136,8 @@ public class ThemisRegionObserver extends BaseRegionObserver {
   
   protected InternalScanner getScannerToCleanExpiredThemisData(final Store store,
       final ScanInfo scanInfo, final List<? extends KeyValueScanner> scanners,
-      final ScanType scanType, final long smallestReadPoint, final long earliestPutTs)
+      final ScanType scanType, final long smallestReadPoint, final long earliestPutTs,
+      final boolean isCompact)
       throws IOException {
     long cleanTs = Long.MIN_VALUE;
     ZooKeeperWatcher zk = store.getHRegion().getRegionServerServices().getZooKeeper();
@@ -149,7 +159,13 @@ public class ThemisRegionObserver extends BaseRegionObserver {
 
     Scan scan = new Scan();
     scan.setMaxVersions(store.scanInfo.getMaxVersions());
-    ThemisExpiredDataCleanFilter filter = new ThemisExpiredDataCleanFilter(cleanTs);
+    ThemisExpiredDataCleanFilter filter = null;
+    if (deleteThemisDeletedDataWhenCompact && isCompact) {
+      filter = new ThemisExpiredDataCleanFilter(cleanTs, store.getHRegion());
+    } else {
+      filter = new ThemisExpiredDataCleanFilter(cleanTs);
+    }
+    
     scan.setFilter(filter);
     InternalScanner scanner = new StoreScanner(store, scanInfo, scan, scanners, scanType,
         smallestReadPoint, earliestPutTs);

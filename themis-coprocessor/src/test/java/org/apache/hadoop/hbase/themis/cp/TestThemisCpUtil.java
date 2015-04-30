@@ -218,7 +218,9 @@ public class TestThemisCpUtil extends TestBase {
   protected void checkConstructedDataGet(List<KeyValue> putKvs, Filter filter, Get get) {
     Assert.assertEquals(putKvs.size(), get.getFamilyMap().size());
     for (KeyValue kv : putKvs) {
-      Assert.assertTrue(get.getFamilyMap().containsKey(kv.getFamily()));
+      if (ColumnUtil.isCommitToSameFamily()) {
+        Assert.assertTrue(get.getFamilyMap().containsKey(kv.getFamily()));
+      }
       get.getTimeRange().withinTimeRange(kv.getTimestamp());
     }
     if (filter == null) {
@@ -292,9 +294,13 @@ public class TestThemisCpUtil extends TestBase {
     createdScan = ThemisCpUtil.constructLockAndWriteScan(scan, PREWRITE_TS);
     Assert.assertArrayEquals(startRow, createdScan.getStartRow());
     Assert.assertArrayEquals(stopRow, createdScan.getStopRow());
-    Assert.assertEquals(3, createdScan.getFamilies().length);
-    checkReadWithWriteColumns(createdScan.getFamilyMap(), new ColumnCoordinate(FAMILY,
+    if (ColumnUtil.isCommitToSameFamily()) {
+      Assert.assertEquals(3, createdScan.getFamilies().length);
+      checkReadWithWriteColumns(createdScan.getFamilyMap(), new ColumnCoordinate(FAMILY,
         QUALIFIER));
+    } else {
+      Assert.assertEquals(4, createdScan.getFamilies().length);
+    }
     Assert.assertTrue(createdScan.getFamilyMap().containsKey(ANOTHER_FAMILY)
         && createdScan.getFamilyMap().get(ANOTHER_FAMILY) == null);
     Assert.assertTrue(createdScan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)
@@ -305,7 +311,7 @@ public class TestThemisCpUtil extends TestBase {
   @Test
   public void testAddLockAndWriteColumnToGet() throws IOException {
     byte[][] families = new byte[][] {FAMILY, FAMILY, ANOTHER_FAMILY};
-    byte[][] qualifiers = new byte[][] {QUALIFIER, ANOTHER_FAMILY, QUALIFIER};
+    byte[][] qualifiers = new byte[][] {QUALIFIER, ANOTHER_QUALIFIER, QUALIFIER};
     Get userGet = new Get(ROW);
     for (int i = 0; i < families.length; ++i) {
       userGet.addColumn(families[i], qualifiers[i]);
@@ -313,8 +319,13 @@ public class TestThemisCpUtil extends TestBase {
     Get internalGet = new Get(userGet.getRow());
     ThemisCpUtil.addLockAndWriteColumnToGet(userGet, internalGet, PREWRITE_TS);
     Assert.assertEquals(3, internalGet.getFamilyMap().size());
-    Assert.assertEquals(4, internalGet.getFamilyMap().get(FAMILY).size());
-    Assert.assertEquals(2, internalGet.getFamilyMap().get(ANOTHER_FAMILY).size());
+    if (ColumnUtil.isCommitToSameFamily()) {
+      Assert.assertEquals(4, internalGet.getFamilyMap().get(FAMILY).size());
+      Assert.assertEquals(2, internalGet.getFamilyMap().get(ANOTHER_FAMILY).size());
+    } else {
+      Assert.assertEquals(3, internalGet.getFamilyMap().get(ColumnUtil.PUT_FAMILY_NAME_BYTES).size());
+      Assert.assertEquals(3, internalGet.getFamilyMap().get(ColumnUtil.DELETE_FAMILY_NAME_BYTES).size());
+    }
     Assert.assertEquals(3,
       internalGet.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME).size());
     for (int i = 0; i < families.length; ++i) {
@@ -329,7 +340,12 @@ public class TestThemisCpUtil extends TestBase {
     userGet.addFamily(FAMILY);
     internalGet = new Get(userGet.getRow());
     ThemisCpUtil.addLockAndWriteColumnToGet(userGet, internalGet, PREWRITE_TS);
-    checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME, FAMILY);
+    if (ColumnUtil.isCommitToSameFamily()) {
+      checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME, FAMILY);
+    } else {
+      checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME,
+        ColumnUtil.PUT_FAMILY_NAME_BYTES, ColumnUtil.DELETE_FAMILY_NAME_BYTES);
+    }
     Assert.assertTrue(internalGet.getFilter() instanceof ExcludeDataColumnFilter);
     
     // test for combination of family-level and column-level transfer
@@ -338,9 +354,14 @@ public class TestThemisCpUtil extends TestBase {
     userGet.addColumn(FAMILY, ANOTHER_QUALIFIER); // the column should not overwrite lock family
     internalGet = new Get(userGet.getRow());
     ThemisCpUtil.addLockAndWriteColumnToGet(userGet, internalGet, PREWRITE_TS);
-    checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME, ANOTHER_FAMILY);
-    checkReadWithWriteColumns(internalGet.getFamilyMap(), new ColumnCoordinate(FAMILY,
-        ANOTHER_QUALIFIER));
+    if (ColumnUtil.isCommitToSameFamily()) {
+      checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME, ANOTHER_FAMILY);
+      checkReadWithWriteColumns(internalGet.getFamilyMap(), new ColumnCoordinate(FAMILY,
+          ANOTHER_QUALIFIER));
+    } else {
+      checkAddLockAndDataFamily(internalGet, ColumnUtil.LOCK_FAMILY_NAME,
+        ColumnUtil.PUT_FAMILY_NAME_BYTES, ColumnUtil.DELETE_FAMILY_NAME_BYTES);
+    }
     Assert.assertTrue(internalGet.getFilter() instanceof ExcludeDataColumnFilter);
   }
 
