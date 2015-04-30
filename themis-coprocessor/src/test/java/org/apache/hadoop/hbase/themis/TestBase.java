@@ -186,6 +186,10 @@ public class TestBase {
     ColumnCoordinate dc = new ColumnCoordinate(column.getTableName(), column.getRow(), deleteColumn);
     return getKeyValue(dc, ts);
   }
+  
+  public static ColumnCoordinate getDeleteColumnCoordinate(ColumnCoordinate column) {
+    return new ColumnCoordinate(column.getTableName(), column.getRow(), ColumnUtil.getDeleteColumn(column));
+  }
 
   public static KeyValue getKeyValue(ColumnCoordinate c, long ts) {
     return new KeyValue(c.getRow(), c.getFamily(), c.getQualifier(), ts, Type.Put, VALUE);

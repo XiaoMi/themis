@@ -95,10 +95,14 @@ public class ColumnUtil {
   }
 
   public static boolean isDeleteColumn(Column column) {
+    return isDeleteColumn(column.getFamily(), column.getQualifier());
+  }
+  
+  public static boolean isDeleteColumn(byte[] family, byte[] qualifier) {
     if (isCommitToSameFamily()) {
-      return isQualifierWithSuffix(column.getQualifier(), DELETE_QUALIFIER_SUFFIX_BYTES);
+      return isQualifierWithSuffix(qualifier, DELETE_QUALIFIER_SUFFIX_BYTES);
     } else {
-      return Bytes.equals(DELETE_FAMILY_NAME_BYTES, column.getFamily());
+      return Bytes.equals(DELETE_FAMILY_NAME_BYTES, family);
     }
   }
   

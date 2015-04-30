@@ -1,6 +1,8 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Result;
@@ -12,12 +14,23 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
-  protected ResultScanner getResultScanner(byte[] tableName, long cleanTs) throws IOException {
+  protected ResultScanner getResultScanner(byte[] tableName, long cleanTs)
+      throws IOException {
+    return getTable(tableName).getScanner(getScan(cleanTs, false));
+  }
+  
+  protected Scan getScan(long cleanTs, boolean enableDelete) throws IOException {
     Scan scan = new Scan();
-    ThemisExpiredDataCleanFilter filter = new ThemisExpiredDataCleanFilter(cleanTs);
+    ThemisExpiredDataCleanFilter filter = enableDelete ? new ThemisExpiredDataCleanFilter(cleanTs,
+        getRegion()) : new ThemisExpiredDataCleanFilter(cleanTs);
     scan.setFilter(filter);
     scan.setMaxVersions();
-    return getTable(tableName).getScanner(scan);
+    return scan;
+  }
+  
+  public HRegion getRegion() throws IOException {
+    return TEST_UTIL.getRSForFirstRegionInTable(TABLENAME).getOnlineRegions(
+      TABLENAME).get(0);
   }
   
   @Test
@@ -81,6 +94,85 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
       Assert.assertArrayEquals(column.getFamily(), kv.getFamily());
       Assert.assertArrayEquals(column.getQualifier(), kv.getQualifier());
     }
+    scanner.close();
+  }
+  
+  @Test
+  public void testThemisExpiredDataCleanFilterEnableDelete() throws IOException {
+    // one row / one column
+    writeData(getDeleteColumnCoordinate(COLUMN), prewriteTs);
+    writeData(getDeleteColumnCoordinate(COLUMN), prewriteTs + 1);
+    // won't clean
+    RegionScanner scanner = getRegion().getScanner(getScan(prewriteTs, true));
+    List<KeyValue> result = new ArrayList<KeyValue>();
+    scanner.next(result);
+    Assert.assertEquals(2, result.size());
+    Assert.assertEquals(prewriteTs + 1, result.get(0).getTimestamp());
+    Assert.assertEquals(prewriteTs, result.get(1).getTimestamp());
+    scanner.close();
+    
+    // will clean one version
+    result.clear();
+    scanner = getRegion().getScanner(getScan(prewriteTs + 1, true));
+    scanner.next(result);
+    scanner.close();
+    result.clear();
+    // the scanner won't see the delete because mvcc, test in next scan
+    scanner = getRegion().getScanner(getScan(prewriteTs + 1, false));
+    scanner.next(result);
+    Assert.assertEquals(1, result.size());
+    Assert.assertEquals(prewriteTs + 1, result.get(0).getTimestamp());
+    result.clear();
+    scanner.close();
+    
+    // will clean all
+    scanner = getRegion().getScanner(getScan(prewriteTs + 2, true));
+    scanner.next(result);
+    Assert.assertEquals(1, result.size());
+    result.clear();
+    scanner.close();
+    scanner = getRegion().getScanner(getScan(prewriteTs + 2, false));
+    scanner.next(result);
+    Assert.assertEquals(0, result.size());
+    result.clear();
+    scanner.close();
+    
+    // one row / multi-columns
+    writeData(getDeleteColumnCoordinate(COLUMN_WITH_ANOTHER_QUALIFIER), prewriteTs);
+    writeData(getDeleteColumnCoordinate(COLUMN_WITH_ANOTHER_QUALIFIER), prewriteTs + 1);
+    writeData(getDeleteColumnCoordinate(COLUMN_WITH_ANOTHER_FAMILY), prewriteTs);
+    writeData(getDeleteColumnCoordinate(COLUMN_WITH_ANOTHER_FAMILY), prewriteTs + 1);
+    scanner = getRegion().getScanner(getScan(prewriteTs + 2, true));
+    scanner.next(result);
+    Assert.assertEquals(2, result.size());
+    result.clear();
+    scanner.close();
+    
+    scanner = getRegion().getScanner(getScan(prewriteTs + 2, false));
+    scanner.next(result);
+    Assert.assertEquals(0, result.size());
+    result.clear();
+    scanner.close();
+    
+    nextTransactionTs();
+    
+    // two row / multi-columns
+    writeData(getDeleteColumnCoordinate(COLUMN), prewriteTs);
+    writeData(getDeleteColumnCoordinate(COLUMN), prewriteTs + 1);
+    writeData(getDeleteColumnCoordinate(COLUMN_WITH_ANOTHER_ROW), prewriteTs);
+    writeData(getDeleteColumnCoordinate(COLUMN_WITH_ANOTHER_ROW), prewriteTs + 1);
+    scanner = getRegion().getScanner(getScan(prewriteTs + 2, true));
+    scanner.next(result);
+    Assert.assertEquals(1, result.size());
+    result.clear();
+    scanner.next(result);
+    Assert.assertEquals(1, result.size());
+    result.clear();
+    scanner.close();
+    
+    scanner = getRegion().getScanner(getScan(prewriteTs + 2, false));
+    scanner.next(result);
+    Assert.assertEquals(0, result.size());
     scanner.close();
   }
 }
