@@ -9,6 +9,8 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
+import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
@@ -87,7 +89,7 @@ public class TestThemisRegionObserver extends TransactionTestBase {
   }
   
   @Test
-  public void preCompactScannerOpen() throws Exception {
+  public void testPreCompactScannerOpen() throws Exception {
     // only test in MiniCluster
     if (TEST_UTIL != null) {
       ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
@@ -140,6 +142,40 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       Column putColumn = ColumnUtil.getPutColumn(COLUMN);
       Assert.assertNotNull(result.getValue(putColumn.getFamily(), putColumn.getQualifier()));
       deleteOldDataAndUpdateTs();
+
+      admin.close();
+      zk.close();
+    }
+  }  
+
+  @Test
+  public void testPreCompactScannerOpenEnableDeletingThemisDeletedData() throws Exception {
+    // only test in MiniCluster
+    if (TEST_UTIL != null) {
+      tearUp();
+      TEST_UTIL.shutdownMiniCluster();
+      // start the cluster and enable THEMIS_DELETE_THEMIS_DELETED_DATA_WHEN_COMPACT
+      TransactionTestBase.useMiniCluster();
+      conf.set(ThemisRegionObserver.THEMIS_DELETE_THEMIS_DELETED_DATA_WHEN_COMPACT, "true");
+      TransactionTTL.timestampType = TimestampType.MS;
+      TransactionTestBase.startMiniCluster(conf);
+      initEnv();
+      
+      ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
+      HBaseAdmin admin = new HBaseAdmin(connection);
+
+      prewriteTestDataForPreFlushAndPreCompact();
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
+      admin.flush(TABLENAME); // cleanTs is invalid when flush
+      ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
+        Bytes.toBytes(String.valueOf(prewriteTs + 5)));
+      admin.majorCompact(TABLENAME); // cleanTs is valid when compact
+      Threads.sleep(5000); // wait compaction complete
+      Result result = getRowByScan();
+      Assert.assertNull(result);
+      deleteOldDataAndUpdateTs();
+      conf.set(ThemisRegionObserver.THEMIS_DELETE_THEMIS_DELETED_DATA_WHEN_COMPACT, "false");
 
       admin.close();
       zk.close();
