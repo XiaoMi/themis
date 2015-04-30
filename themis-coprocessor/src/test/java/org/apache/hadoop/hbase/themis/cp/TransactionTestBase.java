@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil.CommitFamily;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -153,18 +154,26 @@ public class TransactionTestBase extends TestBase {
     boolean allDataCleaned = false;
     do {
       nextTransactionTs();
-      for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
-        for (HTableInterface hTable : tables) {
+      allDataCleaned = true;
+      for (HTableInterface hTable : tables) {
+        for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
           hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
               .deleteFamily(ANOTHER_FAMILY, timestampBase)
               .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+          if (!ColumnUtil.isCommitToSameFamily()) {
+            hTable.delete(new Delete(row).deleteFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES,
+              timestampBase).deleteFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES, timestampBase));
+          }
         }
-      }
-      ResultScanner scanner = table.getScanner(new Scan());
-      allDataCleaned = (scanner.next() == null);
-      if (allDataCleaned) {
-        scanner = anotherTable.getScanner(new Scan());
-        allDataCleaned = (scanner.next() == null);
+
+        ResultScanner scanner = table.getScanner(new Scan());
+        Result result = null;
+        while ((result = scanner.next()) != null) {
+          allDataCleaned = false;
+          System.out.println("###debug, result=" + result + ", table="
+              + Bytes.toString(hTable.getTableName()));
+        }
+        scanner.close();
       }
     } while (!allDataCleaned);
   }

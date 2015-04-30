@@ -72,6 +72,10 @@ public class Transaction extends Configured implements TransactionInterface {
   protected Indexer indexer;
   protected boolean disableLockClean = false;
   
+  public static void init(Configuration conf) throws IOException {
+    ColumnUtil.init(conf);
+  }
+  
   // will use the connection.getConfiguation() to config the Transaction
   public Transaction(HConnection connection) throws IOException {
     this(connection.getConfiguration(), connection);

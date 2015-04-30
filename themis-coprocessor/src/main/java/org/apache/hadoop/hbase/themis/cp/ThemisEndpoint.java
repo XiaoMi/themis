@@ -62,6 +62,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     // super.start(env);
     if (env instanceof RegionCoprocessorEnvironment) {
       this.env = (RegionCoprocessorEnvironment) env;
+      ColumnUtil.init(env.getConfiguration());
       TransactionTTL.init(env.getConfiguration());
     } else {
       throw new CoprocessorException("Must be loaded on a table region!");

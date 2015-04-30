@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -186,7 +187,12 @@ public class ThemisCpUtil {
       } else {
         // TODO : use filter to read out lock columns corresponding to needed data column
         internalGet.addFamily(ColumnUtil.LOCK_FAMILY_NAME);
-        internalGet.addFamily(entry.getKey());
+        if (ColumnUtil.isCommitToSameFamily()) {
+          internalGet.addFamily(entry.getKey());
+        } else {
+          internalGet.addFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES);
+          internalGet.addFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES);
+        }
         excludeDataColumn = true;
       }
     }
@@ -201,8 +207,9 @@ public class ThemisCpUtil {
     if (!result.isEmpty()) {
       List<KeyValue> kvs = new ArrayList<KeyValue>();
       for (KeyValue kv : result.list()) {
-        if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamily())) {
-          Column dataColumn = ColumnUtil.getDataColumnFromLockColumn(new Column(kv.getFamily(), kv
+        if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamily())
+            || ColumnUtil.isCommitFamily(kv.getFamily())) {
+          Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(new Column(kv.getFamily(), kv
               .getQualifier()));
           if (familyMap.containsKey(dataColumn.getFamily())) {
             Set<byte[]> qualifiers= familyMap.get(dataColumn.getFamily());
@@ -234,7 +241,9 @@ public class ThemisCpUtil {
     if (!get.hasFamilies()) {
       for (HColumnDescriptor family : families) {
         if (!Bytes.equals(family.getName(), ColumnUtil.LOCK_FAMILY_NAME)) {
-          get.addFamily(family.getName());
+          if (ColumnUtil.isCommitToSameFamily() || !ColumnUtil.isCommitFamily(family.getName())) {
+            get.addFamily(family.getName());
+          }
         }
       }
     }
@@ -244,13 +253,19 @@ public class ThemisCpUtil {
     if (!scan.hasFamilies()) {
       for (HColumnDescriptor family : families) {
         if (!Bytes.equals(family.getName(), ColumnUtil.LOCK_FAMILY_NAME)) {
-          scan.addFamily(family.getName());
+          if (ColumnUtil.isCommitToSameFamily() || !ColumnUtil.isCommitFamily(family.getName())) {
+            scan.addFamily(family.getName());
+          }
         }
       }
-    } else if (scan.getFamilyMap().containsKey(ColumnUtil.LOCK_FAMILY_NAME)) {
+    } else {
       // before ThemisScanObserver.preScannerOpen is invoked, all families of the table will
       // be added the the scan if scan the whole row, so that we need remove lock family
       scan.getFamilyMap().remove(ColumnUtil.LOCK_FAMILY_NAME);
+      if (!ColumnUtil.isCommitToSameFamily()) {
+        scan.getFamilyMap().remove(ColumnUtil.PUT_FAMILY_NAME_BYTES);
+        scan.getFamilyMap().remove(ColumnUtil.DELETE_FAMILY_NAME_BYTES);
+      }
     }
   }
 
@@ -269,6 +284,10 @@ public class ThemisCpUtil {
         // TODO : use filter to read out lock columns corresponding to needed data column
         internalScan.addFamily(ColumnUtil.LOCK_FAMILY_NAME);
         internalScan.addFamily(entry.getKey());
+        if (!ColumnUtil.isCommitToSameFamily()) {
+          internalScan.addFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES);
+          internalScan.addFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES);
+        }
         excludeDataColumn = true;
       }
     }
@@ -287,10 +306,18 @@ public class ThemisCpUtil {
       Column lockColumn = ColumnUtil.getLockColumn(column);
       scan.addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
     }
-    Column writeColumn = ColumnUtil.getPutColumn(column);
-    scan.addColumn(writeColumn.getFamily(), writeColumn.getQualifier());
+    Column putColumn = ColumnUtil.getPutColumn(column);
+    if (ColumnUtil.isCommitToSameFamily()
+        || !(scan.getFamilyMap().containsKey(ColumnUtil.PUT_FAMILY_NAME_BYTES) && scan
+            .getFamilyMap().get(ColumnUtil.PUT_FAMILY_NAME_BYTES) == null)) {
+      scan.addColumn(putColumn.getFamily(), putColumn.getQualifier());
+    }
     Column deleteColumn = ColumnUtil.getDeleteColumn(column);
-    scan.addColumn(deleteColumn.getFamily(), deleteColumn.getQualifier());
+    if (ColumnUtil.isCommitToSameFamily()
+        || !(scan.getFamilyMap().containsKey(ColumnUtil.DELETE_FAMILY_NAME_BYTES) && scan
+            .getFamilyMap().get(ColumnUtil.DELETE_FAMILY_NAME_BYTES) == null)) {
+      scan.addColumn(deleteColumn.getFamily(), deleteColumn.getQualifier());
+    }
   }
 
   public static Get constructDataGetByPutKvs(List<KeyValue> putKvs, Filter filter)
@@ -328,36 +355,69 @@ public class ThemisCpUtil {
 
   // get put kv which has greater timestamp than delete kv under the same family
   protected static List<KeyValue> getPutKvs(List<KeyValue> writeKvs) {
-    List<KeyValue> result = new ArrayList<KeyValue>();
-    Column lastDataColumn = null;
-    KeyValue lastKv = null;
-    for (int i = 0; i < writeKvs.size(); ++i) {
-      KeyValue kv = writeKvs.get(i);
-      Column column = new Column(kv.getFamily(), kv.getQualifier());
-      Column dataColumn = ColumnUtil.getDataColumn(column);
-      if (lastDataColumn != null && lastDataColumn.equals(dataColumn)) {
-        if (lastKv.getTimestamp() < kv.getTimestamp()) {
+    if (ColumnUtil.isCommitToSameFamily()) {
+      List<KeyValue> result = new ArrayList<KeyValue>();
+      Column lastDataColumn = null;
+      KeyValue lastKv = null;
+      for (int i = 0; i < writeKvs.size(); ++i) {
+        KeyValue kv = writeKvs.get(i);
+        Column column = new Column(kv.getFamily(), kv.getQualifier());
+        Column dataColumn = ColumnUtil.getDataColumn(column);
+        if (lastDataColumn != null && lastDataColumn.equals(dataColumn)) {
+          if (lastKv.getTimestamp() < kv.getTimestamp()) {
+            lastKv = kv;
+          }
+        } else {
+          if (lastKv != null && ColumnUtil.isPutColumn(lastKv.getFamily(), lastKv.getQualifier())) {
+            result.add(lastKv);
+          }
+          lastDataColumn = dataColumn;
           lastKv = kv;
         }
-      } else {
-        if (lastKv != null && ColumnUtil.isPutColumn(lastKv.getFamily(), lastKv.getQualifier())) {
-          result.add(lastKv);
-        }
-        lastDataColumn = dataColumn;
-        lastKv = kv;
+      }
+      if (lastKv != null && ColumnUtil.isPutColumn(lastKv.getFamily(), lastKv.getQualifier())) {
+        result.add(lastKv);
+      }
+      return result;
+    } else {
+      return getPutKvsForCommitDifferentFamily(writeKvs);
+    }
+  }
+  
+  protected static List<KeyValue> getPutKvsForCommitDifferentFamily(List<KeyValue> writeKvs) {
+    Map<Column, KeyValue> map = new HashMap<Column, KeyValue>();
+    for (KeyValue kv : writeKvs) {
+      Column column = new Column(kv.getFamily(), kv.getQualifier());
+      Column dataColumn = ColumnUtil.getDataColumn(column);
+      KeyValue existKv = map.get(dataColumn);
+      if (existKv == null || kv.getTimestamp() > existKv.getTimestamp()) {
+        map.put(dataColumn, kv);
       }
     }
-    if (lastKv != null && ColumnUtil.isPutColumn(lastKv.getFamily(), lastKv.getQualifier())) {
-      result.add(lastKv);
+    List<KeyValue> result = new ArrayList<KeyValue>();
+    for (Entry<Column, KeyValue> entry : map.entrySet()) {
+      KeyValue kv = entry.getValue();
+      if (ColumnUtil.isPutColumn(kv.getFamily(), kv.getQualifier())) {
+        result.add(kv);
+      }
     }
     return result;
   }
 
   public static void addWriteColumnToGet(Column column, Get get) {
-    Column writeColumn = ColumnUtil.getPutColumn(column);
-    get.addColumn(writeColumn.getFamily(), writeColumn.getQualifier());
+    Column putColumn = ColumnUtil.getPutColumn(column);
+    if (ColumnUtil.isCommitToSameFamily()
+        || !(get.getFamilyMap().containsKey(ColumnUtil.PUT_FAMILY_NAME_BYTES) && get.getFamilyMap()
+            .get(ColumnUtil.PUT_FAMILY_NAME_BYTES) == null)) {
+      get.addColumn(putColumn.getFamily(), putColumn.getQualifier());
+    }
     Column deleteColumn = ColumnUtil.getDeleteColumn(column);
-    get.addColumn(deleteColumn.getFamily(), deleteColumn.getQualifier());
+    if (ColumnUtil.isCommitToSameFamily()
+        || !(get.getFamilyMap().containsKey(ColumnUtil.DELETE_FAMILY_NAME_BYTES) && get
+            .getFamilyMap()
+        .get(ColumnUtil.DELETE_FAMILY_NAME_BYTES) == null)) {
+      get.addColumn(deleteColumn.getFamily(), deleteColumn.getQualifier());
+    }
   }
 
   public static boolean isLockResult(Result result) {

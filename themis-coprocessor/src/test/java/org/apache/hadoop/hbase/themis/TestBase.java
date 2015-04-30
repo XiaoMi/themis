@@ -10,12 +10,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil.CommitFamily;
 import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
 import org.apache.hadoop.hbase.themis.lock.SecondaryLock;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
@@ -199,5 +202,11 @@ public class TestBase {
 
   public static Column getColumn(ColumnCoordinate columnCoordinate) {
     return new Column(columnCoordinate.getFamily(), columnCoordinate.getQualifier());
+  }
+  
+  public static void useCommitFamily(CommitFamily commitFamily) {
+    Configuration conf = HBaseConfiguration.create();
+    conf.set(ColumnUtil.THEMIS_COMMIT_FAMILY_TYPE, commitFamily.toString());
+    ColumnUtil.init(conf);
   }
 }
