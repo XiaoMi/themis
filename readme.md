@@ -8,53 +8,100 @@ Themis guarantees the ACID characteristics of cross-row transaction by two-phase
 
 ## Implementation 
 
-The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
+Themis contains three components: timestamp server, client library, themis coprocessor.
 
-![themis_architecture](http://git.n.xiaomi.com/infra/themis/raw/master/themis_architecture.png)
+![themis_architecture](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
 
-**Themis Client:**
+**Timestamp Server**
 
-1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
-2. MutationCache: index the mutations of users by rows in client side.
-3. ThemisCoprocessorClient: the client to access themis coprocessor.
-4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
-5. LockCleaner: resovle write/write conflict and read/write conflict.
+Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must be global strictly incremental. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide such timestamp service.
 
-Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
+**Client Library**
+
+1. Provide transaction APIs.
+2. Fetch timestamp from chronos.
+3. Issue requests to themis coprocessor in server-side.
+4. Resolve conflict for concurrent mutations of other clients.
 
 **Themis Coprocessor:**
 
-1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
-2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
-3. ThemisRegionObserver: single-row write optimization, add data clean filter to the scanner of flush and compaction.
-4. ThemisMasterObserver: automatically add lock family when users creating table, set timestamp for data clean periodly.
+1. Provide RPC methods for two-phase commit and read.
+2. Create auxiliary families and set family attributes for the algorithm automatically.
+3. Periodically clean the data of the aborted and expired transactions.
 
+## Usage 
 
-### Principal
+### Build 
 
-**Themis Write:**
+1. get the latest source code of Themis:
 
-1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
-2. Prewrite-Phase: get timestamp from chronos(denoted as prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
-3. After prewrite-phase finished, get timestamp from chronos(denoted as commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs if the persistent lock of primaryColumn is not deleted.
-4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumns.
+     ```
+     git clone git@github.com:XiaoMi/themis.git 
+     ```
 
-Themis applies transaction mutations by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
+2. the master branch of Themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We can download source code of hbase 0.94.21 and install in maven local repository by:
+   
+     ```
+     (in the directory of hbase 0.94.21)
+     mvn clean install -DskipTests -Dhadoop.profile=2.0
+     ```
 
-**Themis Read:**
+3. build Themis:
 
-1. Get timestamp from chronos(named startTs), check the read/write conflicts.
-2. Read the snapshot of database before startTs when there are no read/write conflicts.
+     ```
+     cd themis
+     mvn clean package -DskipTests
+     ```
 
-Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
+### Loads themis coprocessor in HBase: 
 
-**Conflict Resolution:**
+1. add themis-coprocessor dependency in the pom of HBase:
 
-There might be write/write and read/write conflicts as described. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
+     ```
+     <dependency>
+       <groupId>com.xiaomi.infra</groupId>
+       <artifactId>themis-coprocessor</artifactId>
+       <version>1.0-SNAPSHOT</version>
+     </dependency>
+     ```
+                                          
+2. add configurations for themis coprocessor in hbase-site.xml:
 
-Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
+     ```
+     <property>
+       <name>hbase.coprocessor.user.region.classes</name>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
+     </property>
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
+
+     ```
+
+### Depends themis-client:
+
+add the themis-client dependency to pom of project which needs cross-row transactions.
+
+     <dependency>
+       <groupId>com.xiaomi.infra</groupId>
+       <artifactId>themis-client</artifactId>
+       <version>1.0-SNAPSHOT</version>
+     </dependency>
+
+### Run the example code
+
+1. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
+
+2. after building Themis, run "org.apache.hadoop.hbase.themis.example.Example.java" by:
+     
+     mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
+  
+The screen will output the result of read and write transactions.
 
 ## Example of Themis API
+
+3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
 
 ### themisPut 
 
@@ -105,64 +152,6 @@ In above code, the mutations of two rows will both be applied to HBase and visia
 Themis will get a timestamp from chronos before transaction starts, and will promise to read the database snapshot before the timestamp.
 
 For more example code, please see [Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
-
-## Usage 
-
-### Loads themis coprocessor in server side 
-
-1. add themis-coprocessor dependency in the pom of HBase:
-
-     ```
-     <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-coprocessor</artifactId>
-       <version>1.0-SNAPSHOT</version>
-     </dependency>
-     ```
-                                          
-2. add configurations for themis coprocessor in hbase-site.xml:
-
-     ```
-     <property>
-       <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
-     </property>
-     <property>
-        <name>hbase.coprocessor.master.classes</name>
-        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
-     </property>
-
-     ```
-
-3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
-
-### Depends themis-client
-
-add the themis-client dependency to pom of project which needs cross-row transactions.
-
-     <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-client</artifactId>
-       <version>1.0-SNAPSHOT</version>
-     </dependency>
-
-### Run example code
-
-1. the master branch depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
-   
-     mvn clean install -DskipTests -Dhadoop.profile=2.0
-
-2. install themis in maven local repository(in the directory of themis):
-
-     mvn clean install -DskipTests
-
-3. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
-
-4. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
-     
-     mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
-  
-The result of themisPut/themisGet/themisDelete/themisScan will output to screen.
 
 ### Themis Options
 
