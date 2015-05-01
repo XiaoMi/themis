@@ -4,7 +4,7 @@
 
 Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
 
-Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [Chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of themis for a few months, and optimize the algorithm to achieve better performance.
+Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [Chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes Themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of Themis for a few months, and optimize the algorithm to achieve better performance.
 
 ## Implementation 
 
@@ -14,12 +14,12 @@ Themis contains three components: timestamp server, client library, themis copro
 
 **Timestamp Server**
 
-Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must be global strictly incremental. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide such timestamp service.
+Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must be global strictly incremental. Themis depends on [Chronos](https://github.com/XiaoMi/chronos) to provide such timestamp service.
 
 **Client Library**
 
 1. Provide transaction APIs.
-2. Fetch timestamp from chronos.
+2. Fetch timestamp from Chronos.
 3. Issue requests to themis coprocessor in server-side.
 4. Resolve conflict for concurrent mutations of other clients.
 
@@ -33,20 +33,20 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
 ### Build 
 
-1. get the latest source code of Themis:
+1. Get the latest source code of Themis:
 
      ```
      git clone git@github.com:XiaoMi/themis.git 
      ```
 
-2. the master branch of Themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We can download source code of hbase 0.94.21 and install in maven local repository by:
+2. The master branch of Themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We can download source code of hbase 0.94.21 and install it in maven local repository by:
    
      ```
      (in the directory of hbase 0.94.21)
      mvn clean install -DskipTests -Dhadoop.profile=2.0
      ```
 
-3. build Themis:
+3. Build Themis:
 
      ```
      cd themis
@@ -55,7 +55,7 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
 ### Loads themis coprocessor in HBase: 
 
-1. add themis-coprocessor dependency in the pom of HBase:
+1. Add themis-coprocessor dependency in the pom of HBase:
 
      ```
      <dependency>
@@ -65,7 +65,7 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
      </dependency>
      ```
                                           
-2. add configurations for themis coprocessor in hbase-site.xml:
+2. Add configurations for themis coprocessor in hbase-site.xml:
 
      ```
      <property>
@@ -79,23 +79,24 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
      ```
 
+3. Add the themis-client dependency in the pom of project which needs cross-row transactions.
+
 ### Depends themis-client:
 
-add the themis-client dependency to pom of project which needs cross-row transactions.
+Add the themis-client dependency in the pom of project which needs cross-row transactions.
 
-     ```
      <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-client</artifactId>
-       <version>1.0-SNAPSHOT</version>
+      <groupId>com.xiaomi.infra</groupId>
+      <artifactId>themis-client</artifactId>
+      <version>1.0-SNAPSHOT</version>
      </dependency>
-     ```
+
 
 ### Run the example code
 
-1. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
+1. Start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
 
-2. after building Themis, run example code by:
+2. After building Themis, run example code by:
      
      ```
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
@@ -107,17 +108,14 @@ The screen will output the result of read and write transactions.
 
 The APIs of Themis are defined in TransactionInterface.java, including put/delete/get/getScanner, which are similar to HBase's APIs:
 
-     ```
      public void put(byte[] tableName, ThemisPut put) throws IOException;
      public void delete(byte[] tableName, ThemisDelete delete) throws IOException;
      public void commit() throws IOException;
      public Result get(byte[] tableName, ThemisGet get) throws IOException;
      public ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException;
-     ```
 
 The following code shows how to use Themis APIs:
 
-     ```
      // This class shows an example of transfer $3 from Joe to Bob in cash table, where rows of Joe and Bob are
      // located in different regions. The example will use the 'put' and 'get' APIs of Themis to do transaction.
      public class Example {
@@ -183,7 +181,6 @@ The following code shows how to use Themis APIs:
          Transaction.destroy();
        }
      }
-     ```
 
 For the full example, please see : org.apache.hadoop.hbase.themis.example.Example.java
 
@@ -191,7 +188,7 @@ For the full example, please see : org.apache.hadoop.hbase.themis.example.Exampl
 
 1. Themis will use the timestamp of KeyValue internally, so that the timestamp and version attributes of HBase's KeyValue can't be used by the application.
 2. For families need Themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table.
-3. For each column, Themis will introduce two auxiliary columns : lock column and commit column. Themis saves the auxiliary columns in specific families : lock column in family 'L', and commit column in family #p(or in family #d if it is a Delete). The character '#' is preserved by Themis and application should not include it in name of the family needing Themis. Themis will create auxiliary families when creating table automically if 'THEMIS_ENABLE' is set on some family.
+3. For each column, Themis will introduce two auxiliary columns : lock column and commit column. Themis saves the auxiliary columns in specific families : lock column in family 'L', and commit column in family #p(or in family #d if it is a Delete). The character '#' is preserved by Themis and application should not include it in name of the family needing Themis. Themis will create auxiliary families automically when creating table if 'THEMIS_ENABLE' is set on some family.
 
 ## Themis Configuration 
 
@@ -199,9 +196,9 @@ For the full example, please see : org.apache.hadoop.hbase.themis.example.Exampl
 
 **Timestamp server**
 
-If users want strong consistency across client processes, the 'themis.timestamp.oracle.class' should be set to 'RemoteTimestampOracleProxy'. Then, Themis will access globally incremental timestamp from [Chronos](https://github.com/XiaoMi/chronos), the entry of Chronos will be registered in Zookeeper quorum which can also be configured. 
+If users want strong consistency across client processes, the 'themis.timestamp.oracle.class' should be set to 'RemoteTimestampOracleProxy'. Then, Themis will access globally incremental timestamp from [Chronos](https://github.com/XiaoMi/chronos), the entry of Chronos will be registered in Zookeeper where the quorum address and entry node can be configured. 
 
-The default value of 'themis.timestamp.oracle.class' is 'LocalTimestampOracle', which provides incremental timestamp in one process. If users only need strong consistency in one clent process, the default value could be used. 
+The default value of 'themis.timestamp.oracle.class' is 'LocalTimestampOracle', which provides incremental timestamp locally in one process. If users only need strong consistency in one clent process, the default value could be used. 
 
 | Key                                        | Description                                        | Default Value        |
 |--------------------------------------------|----------------------------------------------------|----------------------|
@@ -213,7 +210,7 @@ The default value of 'themis.timestamp.oracle.class' is 'LocalTimestampOracle', 
 
 The client needs to clean lock if encountering conflict. Users can configure the ttl of lock in client-side by 'themis.client.lock.clean.ttl'. The default value of this configuration is 0, which means the lock ttl will be decided by the server side configurations.
 
-Users can configure 'themis.worker.register.class' to 'ZookeeperWorkerRegister' to help resolve conflict faster. For details of conflict resolve, please see: [Percolator](http://research.google.com/pubs/pub36726.html). 
+Users can configure 'themis.worker.register.class' to 'ZookeeperWorkerRegister' to help resolve conflict faster. For details of conflict resolve, please see: [Percolator](http://research.google.com/pubs/pub36726.html) paper. 
 
 | Key                                        | Description                                        | Default Value        |
 |--------------------------------------------|----------------------------------------------------|----------------------|
@@ -226,9 +223,9 @@ Users can configure 'themis.worker.register.class' to 'ZookeeperWorkerRegister' 
 
 **Data Clean Options**
 
-Both read and write transactions should not last too long. Users can set 'themis.transaction.ttl.enable' to decide whether enable transaction ttl. If this configuration is enabled, 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' could be used to configure the ttl for read transaction and write transaction respectively.
+Both read and write transactions should not last too long. Users can set 'themis.transaction.ttl.enable' to enable transaction ttl. If this configuration is enabled, 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' could be used to configure the ttl for read transaction and write transaction respectively.
 
-If users enable transaction ttl, old data may become expired and can not be read by any transaction. Users can set 'themis.expired.data.clean.enable' to decide whether clean such old and expired data from HBase.
+If users enable transaction ttl, old data may become expired and can not be read by any transaction. Users can enable 'themis.expired.data.clean.enable' to clean the old and expired data from HBase.
 
 | Key                                        | Description                                        | Default Value        |
 |--------------------------------------------|----------------------------------------------------|----------------------|
@@ -243,19 +240,19 @@ Themis implement InputFormat and OutputFormat interface in MapReduce framework:
 
 1. ThemisTableInputFormat is implemented to read data from themis-enable table in Mapper. To read data from multi-tables, please use MultiThemisTableInputFormat.
 
-2. ThemisTableOutputFormat is implemented to write data by themis to themis-enable table in Reducer. To write data across multi-tables, please use MultiThemisTableOutputFormat.
+2. ThemisTableOutputFormat is implemented to write data by Themis to themis-enable table in Reducer. To write data across multi-tables, please use MultiThemisTableOutputFormat.
 
 3. ThemisTableMapReduceUtil provides utility methods to start a MapReduce job.
 
 ### Global Secondary Index Support
 
-Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, this sub-project is in progress. 
+Based on the cross table data consistency guaranteed by Themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, this sub-project is in progress. 
 
 ## Test 
 
 ### Correctness Validation
 
-We design an AccountTransfer simulation program to validate the correctness of implementation. This program will distribute initial values in different tables, rows and columns in HBase. Each column represents an account. Then, configured client threads will be concurrently started to read out a number of account values from different tables and rows by themisGet. After this, clients will randomly transfer values among these accounts while keeping the sum unchanged, which simulates concurrent cross-table/cross-row transactions. To check the correctness of transactions, a checker thread will periodically scan account values from all columns, make sure the current total value is the same as the initial total value. We run this validation program for a period when releasing a new version for themis.
+We design an AccountTransfer simulation program to validate the correctness of implementation. This program will distribute initial values in different tables, rows and columns in HBase. Each column represents an account. Then, configured client threads will be concurrently started to read out a number of account values from different tables and rows by themisGet. After this, clients will randomly transfer values among these accounts while keeping the sum unchanged, which simulates concurrent cross-table/cross-row transactions. To check the correctness of transactions, a checker thread will periodically scan account values from all columns, make sure the current total value is the same as the initial total value. We run this validation program for a period when releasing a new version for Themis.
 
 ### Performance Test 
 
@@ -269,7 +266,7 @@ We design an AccountTransfer simulation program to validate the correctness of i
 | Write/s     | 31003     | 7232             | 0.23                |
 
 **Themis Result:**
-We evaluate the performance of themis under similar test conditions with percolator's and give the relative drop compared to HBase.
+We evaluate the performance of Themis under similar test conditions with percolator's and give the relative drop compared to HBase.
 
 Evaluation of themisGet. Load 30g data into HBase before testing themisGet by reading loaded rows. We set the heap size of region server to 10g and hfile.block.cache.size=0.45.
 
