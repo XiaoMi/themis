@@ -4,112 +4,56 @@
 
 Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
 
-Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The APIs of themis are similar with HBase's, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, and try to optimize the [percolator](http://research.google.com/pubs/pub36726.html) algorithm to achieve better performance.
+Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [Chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of themis for a few months, and optimize the algorithm to achieve better performance.
 
-## Example of Themis API
+## Implementation 
 
-### themisPut 
-
-    Configuration conf = HBaseConfiguration.create();
-    HConnection connection = HConnectionManager.createConnection(conf);
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisPut put = new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    put = new ThemisPut(ANOTHER_ROW).add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    transaction.commit();
-
-### themisDelete 
-
-     Transaction transaction = new Transaction(conf, connection);
-     ThemisDelete delete = new ThemisDelete(ROW);
-     delete.deleteColumn(FAMILY, QUALIFIER);
-     transaction.delete(TABLENAME, delete);
-     delete = new ThemisDelete(ANOTHER_ROW);
-     delete.deleteColumn(FAMILY, QUALIFIER);
-     transaction.delete(TABLENAME, delete);
-     transaction.commit();
-
-In above code, the mutations of two rows will both be applied to HBase and visiable to read after transaction.commit() finished. If transaction.commit() failed, neither of the two mutations will be visiable to read.
-
-### themisGet 
-
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisGet get = new ThemisGet(ROW).addColumn(FAMILY, QUALIFIER);
-    Result resultA = transaction.get(TABLENAME, get);
-    get = new ThemisGet(ANOTHER_ROW).addColumn(FAMILY, QUALIFIER);
-    Result resultB = transaction.get(TABLENAME, get);
-    // themisGet will return consistent results from ROW and ANOTHER_ROW 
-
-### themisScan
-
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisScan scan = new ThemisScan();
-    scan.addColumn(FAMILY, QUALIFIER);
-    ThemisScanner scanner = transaction.getScanner(TABLENAME, scan);
-    Result result = null;
-    while ((result = scanner.next()) != null) {
-      // themisScan will return consistent state of database
-      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
-    }
-    scanner.close();
-
-Themis will get a timestamp from chronos before transaction starts, and will promise to read the database snapshot before the timestamp.
-
-For more example code, please see [Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
-
-## Principal and Implementation 
-
-### Principal
-
-**Themis Write:**
-
-1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
-2. Prewrite-Phase: get timestamp from chronos(denoted as prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
-3. After prewrite-phase finished, get timestamp from chronos(denoted as commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs if the persistent lock of primaryColumn is not deleted.
-4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumns.
-
-Themis applies transaction mutations by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
-
-**Themis Read:**
-
-1. Get timestamp from chronos(named startTs), check the read/write conflicts.
-2. Read the snapshot of database before startTs when there are no read/write conflicts.
-
-Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
-
-**Conflict Resolution:**
-
-There might be write/write and read/write conflicts as described. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
-
-Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
-
-### Themis Implementation
-
-The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
+Themis contains three components: timestamp server, client library, themis coprocessor.
 
 ![themis_architecture](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
 
-**Themis Client:**
+**Timestamp Server**
 
-1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
-2. MutationCache: index the mutations of users by rows in client side.
-3. ThemisCoprocessorClient: the client to access themis coprocessor.
-4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
-5. LockCleaner: resovle write/write conflict and read/write conflict.
+Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must be global strictly incremental. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide such timestamp service.
 
-Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
+**Client Library**
+
+1. Provide transaction APIs.
+2. Fetch timestamp from chronos.
+3. Issue requests to themis coprocessor in server-side.
+4. Resolve conflict for concurrent mutations of other clients.
 
 **Themis Coprocessor:**
 
-1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
-2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
-3. ThemisRegionObserver: single-row write optimization, add data clean filter to the scanner of flush and compaction.
-4. ThemisMasterObserver: automatically add lock family when users creating table, set timestamp for data clean periodly.
+1. Provide RPC methods for two-phase commit and read.
+2. Create auxiliary families and set family attributes for the algorithm automatically.
+3. Periodically clean the data of the aborted and expired transactions.
 
 ## Usage 
 
-### Loads themis coprocessor in server side 
+### Build 
+
+1. get the latest source code of Themis:
+
+     ```
+     git clone git@github.com:XiaoMi/themis.git 
+     ```
+
+2. the master branch of Themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We can download source code of hbase 0.94.21 and install in maven local repository by:
+   
+     ```
+     (in the directory of hbase 0.94.21)
+     mvn clean install -DskipTests -Dhadoop.profile=2.0
+     ```
+
+3. build Themis:
+
+     ```
+     cd themis
+     mvn clean package -DskipTests
+     ```
+
+### Loads themis coprocessor in HBase: 
 
 1. add themis-coprocessor dependency in the pom of HBase:
 
@@ -135,67 +79,163 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
      ```
 
-3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
-
-### Depends themis-client
+### Depends themis-client:
 
 add the themis-client dependency to pom of project which needs cross-row transactions.
 
+     ```
      <dependency>
        <groupId>com.xiaomi.infra</groupId>
        <artifactId>themis-client</artifactId>
        <version>1.0-SNAPSHOT</version>
      </dependency>
+     ```
 
-### Run example code
+### Run the example code
 
-1. the master branch depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
-   
-     mvn clean install -DskipTests -Dhadoop.profile=2.0
+1. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
 
-2. install themis in maven local repository(in the directory of themis):
-
-     mvn clean install -DskipTests
-
-3. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
-
-4. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
+2. after building Themis, run example code by:
      
+     ```
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
+     ```
   
-The result of themisPut/themisGet/themisDelete/themisScan will output to screen.
+The screen will output the result of read and write transactions.
 
-### Themis Options
+## Example of Themis API
 
-**Use Chronos As Timestamp Oracle**
+The APIs of Themis are defined in TransactionInterface.java, including put/delete/get/getScanner, which are similar to HBase's APIs:
 
-Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
+     ```
+     public void put(byte[] tableName, ThemisPut put) throws IOException;
+     public void delete(byte[] tableName, ThemisDelete delete) throws IOException;
+     public void commit() throws IOException;
+     public Result get(byte[] tableName, ThemisGet get) throws IOException;
+     public ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException;
+     ```
 
-1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/chronos/.
+The following code shows how to use Themis APIs:
 
-2. set themis.timestamp.oracle.class to "org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in the config of cliet-side. With this config, themis will connect Chronos cluster in local machine.
+     ```
+     // This class shows an example of transfer $3 from Joe to Bob in cash table, where rows of Joe and Bob are
+     // located in different regions. The example will use the 'put' and 'get' APIs of Themis to do transaction.
+     public class Example {
+       private static final byte[] CASHTABLE = Bytes.toBytes("CashTable"); // cash table
+       private static final byte[] JOE = Bytes.toBytes("Joe"); // row for Joe
+       private static final byte[] BOB = Bytes.toBytes("Bob"); // row for Bob
+       private static final byte[][] splits = new byte[][]{Bytes.toBytes("C")};
+       private static final byte[] FAMILY = Bytes.toBytes("Account");
+       private static final byte[] CASH = Bytes.toBytes("cash");
+       private static Configuration conf;
 
-3. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'.
+       public static void main(String args[]) throws IOException {
+         conf = HBaseConfiguration.create();
+         HConnection connection = HConnectionManager.createConnection(conf);
+         // will create 'CashTable' for test, the corresponding shell command is:
+         // create 'CashTable', {NAME=>'ThemisCF', CONFIG => {'THEMIS_ENABLE', 'true'}}
+         createTable(connection);
+
+         {
+           // initialize the accounts, Joe's cash is $20, Bob's cash is $9
+           Transaction transaction = new Transaction(conf, connection);
+           ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(20));
+           transaction.put(CASHTABLE, put);
+           put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(9));
+           transaction.put(CASHTABLE, put);
+           transaction.commit();
+           System.out.println("initialize the accounts, Joe's account is $20, Bob's account is $9");
+         }
+
+         {
+           // transfer $3 from Joe to Bob
+           System.out.println("will transfer $3 from Joe to Bob");
+           Transaction transaction = new Transaction(conf, connection);
+           // firstly, read out the current cash for Joe and Bob
+           ThemisGet get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
+           int cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
+           int cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           System.out.println("firstly, read out cash of the two users, Joe's cash is : $" + cashOfJoe
+               + ", Bob's cash is : $" + cashOfBob);
+
+           // then, transfer $3 from Joe to Bob, the mutations will be cached in client-side
+           int transfer = 3;
+           ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(cashOfJoe - transfer));
+           transaction.put(CASHTABLE, put);
+           put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(cashOfBob + transfer));
+           transaction.put(CASHTABLE, put);
+           // commit the mutations to server-side
+           transaction.commit();
+           System.out.println("then, transfer $3 from Joe to Bob and commit mutations to server-side");
+
+           // lastly, read out the result after transferred
+           transaction = new Transaction(conf, connection);
+           get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
+           cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
+           cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           System.out.println("after cash transferred, read out cash of the two users, Joe's cash is : $" + cashOfJoe
+               + ", Bob's cash is : $" + cashOfBob);
+         }
+
+         connection.close();
+         Transaction.destroy();
+       }
+     }
+     ```
+
+For the full example, please see : org.apache.hadoop.hbase.themis.example.Example.java
+
+## Schema Support
+
+1. Themis will use the timestamp of KeyValue internally, so that the timestamp and version attributes of HBase's KeyValue can't be used by the application.
+2. For families need Themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table.
+3. For each column, Themis will introduce two auxiliary columns : lock column and commit column. Themis saves the auxiliary columns in specific families : lock column in family 'L', and commit column in family #p(or in family #d if it is a Delete). The character '#' is preserved by Themis and application should not include it in name of the family needing Themis. Themis will create auxiliary families when creating table automically if 'THEMIS_ENABLE' is set on some family.
+
+## Themis Configuration 
+
+### Client Side
+
+**Timestamp server**
+
+If users want strong consistency across client processes, the 'themis.timestamp.oracle.class' should be set to 'RemoteTimestampOracleProxy'. Then, Themis will access globally incremental timestamp from [Chronos](https://github.com/XiaoMi/chronos), the entry of Chronos will be registered in Zookeeper quorum which can also be configured. 
+
+The default value of 'themis.timestamp.oracle.class' is 'LocalTimestampOracle', which provides incremental timestamp in one process. If users only need strong consistency in one clent process, the default value could be used. 
+
+| Key                                        | Description                                        | Default Value        |
+|--------------------------------------------|----------------------------------------------------|----------------------|
+| themis.timestamp.oracle.class              | timestamp server type                              | LocalTimestampOracle |
+| themis.remote.timestamp.server.zk.quorum   | ZK quorum where remote timestamp server registered | 127.0.0.1:2181       |
+| themis.remote.timestamp.server.clustername | cluster name of remote timestamp server            | default-cluster      |
+
+**Lock clean**
+
+The client needs to clean lock if encountering conflict. Users can configure the ttl of lock in client-side by 'themis.client.lock.clean.ttl'. The default value of this configuration is 0, which means the lock ttl will be decided by the server side configurations.
+
+Users can configure 'themis.worker.register.class' to 'ZookeeperWorkerRegister' to help resolve conflict faster. For details of conflict resolve, please see: [Percolator](http://research.google.com/pubs/pub36726.html). 
+
+| Key                                        | Description                                        | Default Value        |
+|--------------------------------------------|----------------------------------------------------|----------------------|
+| themis.client.lock.clean.ttl               | lock ttl configured in client-side                 | 0                    |
+| themis.worker.register.class               | worker register class                              | NullWorkerRegister   |
+| themis.retry.count                         | retry count when clean lock                        | 10                   |
+| themis.pause                               | sleep time between retries                         | 100                  |
+
+### Server Side
 
 **Data Clean Options**
 
-1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
+Both read and write transactions should not last too long. Users can set 'themis.transaction.ttl.enable' to decide whether enable transaction ttl. If this configuration is enabled, 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' could be used to configure the ttl for read transaction and write transaction respectively.
 
-2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'.
+If users enable transaction ttl, old data may become expired and can not be read by any transaction. Users can set 'themis.expired.data.clean.enable' to decide whether clean such old and expired data from HBase.
 
-These settings could be set in hbase-site.xml of server-side.
-
-**Conflict Resolution Options**
-
-1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help resolve conflict lock more efficiently. In themis, we can set themis.worker.register.class to "org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
-
-2. Themis will retry conflict resolution where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
-
-**Customer Filter**
-
-1. Themis use timestamp and version attribute of HBase internally. Therefore, users should not set filters using timestamp or version attribute.
-
-2. For filters only use rowkey, such as PrefixFilter defined in HBase, users could make them implement "RowLevelFilter" interface(defined in themis) which could help do themis read more efficiently. 
+| Key                                        | Description                                        | Default Value        |
+|--------------------------------------------|----------------------------------------------------|----------------------|
+| themis.transaction.ttl.enable              | whether the transaction will be expired            | true                 |
+| themis.read.transaction.ttl                | ttl for read transaction                           | 86400                |
+| themis.write.transaction.ttl               | ttl for write transaction                          | 60                   |
+| themis.expired.data.clean.enable           | enable cleaning the old and expired data           | true                 |
 
 ### MapReduce Support
 
@@ -209,23 +249,7 @@ Themis implement InputFormat and OutputFormat interface in MapReduce framework:
 
 ### Global Secondary Index Support
 
-Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, including:
-
-1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}, and users need the following configuration to support this schema.
-
-     ```
-     <property>
-        <name>hbase.coprocessor.master.classes</name>
-        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver,org.apache.hadoop.hbase.themis.index.cp.IndexMasterObserver</value>
-     </property>
-
-     ```
-
-2. When mutating columns which contain secondary index definitions, mutations corresponding to the index table will be applied automatically.
-
-3. Users could read data by secondary index with IndexGet / IndexScan.
-
-Themis-index is also expiremental, we will improve this sub-project after studying the demands better.
+Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, this sub-project is in progress. 
 
 ## Test 
 
@@ -274,21 +298,6 @@ The above tests are all done in a single region server. From the results, we can
 2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
 
 The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction(also for single-row transaction). After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent lock and the transaction will fail, this won't break correctness of the algorithm.
-
-**ConcurrentThemis Result:**
-The prewrite and commit of secondary rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
-
-| TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
-|-----------------|--------- |-----------------------|------------------------------|------------------|
-| 2               | 1000000  | 1654.14               | 995.98                       | 1.66             |
-| 4               | 1000000  | 3233.11               | 1297.49                      | 2.50             |
-| 8               | 1000000  | 6470.30               | 1963.47                      | 3.30             |
-| 16              | 1000000  | 13301.50              | 2941.81                      | 4.52             |
-| 32              | 600000   | 28151.37              | 3384.17                      | 7.25             |
-| 64              | 400000   | 51658.58              | 5765.08                      | 8.96             |
-| 128             | 200000   | 103289.95             | 11282.95                     | 9.15             |
-
-TransactionSize is number of rows in one transaction. The 'Relative Improve' is 'RawThemis AvgTime(us)' / 'ConcurrentThemis AvgTime(us)'. We can see ConcurrentThemis performs much better as the TransactionSize increases, however, there is slowdown of improvement when the TransactionSize is bigger than 32.
 
 ## Future Works
 
