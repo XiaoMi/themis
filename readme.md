@@ -79,6 +79,20 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
      ```
 
+3. Add the themis-client dependency in the pom of project which needs cross-row transactions.
+
+     ```
+     <property>
+       <name>hbase.coprocessor.user.region.classes</name>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
+     </property>
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
+
+     ```
+
 ### Depends themis-client:
 
 Add the themis-client dependency in the pom of project which needs cross-row transactions.
