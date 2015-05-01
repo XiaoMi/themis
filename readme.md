@@ -187,6 +187,12 @@ The following code shows how to use Themis APIs:
 
 For the full example, please see : org.apache.hadoop.hbase.themis.example.Example.java
 
+### Schema Support
+
+1. Themis will use the timestamp of KeyValue internally, so that the timestamp and version attributes of HBase's KeyValue can't be used by the application.
+2. For families need Themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table.
+3. For each column, Themis will introduce two auxiliary columns : lock column and commit column. Themis save the auxiliary columns in specific families : lock column in family 'L', and commit column in family #p(or in family #d if it is a Delete). The character '#' is preserved by Themis and application should not include it in name of the family needing Themis. Themis will create auxiliary families when creating table automically if 'THEMIS_ENABLE' is set on some family.
+
 ### Themis Options
 
 3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
