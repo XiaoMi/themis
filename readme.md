@@ -84,11 +84,15 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 Add the themis-client dependency in the pom of project which needs cross-row transactions.
 
      ```
-     <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-client</artifactId>
-       <version>1.0-SNAPSHOT</version>
-     </dependency>
+     <property>
+       <name>hbase.coprocessor.user.region.classes</name>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
+     </property>
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
+     </property>
+
      ```
 
 ### Run the example code
