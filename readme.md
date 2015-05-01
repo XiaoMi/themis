@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
+Themis provides cross-row/cross-table transaction on HBase based on [google's Percolator](http://research.google.com/pubs/pub36726.html).
 
 Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [Chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes Themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of Themis for a few months, and optimize the algorithm to achieve better performance.
 
@@ -36,7 +36,7 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 1. Get the latest source code of Themis:
 
      ```
-     git clone git@github.com:XiaoMi/themis.git 
+     git clone https://github.com/XiaoMi/themis.git 
      ```
 
 2. The master branch of Themis depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We can download source code of hbase 0.94.21 and install it in maven local repository by:
@@ -46,11 +46,11 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
      mvn clean install -DskipTests -Dhadoop.profile=2.0
      ```
 
-3. Build Themis:
+3. Build Themis and install in local repository:
 
      ```
      cd themis
-     mvn clean package -DskipTests
+     mvn clean install -DskipTests
      ```
 
 ### Loads themis coprocessor in HBase: 
@@ -99,6 +99,7 @@ Add the themis-client dependency in the pom of project which needs cross-row tra
 2. After building Themis, run example code by:
      
      ```
+     cd themis-client
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
      ```
   
@@ -266,7 +267,7 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 **Percolator Result:**
 
-[percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
+[Percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of Percolator) and gives the relative drop compared to BigTable as follow table.
 
 |             | BigTable  | Percolator       | Relative            |
 |-------------|-----------|------------------|---------------------|
@@ -274,9 +275,9 @@ We design an AccountTransfer simulation program to validate the correctness of i
 | Write/s     | 31003     | 7232             | 0.23                |
 
 **Themis Result:**
-We evaluate the performance of Themis under similar test conditions with percolator's and give the relative drop compared to HBase.
+We evaluate the performance of Themis under similar test conditions with Percolator's and give the relative drop compared to HBase.
 
-Evaluation of themisGet. Load 30g data into HBase before testing themisGet by reading loaded rows. We set the heap size of region server to 10g and hfile.block.cache.size=0.45.
+Evaluation of get. Load 30g data into HBase before testing get by reading loaded rows. We set the heap size of region server to 10g and hfile.block.cache.size=0.45.
 
 | Client Thread | GetCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |---------- |-----------------------|----------------------|----------|
@@ -286,7 +287,7 @@ Evaluation of themisGet. Load 30g data into HBase before testing themisGet by re
 | 50            | 30000000  | 4529.80               | 5382.87              | 0.84     | 
 
 
-Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing themisPut. We config 256M cache size to keep locks in memory for write transaction. 
+Evaluation of put. Load 3,000,000 rows data into HBase before testing put. We config 256M cache size to keep locks in memory for write transaction. 
 
 | Client Thread | PutCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
 |-------------  |---------- |-----------------------|----------------------|----------|
@@ -296,19 +297,21 @@ Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing them
 | 20            | 20000000  | 2761.66               | 1902.79              | 0.69     |
 | 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
-The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 85% of HBase's get and the performance of themisPut is about 60% of HBase's put. For themisGet, the result is about 10% lower to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. The themisPut performance is much better compared to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
+The above tests are all done in a single region server. From the results, we can see the performance of get is 85% of HBase's get and the performance of put is about 60% of HBase's put. For get, the result is about 10% lower to that reported in [Percolator](http://research.google.com/pubs/pub36726.html) paper. The put performance is much better compared to that reported in [Percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
 
 1. In prewrite phase, we only write the lock to MemStore;  
 
 2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
 
-The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction(also for single-row transaction). After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent lock and the transaction will fail, this won't break correctness of the algorithm.
+The aboving skills make prewrite phase not sync HLog, so that improving the write performance a lot. After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent lock and the transaction will fail, this won't break correctness of the algorithm.
 
 ## Future Works
 
-1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only keeping persistent locks of un-committed transactions in memory.
-2. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
-3. Support different ioslation levels.
-4. Use a different family to save commit information and compare the performance with the current way(currently, we save commit information under the same family with data column).
-5. Commit secondary rows in background to improve latency.
-6. Release the correctness validate program AccountTransfer.
+1. Optimize the memory usage of RegionServer. Only locks of unfinished transactions should be kept in memory.
+2. Support different ioslation levels. Study the tradeoff between isolation levels and efficiency.
+3. Commit secondary rows in background to improve latency.
+4. Optimize the lock clean process.
+5. Open source the correctness validate program: AccountTransfer.
+
+## Contact Us
+Any suggestion or discussion about Themis is welcomed. Please contact us by cuijianwei@xiaomi.com, or in HBase jira [HBASE-10999](https://issues.apache.org/jira/browse/HBASE-10999).
