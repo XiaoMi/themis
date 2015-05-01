@@ -81,33 +81,16 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
 3. Add the themis-client dependency in the pom of project which needs cross-row transactions.
 
-     ```
-     <property>
-       <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
-     </property>
-     <property>
-        <name>hbase.coprocessor.master.classes</name>
-        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
-     </property>
-
-     ```
-
 ### Depends themis-client:
 
 Add the themis-client dependency in the pom of project which needs cross-row transactions.
 
-     ```
-     <property>
-       <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
-     </property>
-     <property>
-        <name>hbase.coprocessor.master.classes</name>
-        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
-     </property>
+     <dependency>
+      <groupId>com.xiaomi.infra</groupId>
+      <artifactId>themis-client</artifactId>
+      <version>1.0-SNAPSHOT</version>
+     </dependency>
 
-     ```
 
 ### Run the example code
 
@@ -125,17 +108,14 @@ The screen will output the result of read and write transactions.
 
 The APIs of Themis are defined in TransactionInterface.java, including put/delete/get/getScanner, which are similar to HBase's APIs:
 
-     ```
      public void put(byte[] tableName, ThemisPut put) throws IOException;
      public void delete(byte[] tableName, ThemisDelete delete) throws IOException;
      public void commit() throws IOException;
      public Result get(byte[] tableName, ThemisGet get) throws IOException;
      public ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException;
-     ```
 
 The following code shows how to use Themis APIs:
 
-     ```
      // This class shows an example of transfer $3 from Joe to Bob in cash table, where rows of Joe and Bob are
      // located in different regions. The example will use the 'put' and 'get' APIs of Themis to do transaction.
      public class Example {
@@ -201,7 +181,6 @@ The following code shows how to use Themis APIs:
          Transaction.destroy();
        }
      }
-     ```
 
 For the full example, please see : org.apache.hadoop.hbase.themis.example.Example.java
 
