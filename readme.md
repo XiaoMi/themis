@@ -93,7 +93,7 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 1. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
 
-2. after building Themis, run "org.apache.hadoop.hbase.themis.example.Example.java" by:
+2. after building Themis, run example code by:
      
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
   
@@ -101,59 +101,89 @@ The screen will output the result of read and write transactions.
 
 ## Example of Themis API
 
-3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
+The APIs of Themis are defined in TransactionInterface.java, including put/delete/get/getScanner, which are similar to HBase's APIs:
+     ```
+     public void put(byte[] tableName, ThemisPut put) throws IOException;
+     public void delete(byte[] tableName, ThemisDelete delete) throws IOException;
+     public void commit() throws IOException;
+     public Result get(byte[] tableName, ThemisGet get) throws IOException;
+     public ThemisScanner getScanner(byte[] tableName, ThemisScan scan) throws IOException;
+     ```
 
-### themisPut 
+The following code shows how to use Themis APIs:
+     ```
+     // This class shows an example of transfer $3 from Joe to Bob in cash table, where rows of Joe and Bob are
+     // located in different regions. The example will use the 'put' and 'get' APIs of Themis to do transaction.
+     public class Example {
+       private static final byte[] CASHTABLE = Bytes.toBytes("CashTable"); // cash table
+       private static final byte[] JOE = Bytes.toBytes("Joe"); // row for Joe
+       private static final byte[] BOB = Bytes.toBytes("Bob"); // row for Bob
+       private static final byte[][] splits = new byte[][]{Bytes.toBytes("C")};
+       private static final byte[] FAMILY = Bytes.toBytes("Account");
+       private static final byte[] CASH = Bytes.toBytes("cash");
+       private static Configuration conf;
 
-    Configuration conf = HBaseConfiguration.create();
-    HConnection connection = HConnectionManager.createConnection(conf);
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisPut put = new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    put = new ThemisPut(ANOTHER_ROW).add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    transaction.commit();
+       public static void main(String args[]) throws IOException {
+         conf = HBaseConfiguration.create();
+         HConnection connection = HConnectionManager.createConnection(conf);
+         // will create 'CashTable' for test, the corresponding shell command is:
+         // create 'CashTable', {NAME=>'ThemisCF', CONFIG => {'THEMIS_ENABLE', 'true'}}
+         createTable(connection);
 
-### themisDelete 
+         {
+           // initialize the accounts, Joe's cash is $20, Bob's cash is $9
+           Transaction transaction = new Transaction(conf, connection);
+           ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(20));
+           transaction.put(CASHTABLE, put);
+           put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(9));
+           transaction.put(CASHTABLE, put);
+           transaction.commit();
+           System.out.println("initialize the accounts, Joe's account is $20, Bob's account is $9");
+         }
 
-     Transaction transaction = new Transaction(conf, connection);
-     ThemisDelete delete = new ThemisDelete(ROW);
-     delete.deleteColumn(FAMILY, QUALIFIER);
-     transaction.delete(TABLENAME, delete);
-     delete = new ThemisDelete(ANOTHER_ROW);
-     delete.deleteColumn(FAMILY, QUALIFIER);
-     transaction.delete(TABLENAME, delete);
-     transaction.commit();
+         {
+           // transfer $3 from Joe to Bob
+           System.out.println("will transfer $3 from Joe to Bob");
+           Transaction transaction = new Transaction(conf, connection);
+           // firstly, read out the current cash for Joe and Bob
+           ThemisGet get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
+           int cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
+           int cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           System.out.println("firstly, read out cash of the two users, Joe's cash is : $" + cashOfJoe
+               + ", Bob's cash is : $" + cashOfBob);
 
-In above code, the mutations of two rows will both be applied to HBase and visiable to read after transaction.commit() finished. If transaction.commit() failed, neither of the two mutations will be visiable to read.
+           // then, transfer $3 from Joe to Bob, the mutations will be cached in client-side
+           int transfer = 3;
+           ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(cashOfJoe - transfer));
+           transaction.put(CASHTABLE, put);
+           put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(cashOfBob + transfer));
+           transaction.put(CASHTABLE, put);
+           // commit the mutations to server-side
+           transaction.commit();
+           System.out.println("then, transfer $3 from Joe to Bob and commit mutations to server-side");
 
-### themisGet 
+           // lastly, read out the result after transferred
+           transaction = new Transaction(conf, connection);
+           get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
+           cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
+           cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+           System.out.println("after cash transferred, read out cash of the two users, Joe's cash is : $" + cashOfJoe
+               + ", Bob's cash is : $" + cashOfBob);
+         }
 
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisGet get = new ThemisGet(ROW).addColumn(FAMILY, QUALIFIER);
-    Result resultA = transaction.get(TABLENAME, get);
-    get = new ThemisGet(ANOTHER_ROW).addColumn(FAMILY, QUALIFIER);
-    Result resultB = transaction.get(TABLENAME, get);
-    // themisGet will return consistent results from ROW and ANOTHER_ROW 
+         connection.close();
+         Transaction.destroy();
+       }
+     }
+     ```
 
-### themisScan
-
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisScan scan = new ThemisScan();
-    scan.addColumn(FAMILY, QUALIFIER);
-    ThemisScanner scanner = transaction.getScanner(TABLENAME, scan);
-    Result result = null;
-    while ((result = scanner.next()) != null) {
-      // themisScan will return consistent state of database
-      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
-    }
-    scanner.close();
-
-Themis will get a timestamp from chronos before transaction starts, and will promise to read the database snapshot before the timestamp.
-
-For more example code, please see [Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
+For the full example, please see : org.apache.hadoop.hbase.themis.example.Example.java
 
 ### Themis Options
+
+3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
 
 **Use Chronos As Timestamp Oracle**
 
