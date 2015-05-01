@@ -83,11 +83,13 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
 Add the themis-client dependency in the pom of project which needs cross-row transactions.
 
-     <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-client</artifactId>
-       <version>1.0-SNAPSHOT</version>
-     </dependency>
+     ```
+<dependency>
+  <groupId>com.xiaomi.infra</groupId>
+  <artifactId>themis-client</artifactId>
+  <version>1.0-SNAPSHOT</version>
+</dependency>
+     ```
 
 ### Run the example code
 
