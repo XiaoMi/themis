@@ -248,6 +248,15 @@ Themis implement InputFormat and OutputFormat interface in MapReduce framework:
 
 Based on the cross table data consistency guaranteed by Themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, this sub-project is in progress. 
 
+## Metrics
+
+Themis provides metrics for major APIs, which could be retrieved from JMX or sent to a file. The following configuration in hadoop-metrics.properties will send the metric to file periodically:
+
+     themis.class=org.apache.hadoop.hbase.metrics.file.TimeStampingFileContext
+     themis.period=10
+     themis.fileName=./themis_metrics.out
+
+
 ## Test 
 
 ### Correctness Validation
