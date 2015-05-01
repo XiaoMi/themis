@@ -4,7 +4,7 @@
 
 Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
 
-Themis guarantees the ACID characteristics of cross-row transaction by two-phase write and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could serve after loading themis coprocessors without changing source code of HBase. The APIs of themis are similar with HBase's, including themisPut/themisDelete/themisGet/themisScan. We validate the correctness of themis for a few months, the performance of themis in current version is similar to the result reported in paper of [percolator](http://research.google.com/pubs/pub36726.html). 
+Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of themis for a few months, and optimize the algorithm to achieve better performance.
 
 ## Example of Themis API
 
@@ -49,8 +49,8 @@ In above code, the mutations of two rows will both be applied to HBase and visia
     ThemisScanner scanner = transaction.getScanner(TABLENAME, scan);
     Result result = null;
     while ((result = scanner.next()) != null) {
-      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
       // themisScan will return consistent state of database
+      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
     }
     scanner.close();
 
@@ -65,9 +65,9 @@ For more example code, please see [Example.java](https://github.com/XiaoMi/themi
 **Themis Write:**
 
 1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
-2. Prewrite-Phase: get timestamp from chronos(named prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
-3. After prewrite-phase finished, get timestamp from chronos(named commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs when the persistent lock of primaryColumn is not deleted.
-4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumn.
+2. Prewrite-Phase: get timestamp from chronos(denoted as prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
+3. After prewrite-phase finished, get timestamp from chronos(denoted as commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs if the persistent lock of primaryColumn is not deleted.
+4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumns.
 
 Themis applies transaction mutations by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
 
@@ -80,7 +80,7 @@ Themis provides the guarantee to read all transactions with commitTs smaller tha
 
 **Conflict Resolution:**
 
-There might be write/write and read/write conflicts as described above. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
+There might be write/write and read/write conflicts as described. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
 
 Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
 
@@ -104,6 +104,8 @@ Themis client will manage the users's mutations by row and invoke methods of The
 
 1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
 2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
+3. ThemisRegionObserver: single-row write optimization, add data clean filter to the scanner of flush and compaction.
+4. ThemisMasterObserver: automatically add lock family when users creating table, set timestamp for data clean periodly.
 
 ## Usage 
 
@@ -124,17 +126,18 @@ Themis client will manage the users's mutations by row and invoke methods of The
      ```
      <property>
        <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl</value>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
      <property>
-       <name>hbase.coprocessor.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver</value>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver</value>
      </property>
+
      ```
 
-3. For tables need themis, create a family 'L' to save the persistent locks with 'IN_MEMORY' set to 'true'. 
+3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
 
-### depends themis-client
+### Depends themis-client
 
 add the themis-client dependency to pom of project which needs cross-row transactions.
 
@@ -144,6 +147,86 @@ add the themis-client dependency to pom of project which needs cross-row transac
        <version>1.0-SNAPSHOT</version>
      </dependency>
 
+### Run example code
+
+1. the master branch depends on hbase 0.94.21 with hadoop.version=2.0.0-alpha. We need download source code of hbase 0.94.21 and install in maven local repository by(in the directory of hbase 0.94.21):
+   
+     mvn clean install -DskipTests -Dhadoop.profile=2.0
+
+2. install themis in maven local repository(in the directory of themis):
+
+     mvn clean install -DskipTests
+
+3. start a standalone HBase cluster(0.94.21 with hadoop.version=2.0.0-alpha) and make sure themis-coprocessor is loaded as above steps.
+
+4. run "org.apache.hadoop.hbase.themis.example.Example.java" by:
+     
+     mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
+  
+The result of themisPut/themisGet/themisDelete/themisScan will output to screen.
+
+### Themis Options
+
+**Use Chronos As Timestamp Oracle**
+
+Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
+
+1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/chronos/.
+
+2. set themis.timestamp.oracle.class to "org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in the config of cliet-side. With this config, themis will connect Chronos cluster in local machine.
+
+3. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'.
+
+**Data Clean Options**
+
+1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
+
+2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'.
+
+These settings could be set in hbase-site.xml of server-side.
+
+**Conflict Resolution Options**
+
+1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help resolve conflict lock more efficiently. In themis, we can set themis.worker.register.class to "org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
+
+2. Themis will retry conflict resolution where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
+
+**Customer Filter**
+
+1. Themis use timestamp and version attribute of HBase internally. Therefore, users should not set filters using timestamp or version attribute.
+
+2. For filters only use rowkey, such as PrefixFilter defined in HBase, users could make them implement "RowLevelFilter" interface(defined in themis) which could help do themis read more efficiently. 
+
+### MapReduce Support
+
+Themis implement InputFormat and OutputFormat interface in MapReduce framework:
+
+1. ThemisTableInputFormat is implemented to read data from themis-enable table in Mapper. To read data from multi-tables, please use MultiThemisTableInputFormat.
+
+2. ThemisTableOutputFormat is implemented to write data by themis to themis-enable table in Reducer. To write data across multi-tables, please use MultiThemisTableOutputFormat.
+
+3. ThemisTableMapReduceUtil provides utility methods to start a MapReduce job.
+
+### Global Secondary Index Support
+
+Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, including:
+
+1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}, and users need the following configuration to support this schema.
+
+     ```
+     <property>
+        <name>hbase.coprocessor.master.classes</name>
+        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver,org.apache.hadoop.hbase.themis.index.cp.IndexMasterObserver</value>
+     </property>
+
+     ```
+
+2. When mutating columns which contain secondary index definitions, mutations corresponding to the index table will be applied automatically.
+
+3. Users could read data by secondary index with IndexGet / IndexScan.
+
+Themis-index is also expiremental, we will improve this sub-project after studying the demands better.
+
 ## Test 
 
 ### Correctness Validation
@@ -152,291 +235,66 @@ We design an AccountTransfer simulation program to validate the correctness of i
 
 ### Performance Test 
 
-**Percolator Result**
+**Percolator Result:**
 
 [percolator](http://research.google.com/pubs/pub36726.html) tests the read/write performance for single-column transaction(represents the worst case of percolator) and gives the relative drop compared to BigTable as follow table.
 
-**Themis Result**
+|             | BigTable  | Percolator       | Relative            |
+|-------------|-----------|------------------|---------------------|
+| Read/s      | 15513     | 14590            | 0.94                |
+| Write/s     | 31003     | 7232             | 0.23                |
 
-| | BigTable | Percolator | Relative |
-|-------------|---------|------------------|---------------------|
-| Read/s      | 15513    | 14590            | 0.94               |
-| Write/s     | 31003     | 7232            | 0.23               |
-
+**Themis Result:**
 We evaluate the performance of themis under similar test conditions with percolator's and give the relative drop compared to HBase.
 
-Evaluation of themisGet. Load 10g data into HBase before testing themisGet by reading loaded rows: 
+Evaluation of themisGet. Load 30g data into HBase before testing themisGet by reading loaded rows. We set the heap size of region server to 10g and hfile.block.cache.size=0.45.
 
-| Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-|-------------  |--------- |-----------------------|----------------------|----------|
-| 1             | 1000000  | 846.08                | 783.08               | 0.90     |
-| 5             | 5000000  | 1125.95               | 1016.54              | 0.90     |
-| 10            | 5000000  | 1513.61               | 1348.58              | 0.89     |
-| 20            | 5000000  | 2639.60               | 2427.78              | 0.92     |
-| 50            | 5000000  | 6295.83               | 5935.88              | 0.94     |
+| Client Thread | GetCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
+|-------------  |---------- |-----------------------|----------------------|----------|
+| 5             | 10000000  | 1029.88               | 1191.21              | 0.86     | 
+| 10            | 20000000  | 1230.44               | 1407.93              | 0.87     | 
+| 20            | 20000000  | 1848.05               | 2190.00              | 0.84     | 
+| 50            | 30000000  | 4529.80               | 5382.87              | 0.84     | 
 
 
-Evaluation of themisPut. Load 10g data into HBase before testing themisPut by updating loaded rows:
+Evaluation of themisPut. Load 3,000,000 rows data into HBase before testing themisPut. We config 256M cache size to keep locks in memory for write transaction. 
 
-| Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-|-------------  |--------- |-----------------------|----------------------|----------|
-| 1             | 1000000  | 3658.28               | 882.63               | 0.24     |
-| 5             | 1000000  | 4005.77               | 1096.53              | 0.27     |
-| 10            | 1000000  | 1096.5                | 1376.60              | 0.24     |
-| 20            | 1000000  | 8486.28               | 1891.47              | 0.22     |
-| 50            | 1000000  | 18356.76              | 3384.32              | 0.18     |
+| Client Thread | PutCount  | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
+|-------------  |---------- |-----------------------|----------------------|----------|
+| 1             | 3000000   | 1620.69               | 818.62               | 0.51     |
+| 5             | 10000000  | 1695.89               | 1074.13              | 0.63     |
+| 10            | 20000000  | 2057.55               | 1309.12              | 0.64     |
+| 20            | 20000000  | 2761.66               | 1902.79              | 0.69     |
+| 50            | 30000000  | 5441.48               | 3702.04              | 0.68     |
 
-The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 90% of HBase's get and the performance of themisPut is 20%~30% of HBase's put. The result is similar to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper.
+The above tests are all done in a single region server. From the results, we can see the performance of themisGet is 85% of HBase's get and the performance of themisPut is about 60% of HBase's put. For themisGet, the result is about 10% lower to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. The themisPut performance is much better compared to that reported in [percolator](http://research.google.com/pubs/pub36726.html) paper. We optimize the performance of single-column transaction by the following skills:
 
-### Concurrent prewrite/commit Improvement 
+1. In prewrite phase, we only write the lock to MemStore;  
 
-The latency of themis put will increase as the transaction size(number of rows to mutate) becomes larger because prewrite and commit will be implementated one by one for each column(named RawThemis). Actually, prewrite could be implemented concurrently for all columns and commit could also be implemented for secondary columns(named ConcurrentThemis). We compare the lateny between RawThemis and ConcurrentThemis under the different transaction size:
+2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
 
-Latency comparison of ThemisPut between RawThemis and ConcurrentThemis. Use one client thread to do the comparsion.
+The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction(also for single-row transaction). After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent lock and the transaction will fail, this won't break correctness of the algorithm.
 
-| TransactionSize | PutCount | RawThemis AvgLatency(us) | ConcurrentThemis AvgLatency(us) | Relative Improve |
-|-------------    |--------- |--------------------------|---------------------------------|------------------|
-| 2               | 1000000  | 1654.14                  | 995.98                          | 1.66             |
-| 4               | 1000000  | 3233.11                  | 1297.49                         | 2.50             |
-| 8               | 1000000  | 6470.30                  | 1963.47                         | 3.30             |
-| 16              | 1000000  | 13301.50                 | 2941.81                         | 4.52             |
-| 32              | 600000   | 28151.37                 | 3884.17                         | 7.25             |
-| 64              | 400000   | 51685.58                 | 5765.08                         | 8.96             |
-| 128             | 200000   | 103289.05                | 11282.95                        | 9.15             |
+**ConcurrentThemis Result:**
+The prewrite and commit of secondary rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
 
-The obove result shows there will be significant improvement as the transaction size becomes larger, which illustrates ConcurrentThemis will outperform RawThemis when doing large transaction.
+| TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
+|-----------------|--------- |-----------------------|------------------------------|------------------|
+| 2               | 1000000  | 1654.14               | 995.98                       | 1.66             |
+| 4               | 1000000  | 3233.11               | 1297.49                      | 2.50             |
+| 8               | 1000000  | 6470.30               | 1963.47                      | 3.30             |
+| 16              | 1000000  | 13301.50              | 2941.81                      | 4.52             |
+| 32              | 600000   | 28151.37              | 3384.17                      | 7.25             |
+| 64              | 400000   | 51658.58              | 5765.08                      | 8.96             |
+| 128             | 200000   | 103289.95             | 11282.95                     | 9.15             |
 
-Currently, ConcurrentThemis is disabled. To enable ConcurrentThemis, add the following setting to configuration file of client-side:
-
-     <property>
-       <name>themis.enable.concurrent.rpc</name>
-       <value>true</value>
-     </property>
+TransactionSize is number of rows in one transaction. The 'Relative Improve' is 'RawThemis AvgTime(us)' / 'ConcurrentThemis AvgTime(us)'. We can see ConcurrentThemis performs much better as the TransactionSize increases, however, there is slowdown of improvement when the TransactionSize is bigger than 32.
 
 ## Future Works
 
-1. Optimze the write performance for single-row write transaction.
-2. Create themis-needed family and set attributes automactically when user creates a table for themis.
-3. A normal way to clear expired data for thmeis.
-
-
----
-
-
-# Themis 
-
-## 简介
-
-Themis在HBase上实现跨行、跨表事务，原理基于google提出的[percolator](http://research.google.com/pubs/pub36726.html)算法。
-
-Themis以HBase行级别事务为基础，通过两阶段写和冲突约定(写写冲突、读写冲突)保证跨行事务的ACID特性。Themis依赖[chronos](https://github.com/XiaoMi/chronos)提供的全局严格单调递增timestamp服务为事务全局定序，确保读取某个timestamp之前数据库的snapshot。Themis利用了HBase coprocessor框架，不需要修改HBase代码，在server端加载themis coprocessor后即可服务。Themis提供与HBase类似的数据读写接口：themisPut/themisDelete/themisGet/themisScan。经过了几个月的正确性验证和性能测试，目前性能与[percolator](http://research.google.com/pubs/pub36726.html)论文中报告的结果相近。
-
-## Themis API使用示例
-
-### themisPut
-
-    Configuration conf = HBaseConfiguration.create();
-    HConnection connection = HConnectionManager.createConnection(conf);
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisPut put = new ThemisPut(ROW).add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    put = new ThemisPut(ANOTHER_ROW).add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    transaction.commit();
-
-transaction.commit()成功，会保证ROW和ANOTHER_ROW的修改同时成功，并且对读同时可见；commit失败，会保证ROW和ANOTHER_ROW的修改都失败，对读都不可见。
-
-### themisDelete
-
-     Transaction transaction = new Transaction(conf, connection);
-     ThemisDelete delete = new ThemisDelete(ROW);
-     delete.deleteColumn(FAMILY, QUALIFIER);
-     transaction.delete(TABLENAME, delete);
-     delete = new ThemisDelete(ANOTHER_ROW);
-     delete.deleteColumn(FAMILY, QUALIFIER);
-     transaction.delete(TABLENAME, delete);
-     transaction.commit();
-
-与themisPut类似，themisDelete可以保证ROW和ANOTHER_ROW的删除同时成功或者均不成功。
-
-### themisGet
-
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisGet get = new ThemisGet(ROW).addColumn(FAMILY, QUALIFIER);
-    Result resultA = transaction.get(TABLENAME, get);
-    get = new ThemisGet(ANOTHER_ROW).addColumn(FAMILY, QUALIFIER);
-    Result resultB = transaction.get(TABLENAME, get);
-    // 对于同一个transaction的themisGet, 可以确保从ROW和ANOTHER_ROW读出完整的事务
-
-### themisScan
-
-    Transaction transaction = new Transaction(conf, connection);
-    ThemisScan scan = new ThemisScan();
-    scan.addColumn(FAMILY, QUALIFIER);
-    ThemisScanner scanner = transaction.getScanner(TABLENAME, scan);
-    Result result = null;
-    while ((result = scanner.next()) != null) {
-      int value = Bytes.toInt(result.getValue(FAMILY, QUALIFIER));
-      // 对于同一个transaction的themisScan，可以确保scanner返回完整的事务
-    }
-    scanner.close();
-
-Themis在事务开始之前会从chronos取一个startTs，themis的读可以确保读取到数据库在startTs之前所有提交的事务。
-
-更多示例代码参见：[Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
-
-## 原理和实现
-
-### Themis原理
-
-**Themis的写步骤：**
-
-1. 在用户写中选取一个column做为primaryColumn，其余的column为secondaryColumns。Themis会为primaryColumn和scondaryColumn构建对应的持久化锁(persistentLock)信息。
-2. 从chronos取全局时间prewriteTs，进行prewrite：在没有写冲突的情况下，写入数据和持久化锁，时间戳为prewriteTs。
-3. prewrite成功后，从chronos取全局时间commitTs，对primaryColumn进行commit：需要确保其persistentLock没有被删除的情况下删除persistentLock并写入commit信息(时间戳为commitTs)。
-4. primaryColumn提交成功后，开始提交secondaryColumn：删除persistentLock并写入commit信息(时间戳为commitTs)。
-
-Themis是通过prewrite/commit两阶段写来完成事务。primaryColumn的commit成功后，事务整体成功，对读可见；否则事务整体失败，对读不可见。
-
-**Themis读步骤：**
-
-1. 从chronos取一个startTs，首先判断是否有读写冲突。
-2. 如果没有读写冲突，读取timestamp < startTs的最新提交的事务。
-
-Themis可以确保读取commitTs < startTs的所有已提交事物，即数据库在startTs之前的snapshot。
-
-**Themis冲突解决：**
-
-Themis可能会遇到写写冲突和读写冲突。解决冲突是根据存储在persistentLock中的时间戳判断冲突事务是否过期。如果过期，根据冲突事务的primaryColumn是否提交，回滚或提交事务；否则，当前事务失败。
-
-更多原理细节参考：[google's percolator](http://research.google.com/pubs/pub36726.html)
-
-### Themis实现
-
-Themis的实现利用了HBase的coprocessor框架，其模块图为：
-![themis模块图](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
-
-**ThemisClient主要模块为：**
-
-1. Transaction。提供Themis的API：themisPut/themisGet/themisDelete/themisScan。
-2. MutationCache。将用户的修改按照row索引在client端。
-3. ThemisCoprocessorClient。访问themis coprocessor的客户端。
-4. TimestampOracle。访问chronos的客户端，可以将客户端对chronos的请求做batch，然后批量取回timestamp。
-5. LockCleaner。负责解决写写冲突和读写冲突。
-
-对于写事务，Themis将用户的mutations按照row进行索引，然后利用ThemisCoprocessorClient的接口进行prewrite/commit和读操作。
-
-**ThemisCoprocessor主要模块为：**
-
-1. ThemisProtocol/ThemisCoprocessorImpl。定义和实现Themis coprocessor接口，主要接口是prewrite/commit/themisGet。
-2. ThemisServerScanner/ThemisScanObserver。实现themisScan逻辑。
-
-## Themis使用
-
-### Themis服务端
-1. 需要在hbase的pom中引入对themis-coprocessor的依赖：
-
-     ```
-     <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-coprocessor</artifactId>
-       <version>1.0-SNAPSHOT</version>
-     </dependency>
-     ```
-                                          
-2. hbase的配置文件hbase-site.xml中加入themis-coprocessor的配置项：
-
-     ```
-     <property>
-       <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl</value>
-     </property>
-     <property>
-       <name>hbase.coprocessor.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisScanObserver</value>
-     </property>
-     ```
-
-3. 对于需要使用themis的表，创建一个额外的family='L'，用来存储persistentLock，IN_MEMORY属性设置为true。
-
-### Themis客户端
-需要在使用Themis的项目的pom中引入themis-client的依赖：
-
-     <dependency>
-       <groupId>com.xiaomi.infra</groupId>
-       <artifactId>themis-client</artifactId>
-       <version>1.0-SNAPSHOT</version>
-     </dependency>
-
-## 测试
-
-### 正确性验证
-
-我们设计了一个AccountTransfer程序对themis正确性进行验证。AccountTransfer模拟多个用户，每个用户在HBase的某个column下初始一个value，记录验证开始前的initTotal。验证开始后，会启动多个线程在选定的column之间进行value transfter，修改value的值，但逻辑上保持total value不变，用以模拟事物的并发运行。同时，会有一个TotalChecker线程，不断读出当前所有column的value，求和得到currentTotal，检查currentTotal=initTotal。另外，会在themis的主要步骤上随机抛出异常，使事务失败，测试themis解决冲突的逻辑。每次更新themis的实现后，都会运行AccountTransfer一段时间，确保themis逻辑正确。
-
-### 性能测试
-
-[google's percolator](http://research.google.com/pubs/pub36726.html)测试了在单column情况下读写性能相对于BigTable的降低百分比：
-
-| | BigTable | Percolator | Relative |
-|-------------|---------|------------------|---------------------|
-| Read/s      | 15513    | 14590            | 0.94               |
-| Write/s     | 31003     | 7232            | 0.23               |
-
-与percolator类似，themis也对比了单column情况下读写性能相对于HBase的降低，我们结论如下：
-
-themisGet对比，预写入10g数据，然后读出写入的数据。
-
-| Client Thread | GetCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-|-------------  |--------- |-----------------------|----------------------|----------|
-| 1             | 1000000  | 846.08                | 783.08               | 0.90     |
-| 5             | 5000000  | 1125.95               | 1016.54              | 0.90     |
-| 10            | 5000000  | 1513.61               | 1348.58              | 0.89     |
-| 20            | 5000000  | 2639.60               | 2427.78              | 0.92     |
-| 50            | 5000000  | 6295.83               | 5935.88              | 0.94     |
-
-
-themisPut对比，预写入10g数据，然后对其中的row进行更新，对比写性能。
-
-| Client Thread | PutCount | Themis AvgLatency(us) | HBase AvgLatency(us) | Relative |
-|-------------  |--------- |-----------------------|----------------------|----------|
-| 1             | 1000000  | 3658.28               | 882.63               | 0.24     |
-| 5             | 1000000  | 4005.77               | 1096.53              | 0.27     |
-| 10            | 1000000  | 1096.5                | 1376.60              | 0.24     |
-| 20            | 1000000  | 8486.28               | 1891.47              | 0.22     |
-| 50            | 1000000  | 18356.76              | 3384.32              | 0.18     |
-
-上面结论都是在单region server上得出的。可以看出，themis的读性能相当与HBase的90%，写性能在HBase的20%~30%之间，这与percolator论文中的结果类似。
-
-### 并发执行prewrite/commit带来的效率提升 
-
-随着事务修改行数(TransactionSize)的增加，themisPut的延时也会同比增加。这是因为目前的版本的prewrite和commit是串行执行的(这种实现记为RawThemis)。实际上，所有columns的prewrite可以并发执行，所有secondary-columns的commit也可以并发执行(这种实现记为ConcurrentThemis)。我们在TransactionSize不同的情况下，比较了RawThemis和ConcurrentThemis的性能：
-
-RawThemis和ConcurrentThemis的themisPut延时对比，客户端开启一个线程。
-
-| TransactionSize | PutCount | RawThemis AvgLatency(us) | ConcurrentThemis AvgLatency(us) | Relative Improve |
-|-------------    |--------- |--------------------------|---------------------------------|------------------|
-| 2               | 1000000  | 1654.14                  | 995.98                          | 1.66             |
-| 4               | 1000000  | 3233.11                  | 1297.49                         | 2.50             |
-| 8               | 1000000  | 6470.30                  | 1963.47                         | 3.30             |
-| 16              | 1000000  | 13301.50                 | 2941.81                         | 4.52             |
-| 32              | 600000   | 28151.37                 | 3884.17                         | 7.25             |
-| 64              | 400000   | 51685.58                 | 5765.08                         | 8.96             |
-| 128             | 200000   | 103289.05                | 11282.95                        | 9.15             |
-
-上面的结果显示：随着TransactionSize的增加，ConcurrentThemis相对于RawThemis有较大的性能提升；这说明了在提交大事务时，ConcurrentThemis会更有效。
-
-目前，ConcurrentThemis默认不会开启。开启ConcurrentThemis，需要将下面的设置加入到client端的配置文件：
-
-     <property>
-       <name>themis.enable.concurrent.rpc</name>
-       <value>true</value>
-     </property>
-
-
-## 将来的工作
-
-1. themis单行事物的写优化。
-2. themis在用户创建表时根据表属性自动创建需要的family，以及设置family属性。
-3. 清理过期数据。
-
+1. Optimize the memory usage of RegionServer. Persistent locks of committed transactions should be removed from memory so that only keeping persistent locks of un-committed transactions in memory.
+2. When reading from a transaction, merge the the local mutation of the transaction with committed transactions from server-side.
+3. Support different ioslation levels.
+4. Use a different family to save commit information and compare the performance with the current way(currently, we save commit information under the same family with data column).
+5. Commit secondary rows in background to improve latency.
+6. Release the correctness validate program AccountTransfer.
