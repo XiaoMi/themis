@@ -43,7 +43,7 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
    
      ```
      (in the directory of hbase 0.98.5)
-     mvn clean install -DskipTests -Dhadoop.profile=2.0
+     mvn clean install -DskipTests
      ```
 
 3. Build Themis and install in local repository:
@@ -70,7 +70,7 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
      ```
      <property>
        <name>hbase.coprocessor.user.region.classes</name>
-       <value>org.apache.hadoop.hbase.themis.cp.ThemisProtocolImpl,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
+       <value>org.apache.hadoop.hbase.themis.cp.ThemisEndpoint,org.apache.hadoop.hbase.themis.cp.ThemisScanObserver,org.apache.hadoop.hbase.regionserver.ThemisRegionObserver</value>
      </property>
      <property>
         <name>hbase.coprocessor.master.classes</name>
