@@ -83,11 +83,13 @@ Themis uses the timestamp of HBase's KeyValue internally, and the timestamp must
 
 add the themis-client dependency to pom of project which needs cross-row transactions.
 
+     ```
      <dependency>
        <groupId>com.xiaomi.infra</groupId>
        <artifactId>themis-client</artifactId>
        <version>1.0-SNAPSHOT</version>
      </dependency>
+     ```
 
 ### Run the example code
 
@@ -95,13 +97,16 @@ add the themis-client dependency to pom of project which needs cross-row transac
 
 2. after building Themis, run example code by:
      
+     ```
      mvn exec:java -Dexec.mainClass="org.apache.hadoop.hbase.themis.example.Example"
+     ```
   
 The screen will output the result of read and write transactions.
 
 ## Example of Themis API
 
 The APIs of Themis are defined in TransactionInterface.java, including put/delete/get/getScanner, which are similar to HBase's APIs:
+
      ```
      public void put(byte[] tableName, ThemisPut put) throws IOException;
      public void delete(byte[] tableName, ThemisDelete delete) throws IOException;
@@ -111,6 +116,7 @@ The APIs of Themis are defined in TransactionInterface.java, including put/delet
      ```
 
 The following code shows how to use Themis APIs:
+
      ```
      // This class shows an example of transfer $3 from Joe to Bob in cash table, where rows of Joe and Bob are
      // located in different regions. The example will use the 'put' and 'get' APIs of Themis to do transaction.
