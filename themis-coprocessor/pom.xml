@@ -2,7 +2,7 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <hbase.version>0.94.11-mdh1.2.5</hbase.version>
+    <hbase.version>0.94.11-mdh1.2.36</hbase.version>
     <themis.version>1.0-SNAPSHOT</themis.version>
   </properties>
 

@@ -6,6 +6,54 @@ Themis provides cross-row/cross-table transaction on HBase based on [google's pe
 
 Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of themis for a few months, and optimize the algorithm to achieve better performance.
 
+## Implementation 
+
+The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
+
+![themis_architecture](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
+
+**Themis Client:**
+
+1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
+2. MutationCache: index the mutations of users by rows in client side.
+3. ThemisCoprocessorClient: the client to access themis coprocessor.
+4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
+5. LockCleaner: resovle write/write conflict and read/write conflict.
+
+Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
+
+**Themis Coprocessor:**
+
+1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
+2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
+3. ThemisRegionObserver: single-row write optimization, add data clean filter to the scanner of flush and compaction.
+4. ThemisMasterObserver: automatically add lock family when users creating table, set timestamp for data clean periodly.
+
+
+### Principal
+
+**Themis Write:**
+
+1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
+2. Prewrite-Phase: get timestamp from chronos(denoted as prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
+3. After prewrite-phase finished, get timestamp from chronos(denoted as commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs if the persistent lock of primaryColumn is not deleted.
+4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumns.
+
+Themis applies transaction mutations by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
+
+**Themis Read:**
+
+1. Get timestamp from chronos(named startTs), check the read/write conflicts.
+2. Read the snapshot of database before startTs when there are no read/write conflicts.
+
+Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
+
+**Conflict Resolution:**
+
+There might be write/write and read/write conflicts as described. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
+
+Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
+
 ## Example of Themis API
 
 ### themisPut 
@@ -57,55 +105,6 @@ In above code, the mutations of two rows will both be applied to HBase and visia
 Themis will get a timestamp from chronos before transaction starts, and will promise to read the database snapshot before the timestamp.
 
 For more example code, please see [Example.java](https://github.com/XiaoMi/themis/blob/master/themis-client/src/main/java/org/apache/hadoop/hbase/themis/example/Example.java)
-
-## Principal and Implementation 
-
-### Principal
-
-**Themis Write:**
-
-1. Select one column as primaryColumn and others as secondaryColumns from mutations of users. Themis will construct persistent lock for each column.
-2. Prewrite-Phase: get timestamp from chronos(denoted as prewriteTs), write data and persistent lock to HBase with timestamp=prewriteTs when no write/write conflicts discovered.
-3. After prewrite-phase finished, get timestamp from chronos(denoted as commitTs) and commit primaryColumn: erase the persistent lock and write the commit information with timestamp=commitTs if the persistent lock of primaryColumn is not deleted.
-4. After primaryColumn committed, commit secondaryColumns: erase the persistent lock and write the commit information with timestamp=commitTs for each secondaryColumns.
-
-Themis applies transaction mutations by two-phase write(prewrite/commit). The transaction will success and be visiable to read if primaryColumn is committed succesfully; otherwise, the transaction will fail and can't be read.
-
-**Themis Read:**
-
-1. Get timestamp from chronos(named startTs), check the read/write conflicts.
-2. Read the snapshot of database before startTs when there are no read/write conflicts.
-
-Themis provides the guarantee to read all transactions with commitTs smaller than startTs, which is the snapshot of database before startTs.
-
-**Conflict Resolution:**
-
-There might be write/write and read/write conflicts as described. Themis will use the timestamp saved in persistent lock to judge whether the conflict transaction is expired. If the conflict transaction is expired, the current transaction will do rollback or commit for the conflict transaction according to whether the primaryColumn of conflict transcation is committed; otherwise, the current transaction will fail.
-
-Please see [google's percolator](http://research.google.com/pubs/pub36726.html) for more details.
-
-### Themis Implementation
-
-The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
-
-![themis_architecture](https://raw.githubusercontent.com/XiaoMi/themis/master/themis_architecture.png)
-
-**Themis Client:**
-
-1. Transaction: provides APIs of themis, including themisPut/themisGet/themisDelete/themisScan/commit.
-2. MutationCache: index the mutations of users by rows in client side.
-3. ThemisCoprocessorClient: the client to access themis coprocessor.
-4. TimestampOracle: the client to query [chronos](https://github.com/XiaoMi/chronos), which will cache the timestamp requests and issue batch request to chronos in one rpc.
-5. LockCleaner: resovle write/write conflict and read/write conflict.
-
-Themis client will manage the users's mutations by row and invoke methods of ThemisCoprocessorClient to do prewrite/commit for each row.
-
-**Themis Coprocessor:**
-
-1. ThemisProtocol/ThemisCoprocessorImpl: definition and implementation of the themis coprocessor interfaces. The major interfaces are prewrite/commit/themisGet.
-2. ThemisServerScanner/ThemisScanObserver: implement themis scan logic.
-3. ThemisRegionObserver: single-row write optimization, add data clean filter to the scanner of flush and compaction.
-4. ThemisMasterObserver: automatically add lock family when users creating table, set timestamp for data clean periodly.
 
 ## Usage 
 
