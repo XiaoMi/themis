@@ -4,7 +4,7 @@
 
 Themis provides cross-row/cross-table transaction on HBase based on [google's percolator](http://research.google.com/pubs/pub36726.html).
 
-Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of themis for a few months, and optimize the algorithm to achieve better performance.
+Themis guarantees the ACID characteristics of cross-row transaction by two-phase commit and conflict resolution, which is based on the single-row transaction of HBase. Themis depends on [Chronos](https://github.com/XiaoMi/chronos) to provide global strictly incremental timestamp, which defines the global order for transactions and makes themis could read database snapshot before given timestamp. Themis adopts HBase coprocessor framework, which could be applied without changing source code of HBase. We validate the correctness of themis for a few months, and optimize the algorithm to achieve better performance.
 
 ## Implementation 
 
@@ -187,45 +187,55 @@ The following code shows how to use Themis APIs:
 
 For the full example, please see : org.apache.hadoop.hbase.themis.example.Example.java
 
-### Schema Support
+## Schema Support
 
 1. Themis will use the timestamp of KeyValue internally, so that the timestamp and version attributes of HBase's KeyValue can't be used by the application.
 2. For families need Themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table.
 3. For each column, Themis will introduce two auxiliary columns : lock column and commit column. Themis saves the auxiliary columns in specific families : lock column in family 'L', and commit column in family #p(or in family #d if it is a Delete). The character '#' is preserved by Themis and application should not include it in name of the family needing Themis. Themis will create auxiliary families when creating table automically if 'THEMIS_ENABLE' is set on some family.
 
-### Themis Options
+## Themis Configuration 
 
-3. For familiy needs themis, set THEMIS_ENABLE to 'true' by adding "CONFIG => {'THEMIS_ENABLE', 'true'}" to the family descriptor when creating table. 
+### Client Side
 
-**Use Chronos As Timestamp Oracle**
+**Timestamp server**
 
-Themis will use a LocalTimestampOracle class to provide incremental timestamp for threads in the same process. To use the global incremental timestamp from Chronos, we need the following steps and config:
+If users want strong consistency across client processes, the 'themis.timestamp.oracle.class' should be set to 'RemoteTimestampOracleProxy'. Then, Themis will access globally incremental timestamp from [Chronos](https://github.com/XiaoMi/chronos), the entry of Chronos will be registered in Zookeeper quorum which can also be configured. 
 
-1. config and start a Chronos cluster, please see : https://github.com/XiaoMi/chronos/.
+The default value of 'themis.timestamp.oracle.class' is 'LocalTimestampOracle', which provides incremental timestamp in one process. If users only need strong consistency in one clent process, the default value could be used. 
 
-2. set themis.timestamp.oracle.class to "org.apache.hadoop.hbase.themis.timestamp.RemoteTimestampOracleProxy" in the config of cliet-side. With this config, themis will connect Chronos cluster in local machine.
+| Key                                        | Description                                        | Default Value        |
+|--------------------------------------------|----------------------------------------------------|----------------------|
+| themis.timestamp.oracle.class              | timestamp server type                              | LocalTimestampOracle |
+| themis.remote.timestamp.server.zk.quorum   | ZK quorum where remote timestamp server registered | 127.0.0.1:2181       |
+| themis.remote.timestamp.server.clustername | cluster name of remote timestamp server            | default-cluster      |
 
-3. The Chronos cluster address could be configed by 'themis.remote.timestamp.server.zk.quorum' and cluster name could be configed by 'themis.remote.timestamp.server.clustername'.
+**Lock clean**
+
+The client needs to clean lock if encountering conflict. Users can configure the ttl of lock in client-side by 'themis.client.lock.clean.ttl'. The default value of this configuration is 0, which means the lock ttl will be decided by the server side configurations.
+
+Users can configure 'themis.worker.register.class' to 'ZookeeperWorkerRegister' to help resolve conflict faster. For details of conflict resolve, please see: [Percolator](http://research.google.com/pubs/pub36726.html). 
+
+| Key                                        | Description                                        | Default Value        |
+|--------------------------------------------|----------------------------------------------------|----------------------|
+| themis.client.lock.clean.ttl               | lock ttl configured in client-side                 | 0                    |
+| themis.worker.register.class               | worker register class                              | NullWorkerRegister   |
+| themis.retry.count                         | retry count when clean lock                        | 10                   |
+| themis.pause                               | sleep time between retries                         | 100                  |
+
+### Server Side
 
 **Data Clean Options**
 
-1. Timeout of transaction. The timeout of read/write transaction could be set by 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' respectively.
+Both read and write transactions should not last too long. Users can set 'themis.transaction.ttl.enable' to decide whether enable transaction ttl. If this configuration is enabled, 'themis.read.transaction.ttl' and 'themis.write.transaction.ttl' could be used to configure the ttl for read transaction and write transaction respectively.
 
-2. Data clean. Old data which could not be read any more will be cleaned periodly if 'themis.expired.data.clean.enable' is enable, and the clean period could be specified by 'themis.expired.timestamp.calculator.period'.
+If users enable transaction ttl, old data may become expired and can not be read by any transaction. Users can set 'themis.expired.data.clean.enable' to decide whether clean such old and expired data from HBase.
 
-These settings could be set in hbase-site.xml of server-side.
-
-**Conflict Resolution Options**
-
-1. As mentioned in [percolator](http://research.google.com/pubs/pub36726.html), failed clients could be detected quickly if "Running workers write a token into the Chubby lockservice" which could help resolve conflict lock more efficiently. In themis, we can set themis.worker.register.class to "org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister" to enable this function, then, each alive clients will create a emphemeral node in the zookeeper cluster depends by hbase.
-
-2. Themis will retry conflict resolution where retry count could be specified by "themis.retry.count" and the pause between retries could be specified by "themis.pause".
-
-**Customer Filter**
-
-1. Themis use timestamp and version attribute of HBase internally. Therefore, users should not set filters using timestamp or version attribute.
-
-2. For filters only use rowkey, such as PrefixFilter defined in HBase, users could make them implement "RowLevelFilter" interface(defined in themis) which could help do themis read more efficiently. 
+| Key                                        | Description                                        | Default Value        |
+|--------------------------------------------|----------------------------------------------------|----------------------|
+| themis.transaction.ttl.enable              | whether the transaction will be expired            | true                 |
+| themis.read.transaction.ttl                | ttl for read transaction                           | 86400                |
+| themis.write.transaction.ttl               | ttl for write transaction                          | 60                   |
+| themis.expired.data.clean.enable           | enable cleaning the old and expired data           | true                 |
 
 ### MapReduce Support
 
