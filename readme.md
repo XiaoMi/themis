@@ -10,7 +10,7 @@ Themis guarantees the ACID characteristics of cross-row transaction by two-phase
 
 The implementation of Themis adopts the HBase coprocessor framework, the following picture gives the modules of Themis:
 
-![themis_architecture](https://raw.github.com/XiaoMi/themis/master/themis_architecture.png)
+![themis_architecture](http://git.n.xiaomi.com/infra/themis/blob/master/themis_architecture.png)
 
 **Themis Client:**
 
