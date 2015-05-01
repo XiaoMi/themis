@@ -249,23 +249,7 @@ Themis implement InputFormat and OutputFormat interface in MapReduce framework:
 
 ### Global Secondary Index Support
 
-Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, including:
-
-1. Secondary index could be defined on the column under themis-enable family by setting family attribute as : CONFIG => {'SECONDARY_INDEX_NAMES', 'index_name:qualifier;...'}, and users need the following configuration to support this schema.
-
-     ```
-     <property>
-        <name>hbase.coprocessor.master.classes</name>
-        <value>org.apache.hadoop.hbase.master.ThemisMasterObserver,org.apache.hadoop.hbase.themis.index.cp.IndexMasterObserver</value>
-     </property>
-
-     ```
-
-2. When mutating columns which contain secondary index definitions, mutations corresponding to the index table will be applied automatically.
-
-3. Users could read data by secondary index with IndexGet / IndexScan.
-
-Themis-index is also expiremental, we will improve this sub-project after studying the demands better.
+Based on the cross table data consistency guaranteed by themis transaction, we build an expiremental sub-project "themis-index" to support global secondary index, this sub-project is in progress. 
 
 ## Test 
 
@@ -314,21 +298,6 @@ The above tests are all done in a single region server. From the results, we can
 2. In commit phase, we erase corresponding lock if it exist, write data and commit information at the same time.
 
 The aboving skills make prewrite phase not write HLog, so that improving the write performance a lot for single-column transaction(also for single-row transaction). After applying the skills, if region server restarts after prewrite phase, the commit phase can't read the persistent lock and the transaction will fail, this won't break correctness of the algorithm.
-
-**ConcurrentThemis Result:**
-The prewrite and commit of secondary rows could be implemented concurrently, which could do cross-row transaction more efficiently. We use 'ConcurrentThemis' to represent the concurrent way and 'RawThemis' to represent the original way, then get the efficiency comparsion(we don't pre-load data before this comparsion because we focus on the relative improvement):
-
-| TransactionSize | PutCount | RawThemis AvgTime(us) | ConcurrentThemis AvgTime(us) | Relative Improve |
-|-----------------|--------- |-----------------------|------------------------------|------------------|
-| 2               | 1000000  | 1654.14               | 995.98                       | 1.66             |
-| 4               | 1000000  | 3233.11               | 1297.49                      | 2.50             |
-| 8               | 1000000  | 6470.30               | 1963.47                      | 3.30             |
-| 16              | 1000000  | 13301.50              | 2941.81                      | 4.52             |
-| 32              | 600000   | 28151.37              | 3384.17                      | 7.25             |
-| 64              | 400000   | 51658.58              | 5765.08                      | 8.96             |
-| 128             | 200000   | 103289.95             | 11282.95                     | 9.15             |
-
-TransactionSize is number of rows in one transaction. The 'Relative Improve' is 'RawThemis AvgTime(us)' / 'ConcurrentThemis AvgTime(us)'. We can see ConcurrentThemis performs much better as the TransactionSize increases, however, there is slowdown of improvement when the TransactionSize is bigger than 32.
 
 ## Future Works
 
