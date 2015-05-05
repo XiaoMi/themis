@@ -132,24 +132,22 @@ The following code shows how to use Themis APIs:
          // create table and set THEMIS_ENABLE in family 'Account' 
          createTable(connection);
 
-         {
-           // transfer $3 from Joe to Bob
-           Transaction transaction = new Transaction(conf, connection);
-           // firstly, read out the current cash for Joe and Bob
-           ThemisGet get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
-           int cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
-           get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
-           int cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+         // transfer $3 from Joe to Bob
+         Transaction transaction = new Transaction(conf, connection);
+         // firstly, read out the current cash for Joe and Bob
+         ThemisGet get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
+         int cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
+         get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
+         int cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
 
-           // then, transfer $3 from Joe to Bob, the mutations will be cached in client-side
-           int transfer = 3;
-           ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(cashOfJoe - transfer));
-           transaction.put(CASHTABLE, put);
-           put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(cashOfBob + transfer));
-           transaction.put(CASHTABLE, put);
-           // commit the mutations to server-side
-           transaction.commit();
-         }
+         // then, transfer $3 from Joe to Bob, the mutations will be cached in client-side
+         int transfer = 3;
+         ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(cashOfJoe - transfer));
+         transaction.put(CASHTABLE, put);
+         put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(cashOfBob + transfer));
+         transaction.put(CASHTABLE, put);
+         // commit the mutations to server-side
+         transaction.commit();
 
          connection.close();
          Transaction.destroy();
