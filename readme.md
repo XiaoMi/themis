@@ -123,40 +123,23 @@ The following code shows how to use Themis APIs:
        private static final byte[] CASHTABLE = Bytes.toBytes("CashTable"); // cash table
        private static final byte[] JOE = Bytes.toBytes("Joe"); // row for Joe
        private static final byte[] BOB = Bytes.toBytes("Bob"); // row for Bob
-       private static final byte[][] splits = new byte[][]{Bytes.toBytes("C")};
        private static final byte[] FAMILY = Bytes.toBytes("Account");
        private static final byte[] CASH = Bytes.toBytes("cash");
-       private static Configuration conf;
 
        public static void main(String args[]) throws IOException {
-         conf = HBaseConfiguration.create();
+         Configuration conf = HBaseConfiguration.create();
          HConnection connection = HConnectionManager.createConnection(conf);
-         // will create 'CashTable' for test, the corresponding shell command is:
-         // create 'CashTable', {NAME=>'ThemisCF', CONFIG => {'THEMIS_ENABLE', 'true'}}
+         // create table and set THEMIS_ENABLE in family 'Account' 
          createTable(connection);
 
          {
-           // initialize the accounts, Joe's cash is $20, Bob's cash is $9
-           Transaction transaction = new Transaction(conf, connection);
-           ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(20));
-           transaction.put(CASHTABLE, put);
-           put = new ThemisPut(BOB).add(FAMILY, CASH, Bytes.toBytes(9));
-           transaction.put(CASHTABLE, put);
-           transaction.commit();
-           System.out.println("initialize the accounts, Joe's account is $20, Bob's account is $9");
-         }
-
-         {
            // transfer $3 from Joe to Bob
-           System.out.println("will transfer $3 from Joe to Bob");
            Transaction transaction = new Transaction(conf, connection);
            // firstly, read out the current cash for Joe and Bob
            ThemisGet get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
            int cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
            get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
            int cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
-           System.out.println("firstly, read out cash of the two users, Joe's cash is : $" + cashOfJoe
-               + ", Bob's cash is : $" + cashOfBob);
 
            // then, transfer $3 from Joe to Bob, the mutations will be cached in client-side
            int transfer = 3;
@@ -166,16 +149,6 @@ The following code shows how to use Themis APIs:
            transaction.put(CASHTABLE, put);
            // commit the mutations to server-side
            transaction.commit();
-           System.out.println("then, transfer $3 from Joe to Bob and commit mutations to server-side");
-
-           // lastly, read out the result after transferred
-           transaction = new Transaction(conf, connection);
-           get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
-           cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
-           get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
-           cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
-           System.out.println("after cash transferred, read out cash of the two users, Joe's cash is : $" + cashOfJoe
-               + ", Bob's cash is : $" + cashOfBob);
          }
 
          connection.close();
