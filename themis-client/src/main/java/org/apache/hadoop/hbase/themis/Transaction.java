@@ -487,4 +487,8 @@ public class Transaction extends Configured implements TransactionInterface {
   public ColumnMutationCache getMutations() {
     return this.mutationCache;
   }
+
+  public void setColumnMutationCache(ColumnMutationCache mutations) {
+    this.mutationCache = mutations;
+  }
 }

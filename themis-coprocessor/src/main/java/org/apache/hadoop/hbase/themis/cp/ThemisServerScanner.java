@@ -8,6 +8,7 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
+import org.apache.hadoop.hbase.regionserver.ScannerStatus;
 
 // themis scanner wrapper for RegionScanner which will be created by ThemisScanObserver
 public class ThemisServerScanner implements RegionScanner {
@@ -15,6 +16,7 @@ public class ThemisServerScanner implements RegionScanner {
   private final Scan dataScan;
   private final RegionScanner scanner;
   private final long startTs;
+  private final int rawLimit;
   
   public Filter getDataColumnFilter() {
     return dataScan.getFilter();
@@ -29,6 +31,7 @@ public class ThemisServerScanner implements RegionScanner {
     this.scanner = scanner;
     this.startTs = startTs;
     this.dataScan = dataScan;
+    this.rawLimit = scan.getRawLimit();
   }
   
   public Scan getScan() {
@@ -39,28 +42,28 @@ public class ThemisServerScanner implements RegionScanner {
     return this.dataScan;
   }
   
-  public boolean next(List<KeyValue> results) throws IOException {
+  public ScannerStatus next(List<KeyValue> results) throws IOException {
     return scanner.next(results);
   }
 
-  public boolean next(List<KeyValue> results, String metric) throws IOException {
+  public ScannerStatus next(List<KeyValue> results, String metric) throws IOException {
     return scanner.next(results, metric);
   }
 
-  public boolean next(List<KeyValue> result, int limit) throws IOException {
-    return scanner.next(result, limit);
+  public ScannerStatus next(List<KeyValue> result, int limit, final int rawLimit) throws IOException {
+    return scanner.next(result, limit, rawLimit);
   }
 
-  public boolean next(List<KeyValue> result, int limit, String metric) throws IOException {
-    return scanner.next(result, limit, metric);
+  public ScannerStatus next(List<KeyValue> result, int limit, final int rawLimit, String metric) throws IOException {
+    return scanner.next(result, limit, rawLimit, metric);
   }
   
-  public boolean nextRaw(List<KeyValue> result, String metric) throws IOException {
-    return scanner.nextRaw(result, metric);
+  public ScannerStatus nextRaw(List<KeyValue> result, final int rawLimit, String metric) throws IOException {
+    return scanner.nextRaw(result, rawLimit, metric);
   }
 
-  public boolean nextRaw(List<KeyValue> result, int limit, String metric) throws IOException {
-    return scanner.nextRaw(result, limit, metric);
+  public ScannerStatus nextRaw(List<KeyValue> result, int limit, final int rawLimit, String metric) throws IOException {
+    return scanner.nextRaw(result, limit, rawLimit, metric);
   }
   
   public long getMvccReadPoint() {
@@ -85,5 +88,9 @@ public class ThemisServerScanner implements RegionScanner {
 
   public long getStartTs() {
     return startTs;
+  }
+
+  public int getRawLimit() {
+    return rawLimit;
   }
 }

@@ -42,7 +42,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
     List<KeyValue> values = new ArrayList<KeyValue>();
     for (int i = 0; i < limit;) {
       try {
-        boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE);
+        boolean moreRows = s.next(values, SchemaMetrics.METRIC_NEXTSIZE).hasNext();
         ThemisProtocolImpl.checkReadTTL(System.currentTimeMillis(), s.getStartTs(),
           currentRow(values));
         if (!values.isEmpty()) {
