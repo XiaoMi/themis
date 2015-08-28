@@ -426,7 +426,9 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     long beginTs = System.nanoTime();
     try {
       checkFamily(mutations);
-      checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
+      if (primaryIndex != -1) {
+        checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
+      }
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, RowLock rowLock) throws IOException {
           if (primaryIndex >= 0) {
