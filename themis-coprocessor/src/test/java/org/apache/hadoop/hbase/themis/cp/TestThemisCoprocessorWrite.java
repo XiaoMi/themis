@@ -132,6 +132,14 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     for (int i = 0; i < prewriteLocks.size(); ++i) {
       checkCommitRowSuccess(SECONDARY_ROWS.get(i).getFirst(), SECONDARY_ROWS.get(i).getSecond());
     }
+    
+    // won't ttl for commitSecondary
+    long expiredPrewriteTs = TransactionTTL.getExpiredTimestampForWrite(System.currentTimeMillis())
+        - TransactionTTL.transactionTTLTimeError;
+    Pair<byte[], RowMutation> secondary = SECONDARY_ROWS.get(0);
+    RowMutation mutation = secondary.getSecond();
+    cpClient.commitSecondaryRow(secondary.getFirst(), mutation.getRow(),
+      mutation.mutationListWithoutValue(), expiredPrewriteTs, commitTs);
   }
   
   // the following unit tests are for prewrite/commit by columns, should be deprecated

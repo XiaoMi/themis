@@ -272,6 +272,7 @@ public class Transaction extends Configured implements TransactionInterface {
     if (calls.getExceptions().size() != 0) {
       // async rollback success rows
       ConcurrentRowCallables<Void> rollbacks = new ConcurrentRowCallables<Void>(getThreadPool());
+      asyncRollback(rollbacks, primary.getTableName(), primaryRow);
       for (Entry<TableAndRow, Void> successRows : calls.getResults().entrySet()) {
         TableAndRow tableAndRow = successRows.getKey();
         asyncRollback(rollbacks, tableAndRow.getTableName(),

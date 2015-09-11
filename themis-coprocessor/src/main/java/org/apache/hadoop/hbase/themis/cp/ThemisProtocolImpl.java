@@ -326,7 +326,9 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       final long prewriteTs, final long commitTs, final int primaryIndex, final boolean singleRow)
       throws IOException {
     long beginTs = System.nanoTime();
-    checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
+    if (primaryIndex != -1) {
+      checkWriteTTL(System.currentTimeMillis(), prewriteTs, row);
+    }
     try {
       return new MutationCallable<Boolean>(row) {
         public Boolean doMutation(HRegion region, Integer lid) throws IOException {
