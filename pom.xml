@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.xiaomi.infra</groupId>
   <artifactId>themis</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
   <description>themis</description>
   <name>Themis Implementationn for HBase</name>
   <packaging>pom</packaging>

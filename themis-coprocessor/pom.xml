@@ -3,7 +3,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <hbase.version>0.94.11-mdh1.2.41</hbase.version>
-    <themis.version>1.0-SNAPSHOT</themis.version>
+    <themis.version>1.0.0</themis.version>
   </properties>
 
   <modelVersion>4.0.0</modelVersion>
