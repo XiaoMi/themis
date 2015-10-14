@@ -31,7 +31,7 @@ public class ThemisServerScanner implements RegionScanner {
     this.scanner = scanner;
     this.startTs = startTs;
     this.dataScan = dataScan;
-    this.rawLimit = scan.getRawLimit();
+    this.rawLimit = scan == null ? -1 : scan.getRawLimit();
   }
   
   public Scan getScan() {

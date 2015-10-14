@@ -132,7 +132,7 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 5)));
       admin.majorCompact(TABLENAME); // cleanTs is valid when compact
-      Threads.sleep(5000); // wait compaction complete
+      Threads.sleep(10000); // wait compaction complete, wait longer to get enough compaction quota
       Result result = getRowByScan();
       Assert.assertEquals(3, result.size());
       Assert.assertNotNull(result.getValue(FAMILY, QUALIFIER));
