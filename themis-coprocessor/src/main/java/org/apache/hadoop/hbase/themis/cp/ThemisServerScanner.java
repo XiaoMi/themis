@@ -93,4 +93,8 @@ public class ThemisServerScanner implements RegionScanner {
   public int getRawLimit() {
     return rawLimit;
   }
+
+  public long getMaxResultSize() {
+    return scanner.getMaxResultSize();
+  }
 }
