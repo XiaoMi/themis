@@ -20,6 +20,7 @@ import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ThemisPut;
 import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.TransactionConstant;
@@ -189,12 +190,9 @@ public class Validator {
         String cf = ValidatorConstant.FAMILY_PREFIX + j;
         HColumnDescriptor columnDesc = new HColumnDescriptor(cf);
         columnDesc.setMaxVersions(Integer.MAX_VALUE);
+        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
         tableDesc.addFamily(columnDesc);
       }
-      HColumnDescriptor lockFamily = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
-      lockFamily.setMaxVersions(1);
-      lockFamily.setInMemory(true);
-      tableDesc.addFamily(lockFamily);
       
       if (regionCount == 1) {
         admin.createTable(tableDesc);

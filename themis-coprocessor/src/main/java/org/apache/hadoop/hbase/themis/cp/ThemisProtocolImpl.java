@@ -341,7 +341,12 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
               LOG.warn("primary lock erased, tableName="
                   + Bytes.toString(region.getTableDesc().getName()) + ", row="
                   + Bytes.toString(row) + ", column=" + mutation + ", prewriteTs=" + prewriteTs);
-              return false;
+              boolean hasCommitted = hasCommitted(region, row, lid, mutation, commitTs,
+                  ThemisCpStatistics.getThemisCpStatistics().commitPrimaryReadLatency);
+              if (hasCommitted) {
+                LOG.warn("Primary lock has been erased by self, primaryRow has been committed");
+              }
+              return hasCommitted;
             }
             // TODO : for single-row, sanity check secondary lock must hold
           }
@@ -393,7 +398,8 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
       setLockFamilyDelete(lockDelete);
       rowMutations.add(lockDelete);
     }
-    mutateToRegion(region, row, rowMutations, ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
+    mutateToRegion(region, row, rowMutations,
+        ThemisCpStatistics.getThemisCpStatistics().commitWriteLatency);
   }
   
   protected byte[] readLockBytes(HRegion region, byte[] row, Integer lid, Column column,
@@ -403,6 +409,15 @@ public class ThemisProtocolImpl extends BaseEndpointCoprocessor implements Themi
     get.setTimeStamp(prewriteTs);
     Result result = getFromRegion(region, get, lid, latency);
     return result.isEmpty() ? null : result.list().get(0).getValue();
+  }
+
+  protected boolean hasCommitted(HRegion region, byte[] row, Integer lid, Column column,
+      long commitTs, MetricsTimeVaryingRate latency) throws IOException {
+    Get get = new Get(row);
+    ThemisCpUtil.addWriteColumnToGet(column, get);
+    get.setTimeStamp(commitTs);
+    Result result = getFromRegion(region, get, lid, latency);
+    return !result.isEmpty();
   }
 
   public byte[] getLockAndErase(final byte[] row, final byte[] family, final byte[] qualifier,
