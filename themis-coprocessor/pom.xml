@@ -3,7 +3,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <hbase.version>0.94.11-mdh1.2.43.2</hbase.version>
-    <themis.version>1.0.2</themis.version>
+    <themis.version>1.0.3</themis.version>
   </properties>
 
   <modelVersion>4.0.0</modelVersion>
@@ -17,7 +17,7 @@
   <parent>
     <groupId>com.xiaomi.infra</groupId>
     <artifactId>themis</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.3</version>
     <relativePath>../</relativePath>
   </parent>
 

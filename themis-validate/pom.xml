@@ -5,7 +5,7 @@
   <parent>
     <groupId>com.xiaomi.infra</groupId>
     <artifactId>themis</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <relativePath>../</relativePath>
   </parent>
   <groupId>com.xiaomi.infra</groupId>
@@ -20,7 +20,7 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>themis-client</artifactId>
-      <version>1.0.2</version>
+      <version>1.0.3</version>
     </dependency>
   </dependencies>
   <build>
