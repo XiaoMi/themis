@@ -3,6 +3,8 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -22,7 +24,6 @@ import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.client.UnmodifyableHTableDescriptor;
 import org.apache.hadoop.hbase.coprocessor.BaseMasterObserver;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
@@ -31,8 +32,8 @@ import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
-import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpStatistics;
+import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -48,6 +49,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
   public static final String THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY = "themis.expired.data.clean.enable";
   public static final String THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME = "themis-expired-ts";
+  public static final ConcurrentMap<String, String> tableDescLock = new ConcurrentHashMap<String, String>();
   
   protected int expiredTsCalculatePeriod;
   protected Chore themisExpiredTsCalculator;
@@ -88,6 +90,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     }
     
     if (themisEnable) {
+      int replicationScope = HColumnDescriptor.DEFAULT_REPLICATION_SCOPE;
       for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
         if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName())) {
           throw new DoNotRetryIOException("family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING
@@ -107,11 +110,16 @@ public class ThemisMasterObserver extends BaseMasterObserver {
               + " is true, MaxVersion=" + columnDesc.getMaxVersions());
         }
         columnDesc.setMaxVersions(Integer.MAX_VALUE);
+        int scope = columnDesc.getScope();
+        if (scope != HColumnDescriptor.DEFAULT_REPLICATION_SCOPE) {
+          replicationScope = scope;
+        }
       }
-      desc.addFamily(createLockFamily());
-      LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc.getNameAsString());
+      desc.addFamily(createLockFamily(replicationScope));
+      LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc
+        .getNameAsString());
       if (!ColumnUtil.isCommitToSameFamily()) {
-        addCommitFamilies(desc);
+        addCommitFamilies(desc, replicationScope);
         LOG.info("add commit family '" + ColumnUtil.PUT_FAMILY_NAME + "' and '"
             + ColumnUtil.DELETE_FAMILY_NAME + "' for table:" + desc.getNameAsString());
       }
@@ -127,35 +135,44 @@ public class ThemisMasterObserver extends BaseMasterObserver {
         && Boolean.parseBoolean(desc.getValue(RETURNED_THEMIS_TABLE_DESC));
   }
   
+  protected static String getTableDescLock(String tableName) {
+    tableDescLock.putIfAbsent(tableName, tableName);
+    return tableDescLock.get(tableName);
+  }
+  
   @Override
   public void postGetTableDescriptors(ObserverContext<MasterCoprocessorEnvironment> ctx,
       List<HTableDescriptor> descriptors, String regex) throws IOException {
     for (HTableDescriptor desc : descriptors) {
       // TODO: only set RETURNED_THEMIS_TABLE_DESC for themis-enable table?
-      setReturnedThemisTableDesc(desc);
+      synchronized (getTableDescLock(desc.getNameAsString())) {
+        setReturnedThemisTableDesc(desc);
+      }
     }
   }
   
-  protected static HColumnDescriptor createLockFamily() {
+  protected static HColumnDescriptor createLockFamily(int scope) {
     HColumnDescriptor desc = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
     desc.setInMemory(true);
     desc.setMaxVersions(1);
     desc.setTimeToLive(HConstants.FOREVER);
+    desc.setScope(scope);
     // TODO(cuijianwei) : choose the best bloom filter type
     // desc.setBloomFilterType(BloomType.ROWCOL);
     return desc;
   }
   
-  protected static void addCommitFamilies(HTableDescriptor desc) {
+  protected static void addCommitFamilies(HTableDescriptor desc, int scope) {
     for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-      desc.addFamily(getCommitFamily(family));
+      desc.addFamily(getCommitFamily(family, scope));
     }
   }
   
-  protected static HColumnDescriptor getCommitFamily(byte[] familyName) {
+  protected static HColumnDescriptor getCommitFamily(byte[] familyName, int scope) {
     HColumnDescriptor desc = new HColumnDescriptor(familyName);
     desc.setTimeToLive(HConstants.FOREVER);
     desc.setMaxVersions(Integer.MAX_VALUE);
+    desc.setScope(scope);
     return desc;
   }
   

@@ -348,6 +348,11 @@ public class Transaction extends Configured implements TransactionInterface {
             + lock.getColumn() + ", conflict lock=" + lock);
       }
       
+      if (lock.getTimestamp() == this.startTs) {
+        LOG.warn("Lock by self, success last time, continue.");
+        return;
+      }
+      
       // we must do lock cleaning if encountering conflict lock. We must make sure the returned conflict column
       // is the data column other than the corresponding write/lock columns; otherwise, fatal errors might be caused.
       if (!ColumnUtil.isDataColumn(lock.getColumn())) {

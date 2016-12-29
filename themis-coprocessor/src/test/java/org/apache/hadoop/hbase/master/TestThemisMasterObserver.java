@@ -43,7 +43,8 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   
   @Test
   public void testCreateThemisLockFamily() throws Exception {
-    HColumnDescriptor columnDesc = ThemisMasterObserver.createLockFamily();
+    HColumnDescriptor columnDesc = ThemisMasterObserver
+        .createLockFamily(HColumnDescriptor.DEFAULT_REPLICATION_SCOPE);
     checkLockFamilyDesc(columnDesc);
   }
   
@@ -55,7 +56,8 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   @Test
   public void testGetThemisCommitFamily() throws Exception {
     for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-      HColumnDescriptor columnDesc = ThemisMasterObserver.getCommitFamily(family);
+      HColumnDescriptor columnDesc = ThemisMasterObserver.getCommitFamily(family,
+        HColumnDescriptor.DEFAULT_REPLICATION_SCOPE);
       checkCommitFamilyDesc(columnDesc);
     }
   }
