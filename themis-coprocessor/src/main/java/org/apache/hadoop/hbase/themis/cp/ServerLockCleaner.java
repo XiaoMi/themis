@@ -152,7 +152,13 @@ public class ServerLockCleaner {
       for (Column column : columns) {
         Column lockColumn = ColumnUtil.getLockColumn(column);
         // delete data and lock column
-        delete.deleteColumn(column.getFamily(), column.getQualifier(), timestamp);
+        
+        // Do not delete data when erasing lock. For replication, the lock and data of the column
+        // maybe replicated firstly, then applications may try to clean the lock, if the data is
+        // cleaned, there will be orphan commit column. There won't be much uncleanned data if we
+        // assume the lock conflict situation won't happen frequently.
+        // TODO: better way to handle the replication case?
+        // delete.deleteColumn(column.getFamily(), column.getQualifier(), timestamp);
         delete.deleteColumn(lockColumn.getFamily(), lockColumn.getQualifier(), timestamp);
       }
       table.delete(delete);

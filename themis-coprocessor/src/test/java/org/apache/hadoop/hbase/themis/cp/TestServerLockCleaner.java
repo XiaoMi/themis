@@ -102,7 +102,7 @@ public class TestServerLockCleaner extends TransactionTestBase {
   public void testEraseAndDataLock() throws IOException {
     writeLockAndData(COLUMN);
     lockCleaner.eraseLockAndData(COLUMN, prewriteTs);
-    Assert.assertNull(readDataValue(COLUMN, prewriteTs));
+    Assert.assertNotNull(readDataValue(COLUMN, prewriteTs));
     Assert.assertNull(readLockBytes(COLUMN));
     
     // erase lock by row
@@ -111,6 +111,9 @@ public class TestServerLockCleaner extends TransactionTestBase {
     }
     lockCleaner.eraseLockAndData(TABLENAME, PRIMARY_ROW.getRow(), PRIMARY_ROW.getColumns(), prewriteTs);
     for (ColumnCoordinate columnCoordinate : new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER}) {
+      if (getColumnType(columnCoordinate).equals(Type.Put)) {
+        Assert.assertNotNull(readDataValue(columnCoordinate, prewriteTs));
+      }
       Assert.assertNull(readLockBytes(columnCoordinate));
     }
   }
