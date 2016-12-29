@@ -5,9 +5,10 @@ import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
-import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.regionserver.ScannerContext;
 
 // themis scanner wrapper for RegionScanner which will be created by ThemisScanObserver
 public class ThemisServerScanner implements RegionScanner {
@@ -39,14 +40,6 @@ public class ThemisServerScanner implements RegionScanner {
     return this.dataScan;
   }
   
-  public boolean next(List<Cell> results) throws IOException {
-    return scanner.next(results);
-  }
-
-  public boolean next(List<Cell> result, int limit) throws IOException {
-    return scanner.next(result, limit);
-  }
-
   public long getMvccReadPoint() {
     return scanner.getMvccReadPoint();
   }
@@ -71,15 +64,27 @@ public class ThemisServerScanner implements RegionScanner {
     return scanner.getMaxResultSize();
   }
 
-  public boolean nextRaw(List<Cell> result) throws IOException {
-    return scanner.nextRaw(result);
-  }
-
-  public boolean nextRaw(List<Cell> result, int limit) throws IOException {
-    return scanner.nextRaw(result, limit);
-  }
-
   public long getStartTs() {
     return startTs;
+  }
+
+  public boolean next(List<Cell> result, ScannerContext scannerContext) throws IOException {
+    return scanner.next(result, scannerContext);
+  }
+
+  public int getBatch() {
+    return scanner.getBatch();
+  }
+
+  public boolean nextRaw(List<Cell> result, ScannerContext scannerContext) throws IOException {
+    return scanner.nextRaw(result, scannerContext);
+  }
+
+  public boolean next(List<Cell> results) throws IOException {
+    return scanner.next(results);
+  }
+
+  public boolean nextRaw(List<Cell> result) throws IOException {
+    return scanner.next(result);
   }
 }

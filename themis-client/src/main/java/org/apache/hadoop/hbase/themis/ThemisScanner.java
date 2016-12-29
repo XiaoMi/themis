@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
 
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.AbstractClientScanner;
 import org.apache.hadoop.hbase.client.ClientScanner;
 import org.apache.hadoop.hbase.client.Get;
@@ -32,7 +33,7 @@ public class ThemisScanner extends AbstractClientScanner {
       // themis coprocessor could recognize this scanner from hbase scanners and do themis logics.
       // TODO(cuijianwei): how to avoid no-themis users set this attribute when doing hbase scan?
       setStartTsToScan(scan, transaction.startTs);
-      this.scanner = new ClientScanner(transaction.getConf(), scan, tableName,
+      this.scanner = new ClientScanner(transaction.getConf(), scan, TableName.valueOf(tableName),
           transaction.getHConnection());
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().getScannerLatency, beginTs);

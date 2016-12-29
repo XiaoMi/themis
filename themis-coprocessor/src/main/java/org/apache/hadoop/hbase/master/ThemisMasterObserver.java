@@ -129,8 +129,9 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   
   @Override
   public void postGetTableDescriptors(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      List<HTableDescriptor> descriptors) throws IOException {
+      List<HTableDescriptor> descriptors, String regex) throws IOException {
     for (HTableDescriptor desc : descriptors) {
+      // TODO: only set RETURNED_THEMIS_TABLE_DESC for themis-enable table?
       setReturnedThemisTableDesc(desc);
     }
   }
