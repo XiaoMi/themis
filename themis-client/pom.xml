@@ -15,7 +15,7 @@
   <parent>
     <groupId>com.xiaomi.infra</groupId>
     <artifactId>themis</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1</version>
     <relativePath>../</relativePath>
   </parent>
 
@@ -172,6 +172,11 @@
           <artifactId>zookeeper</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.xiaomi.infra</groupId>
+      <artifactId>hbase-client</artifactId>
+      <version>2.2.7</version>
     </dependency>
   </dependencies>
   <build>

@@ -3,8 +3,8 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -33,7 +33,6 @@ import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
-import org.apache.hadoop.yarn.webapp.hamlet.HamletSpec._;
 
 public class ThemisCpUtil {
   // Filters which only use the rowkey will be classified into ALLOWED_ROWKEY_FILTER_CLASSES class,
@@ -385,7 +384,7 @@ public class ThemisCpUtil {
   }
   
   protected static List<KeyValue> getPutKvsForCommitDifferentFamily(List<KeyValue> writeKvs) {
-    Map<Column, KeyValue> map = new HashMap<Column, KeyValue>();
+    Map<Column, KeyValue> map = new LinkedHashMap<Column, KeyValue>();
     for (KeyValue kv : writeKvs) {
       Column column = new Column(kv.getFamily(), kv.getQualifier());
       Column dataColumn = ColumnUtil.getDataColumn(column);
