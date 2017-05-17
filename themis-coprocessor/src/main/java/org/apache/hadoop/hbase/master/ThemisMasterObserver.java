@@ -268,7 +268,7 @@ public class ThemisMasterObserver extends BaseMasterObserver {
   }
   
   public static String getThemisExpiredTsZNodePath(ZooKeeperWatcher zk) {
-    return zk.baseZNode + "/" + THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME;
+    return zk.getZnodePaths().baseZNode + "/" + THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME;
   }
   
   public static long getThemisExpiredTsFromZk(ZooKeeperWatcher zk) throws Exception {
