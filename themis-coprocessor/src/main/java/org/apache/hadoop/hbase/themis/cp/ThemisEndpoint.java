@@ -120,9 +120,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     if (!TransactionTTL.transactionTTLEnable) {
       return;
     }
-    new Exception().printStackTrace();
     long expiredTimestamp = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
-    System.out.println(startTs  +" " + expiredTimestamp);
     if (startTs < TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs)) {
       throw new TransactionExpiredException("Expired Read Transaction, read transaction start Ts:"
           + startTs + ", expired Ts:" + expiredTimestamp + ", currentMs=" + currentMs + ", row="

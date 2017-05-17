@@ -501,7 +501,6 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
       scanner.next();
       scanner.close();
       scanner = null;
-
       // make sure this transaction will be expired
       currentMs = System.currentTimeMillis() - TransactionTTL.transactionTTLTimeError;
       prewriteTs = TransactionTTL.getExpiredTimestampForReadByCommitColumn(currentMs);
@@ -510,6 +509,7 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
       scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
       try {
         scanner = getTable(TABLENAME).getScanner(scan);
+        scanner.next();
         Assert.fail();
       } catch (IOException e) {
         Assert.assertTrue(e.getMessage().indexOf("Expired Read Transaction") >= 0);
