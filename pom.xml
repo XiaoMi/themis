@@ -10,7 +10,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <hbase.version>0.98.11-mdh2.3.0</hbase.version>
+    <hbase.version>0.98.11-mdh2.3.1</hbase.version>
     <hadoop.version>2.4.0-mdh2.3.10</hadoop.version>
     <themis.version>2.0.1</themis.version>
   </properties>
