@@ -207,6 +207,7 @@ public class TestThemisScanner extends ClientTestBase {
     
     // lock can not be cleaned
     writeLockAndData(COLUMN, prewriteTs - 4);
+    pScan = prepareScan(TRANSACTION_COLUMNS);
     scanner = transaction.getScanner(TABLENAME, pScan);
     checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
