@@ -13,6 +13,12 @@
     <hbase.version>0.98.11-mdh2.3.1</hbase.version>
     <hadoop.version>2.4.0-mdh2.3.10</hadoop.version>
     <themis.version>2.3.0</themis.version>
+    <surefire.version>2.20</surefire.version>
+    <surefire.provider>surefire-junit47</surefire.provider>
+    <surefire.testFailureIgnore>false</surefire.testFailureIgnore>
+    <test.output.tofile>true</test.output.tofile>
+    <surefire.timeout>900</surefire.timeout>
+    <surefire.Xmx>2800m</surefire.Xmx>
   </properties>
 
   <licenses>
@@ -48,6 +54,41 @@
     <module>themis-client</module>
     <module>themis-index</module>
   </modules>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+         <!-- Test oriented plugins -->
+         <plugin>
+           <groupId>org.apache.maven.plugins</groupId>
+           <artifactId>maven-surefire-plugin</artifactId>
+           <version>${surefire.version}</version>
+           <dependencies>
+             <!-- by default surefire selects dynamically the connector to the unit tests
+               tool. We want to use always the same as the different connectors can have different
+               bugs and behaviour. -->
+             <dependency>
+               <groupId>org.apache.maven.surefire</groupId>
+               <artifactId>${surefire.provider}</artifactId>
+               <version>${surefire.version}</version>
+             </dependency>
+           </dependencies>
+           <!-- Generic testing configuration for all packages -->
+           <configuration>
+             <failIfNoTests>false</failIfNoTests>
+             <reuseForks>false</reuseForks>
+             <testFailureIgnore>${surefire.testFailureIgnore}</testFailureIgnore>
+             <redirectTestOutputToFile>${test.output.tofile}</redirectTestOutputToFile>
+           </configuration>
+         </plugin>
+         <plugin>
+           <groupId>org.apache.maven.plugins</groupId>
+           <artifactId>maven-surefire-report-plugin</artifactId>
+           <version>${surefire.version}</version>
+         </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
 
   <distributionManagement>
     <repository>
