@@ -80,6 +80,11 @@ public class ThemisServerScanner implements RegionScanner {
     return scanner.nextRaw(result, scannerContext);
   }
 
+  @Override
+  public void close(boolean b) throws IOException {
+    scanner.close(b);
+  }
+
   public boolean next(List<Cell> results) throws IOException {
     return scanner.next(results);
   }
