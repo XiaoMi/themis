@@ -102,10 +102,14 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     int replicationScope = HColumnDescriptor.DEFAULT_REPLICATION_SCOPE;
     for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
       checkColumnDescriptorWhenThemisEnable(columnDesc);
-      columnDesc.setMaxVersions(Integer.MAX_VALUE);
-      int scope = columnDesc.getScope();
-      if (scope != HColumnDescriptor.DEFAULT_REPLICATION_SCOPE) {
-        replicationScope = scope;
+      if (isThemisEnableFamily(columnDesc)) {
+        columnDesc.setMaxVersions(Integer.MAX_VALUE);
+
+        // FIXME(qiankai): just use the scope value of the last CF?
+        int scope = columnDesc.getScope();
+        if (scope != HColumnDescriptor.DEFAULT_REPLICATION_SCOPE) {
+          replicationScope = scope;
+        }
       }
     }
     desc.addFamily(createLockFamily(replicationScope));
@@ -134,17 +138,20 @@ public class ThemisMasterObserver extends BaseMasterObserver {
           "family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' is preserved by themis when "
               + THEMIS_ENABLE_KEY + " is true, please change your family name");
     }
-    // make sure TTL and MaxVersion is not set by user
-    if (columnDesc.getTimeToLive() != HConstants.FOREVER) {
-      throw new DoNotRetryIOException(
-          "can not set TTL for family '" + columnDesc.getNameAsString() + "' when "
-              + THEMIS_ENABLE_KEY + " is true, TTL=" + columnDesc.getTimeToLive());
-    }
-    if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS
-        && columnDesc.getMaxVersions() != Integer.MAX_VALUE) {
-      throw new DoNotRetryIOException(
-          "can not set MaxVersion for family '" + columnDesc.getNameAsString() + "' when "
-              + THEMIS_ENABLE_KEY + " is true, MaxVersion=" + columnDesc.getMaxVersions());
+
+    if (isThemisEnableFamily(columnDesc)) {
+      // make sure TTL and MaxVersion is not set by user
+      if (columnDesc.getTimeToLive() != HConstants.FOREVER) {
+        throw new DoNotRetryIOException(
+            "can not set TTL for family '" + columnDesc.getNameAsString() + "' when " 
+                 + THEMIS_ENABLE_KEY + " is true, TTL=" + columnDesc.getTimeToLive());
+      }
+      if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS 
+           && columnDesc.getMaxVersions() != Integer.MAX_VALUE) {
+        throw new DoNotRetryIOException(
+            "can not set MaxVersion for family '" + columnDesc.getNameAsString() + "' when "
+                 + THEMIS_ENABLE_KEY + " is true, MaxVersion=" + columnDesc.getMaxVersions());
+      }
     }
   }
 

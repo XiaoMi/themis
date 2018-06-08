@@ -1,15 +1,5 @@
 package org.apache.hadoop.hbase.themis;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -29,6 +19,7 @@ import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.cp.ThemisStatisticsBase;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
+import org.apache.hadoop.hbase.themis.exception.InvalidRowMutationException;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.MultiRowExceptions;
@@ -46,6 +37,16 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 public class Transaction extends Configured implements TransactionInterface {
   private static final Log LOG = LogFactory.getLog(Transaction.class);
   private HConnection connection;
@@ -61,7 +62,7 @@ public class Transaction extends Configured implements TransactionInterface {
   protected ColumnCoordinate primary;
   private int primaryIndexInRow = -1; // the index of selected primary column in primary row
   protected List<ColumnCoordinate> secondaries; // coordinates of secondary columns
-  protected RowMutation primaryRow; // the row contains the primary column
+  protected RowMutation primaryRow = null; // the row contains the primary column
   protected List<Pair<byte[], RowMutation>> secondaryRows;
   protected byte[] secondaryLockBytesWithoutType;
   protected volatile static ExecutorService singletonThreadPool;
@@ -71,8 +72,11 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean enableSingleRowWrite;
   protected Indexer indexer;
   protected boolean disableLockClean = false;
+  // auxiliary mutation will be written in AUX family in commit-primary phase, which ensures transaction
+  // will be committed eventually
+  protected ColumnMutation auxiliaryColumnMutation = null;
   
-  public static void init(Configuration conf) throws IOException {
+  public static void init(Configuration conf) {
     ColumnUtil.init(conf);
   }
   
@@ -294,7 +298,15 @@ public class Transaction extends Configured implements TransactionInterface {
         byte[] row = rowEntry.getValue().getRow();
         boolean findPrimaryInRow = false;
         List<ColumnMutation> columnMutations = rowEntry.getValue().mutationList();
+        int auxiliaryColumnIndex = -1;
         for (int i = 0; i < columnMutations.size(); ++i) {
+          ColumnMutation columnMutation = columnMutations.get(i);
+          if (ColumnUtil.isAuxiliaryColumn(columnMutation)) {
+            auxiliaryColumnMutation = columnMutation;
+            auxiliaryColumnIndex = i;
+            continue;
+          }
+
           ColumnCoordinate column = new ColumnCoordinate(table, row, columnMutations.get(i));
           // set the first column as primary if primary is not set by user
           if (primaryIndexInRow == -1 && (primary == null || column.equals(primary))) {
@@ -306,6 +318,21 @@ public class Transaction extends Configured implements TransactionInterface {
             secondaries.add(column);
           }
         }
+        if (auxiliaryColumnIndex >= 0) {
+          if (primary == null || primaryRow == null || !Bytes.equals(table, primary.getTableName())
+              || !Bytes.equals(row, primary.getRow())) {
+            throw new InvalidRowMutationException("Found auxiliary column " + auxiliaryColumnMutation
+              + " in non-primary row " + rowEntry.getValue() + " of table " + Bytes.toString(table)
+              + ", but primary row is " + primaryRow + ", primary is " + primary, rowEntry.getValue());
+          }
+
+          // remove auxiliary will change original index of item in list, so adjust primary index if needed
+          primaryRow.removeMutation(auxiliaryColumnMutation);
+          if (auxiliaryColumnIndex < primaryIndexInRow) {
+            primaryIndexInRow--;
+          }
+        }
+
         if (!findPrimaryInRow) {
           secondaryRows.add(new Pair<byte[], RowMutation>(tableEntry.getKey(), rowEntry.getValue()));
         }
@@ -369,17 +396,29 @@ public class Transaction extends Configured implements TransactionInterface {
       }
     }
   }
-  
+
+  private List<ColumnMutation> constructColumnMutationList(RowMutation mutation, boolean withoutValue) {
+    List<ColumnMutation> mutationList = null;
+    if (withoutValue) {
+      mutationList = mutation.mutationListWithoutValue();
+    } else {
+      mutationList = mutation.mutationList();
+    }
+    return mutationList;
+  }
+
   // prewrite a PrimaryRow or SecondaryRow indicated by containPrimary
   protected ThemisLock prewriteRow(byte[] tableName, RowMutation mutation, boolean containPrimary)
       throws IOException {
     if (containPrimary) {
-      if (singleRowTransaction && enableSingleRowWrite) {
-        return cpClient.prewriteSingleRow(tableName, mutation.getRow(),
-          mutation.mutationListWithoutValue(), startTs, ThemisLock.toByte(constructPrimaryLock()),
-          secondaryLockBytesWithoutType, primaryIndexInRow);
+      boolean singleRow = singleRowTransaction && enableSingleRowWrite;
+      List<ColumnMutation> mutationList = constructColumnMutationList(mutation, singleRow);
+      if (singleRow) {
+        return cpClient.prewriteSingleRow(tableName, mutation.getRow(), mutationList, startTs,
+          ThemisLock.toByte(constructPrimaryLock()), secondaryLockBytesWithoutType,
+          primaryIndexInRow);
       } else {
-        return cpClient.prewriteRow(tableName, mutation.getRow(), mutation.mutationList(), startTs,
+        return cpClient.prewriteRow(tableName, mutation.getRow(), mutationList, startTs,
           ThemisLock.toByte(constructPrimaryLock()), secondaryLockBytesWithoutType,
           primaryIndexInRow);
       }
@@ -430,12 +469,17 @@ public class Transaction extends Configured implements TransactionInterface {
   
   public void commitPrimary() throws IOException {
     try {
-      if (singleRowTransaction && enableSingleRowWrite) {
-        cpClient.commitSingleRow(primary.getTableName(), primaryRow.getRow(),
-          primaryRow.mutationList(), startTs, commitTs, primaryIndexInRow);
+      boolean singleRow = singleRowTransaction && enableSingleRowWrite;
+      List<ColumnMutation> mutationList = constructColumnMutationList(primaryRow, !singleRow);
+      if (auxiliaryColumnMutation != null) {
+        mutationList.add(auxiliaryColumnMutation);
+      }
+      if (singleRow) {
+        cpClient.commitSingleRow(primary.getTableName(), primaryRow.getRow(), mutationList, startTs,
+          commitTs, primaryIndexInRow);
       } else {
-        cpClient.commitRow(primary.getTableName(), primaryRow.getRow(),
-          primaryRow.mutationListWithoutValue(), startTs, commitTs, primaryIndexInRow);
+        cpClient.commitRow(primary.getTableName(), primaryRow.getRow(), mutationList, startTs,
+          commitTs, primaryIndexInRow);
       }
     } catch (LockCleanedException e) {
       // rollback all prewrites if commit primary fail because primary lock has been erased

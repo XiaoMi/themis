@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.themis.columns;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.util.Bytes;
+import com.google.common.annotations.VisibleForTesting;
 
 public class ColumnUtil {
   public static final char PRESERVED_COLUMN_CHARACTER = '#'; // must check column family don't contain this character
@@ -28,9 +29,24 @@ public class ColumnUtil {
       DIFFERNT_FAMILY
   }
 
+  // auxiliary family and qualifier
+  public static final String AUXILIARY_FAMILY_NAME_KEY = "themis.auxiliary.family.name";
+  public static final String DEFAULT_AUXILIARY_FAMILY_NAME = "T";
+  public static final String AUXILIARY_QUALIFIER_NAME_KEY = "themis.auxiliary.qualifier.name";
+  public static final String DEFAULT_AUXILIARY_QUALIFIER_NAME = "__t";
+
+  protected static String auxiliaryFamily;
+  protected static byte[] auxiliaryFamilyBytes;
+  protected static String auxiliaryQualifier;
+  protected static byte[] auxiliaryQualifierBytes;
+
   public static void init(Configuration conf) {
     commitFamily = CommitFamily.valueOf(conf.get(THEMIS_COMMIT_FAMILY_TYPE,
       CommitFamily.DIFFERNT_FAMILY.toString()));
+    auxiliaryFamily = conf.get(AUXILIARY_FAMILY_NAME_KEY, DEFAULT_AUXILIARY_FAMILY_NAME);
+    auxiliaryFamilyBytes = Bytes.toBytes(auxiliaryFamily);
+    auxiliaryQualifier = conf.get(AUXILIARY_QUALIFIER_NAME_KEY, DEFAULT_AUXILIARY_QUALIFIER_NAME);
+    auxiliaryQualifierBytes = Bytes.toBytes(auxiliaryQualifier);
   }
   
   public static boolean isCommitToSameFamily() {
@@ -117,6 +133,22 @@ public class ColumnUtil {
   
   public static boolean isDataColumn(Column column) {
     return (!isLockColumn(column)) && (!isWriteColumn(column));
+  }
+
+  public static boolean isAuxiliaryFamily(byte[] family) {
+    return Bytes.equals(family, auxiliaryFamilyBytes);
+  }
+
+  public static boolean isAuxiliaryColumn(Column column) {
+    if (column.getFamily() == null) {
+      return false;
+    }
+
+    if (Bytes.equals(auxiliaryFamilyBytes, column.getFamily())
+        && Bytes.equals(auxiliaryQualifierBytes, column.getQualifier())) {
+      return true;
+    }
+    return false;
   }
   
   // transfer among data/lock/write column
@@ -212,5 +244,25 @@ public class ColumnUtil {
 
   protected static byte[] constructQualifierFromColumn(Column column) {
     return Bytes.add(column.getFamily(), PRESERVED_COLUMN_CHARACTER_BYTES, column.getQualifier());
+  }
+
+  @VisibleForTesting
+  public static String getAuxiliaryFamily() {
+    return auxiliaryFamily;
+  }
+
+  @VisibleForTesting
+  public static byte[] getAuxiliaryFamilyBytes() {
+    return auxiliaryFamilyBytes;
+  }
+
+  @VisibleForTesting
+  public static String getAuxiliaryQualifier() {
+    return auxiliaryQualifier;
+  }
+
+  @VisibleForTesting
+  public static byte[] getAuxiliaryQualifierBytes() {
+    return auxiliaryQualifierBytes;
   }
 }

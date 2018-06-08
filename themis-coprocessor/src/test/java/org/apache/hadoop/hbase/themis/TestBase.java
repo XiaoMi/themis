@@ -40,6 +40,7 @@ public class TestBase {
   protected static final byte[] ANOTHER_QUALIFIER = Bytes.toBytes("AnotherQualifier");
   protected static final byte[] VALUE = Bytes.toBytes("Value");
   protected static final byte[] ANOTHER_VALUE = Bytes.toBytes("AnotherValue");
+  protected static final byte[] AUXILIARY_VALUE = Bytes.toBytes("AuxiliaryValue");
   protected static final long PREWRITE_TS = System.currentTimeMillis();
   protected static final long COMMIT_TS = PREWRITE_TS + 10;
   protected static final KeyValue KEYVALUE = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS,

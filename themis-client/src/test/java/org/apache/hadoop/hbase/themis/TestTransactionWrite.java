@@ -1,6 +1,7 @@
 package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Get;
@@ -68,54 +69,82 @@ public class TestTransactionWrite extends ClientTestBase {
   
   @Test
   public void testSelectPrimaryAndSecondaries() throws IOException {
-    applyTransactionMutations();
-    ThemisPut put = new ThemisPut(ANOTHER_ROW);
-    put.add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(ANOTHER_TABLENAME, put);
-    put = new ThemisPut(ANOTHER_ROW);
-    put.add(ANOTHER_FAMILY, QUALIFIER, VALUE);
-    transaction.put(ANOTHER_TABLENAME, put);
-    transaction.selectPrimaryAndSecondaries();
-    ColumnCoordinate expectPrimary = new ColumnCoordinate(ANOTHER_TABLENAME, ANOTHER_ROW, ANOTHER_FAMILY, QUALIFIER);
-    Assert.assertEquals(expectPrimary, transaction.primary);
-    Assert.assertEquals(2, transaction.primaryRow.size());
-    Assert.assertArrayEquals(ANOTHER_ROW, transaction.primaryRow.getRow());
-    Assert.assertTrue(transaction.primaryRow.hasMutation(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertTrue(transaction.primaryRow.hasMutation(FAMILY, QUALIFIER));
-    
-    Assert.assertArrayEquals(ANOTHER_TABLENAME, transaction.secondaryRows.get(0).getFirst());
-    Assert.assertArrayEquals(ROW, transaction.secondaryRows.get(0).getSecond().getRow());
-    Assert.assertEquals(1, transaction.secondaryRows.get(0).getSecond().size());
-    Assert.assertTrue(transaction.secondaryRows.get(0).getSecond().hasMutation(FAMILY, QUALIFIER));
-    
-    Assert.assertArrayEquals(TABLENAME, transaction.secondaryRows.get(1).getFirst());
-    Assert.assertArrayEquals(ANOTHER_ROW, transaction.secondaryRows.get(1).getSecond().getRow());
-    Assert.assertEquals(1, transaction.secondaryRows.get(1).getSecond().size());
-    Assert.assertTrue(transaction.secondaryRows.get(1).getSecond().hasMutation(FAMILY, QUALIFIER));
-    
-    Assert.assertArrayEquals(TABLENAME, transaction.secondaryRows.get(2).getFirst());
-    Assert.assertArrayEquals(ROW, transaction.secondaryRows.get(2).getSecond().getRow());
-    Assert.assertEquals(3, transaction.secondaryRows.get(2).getSecond().size());
-    Assert.assertTrue(transaction.secondaryRows.get(2).getSecond().hasMutation(FAMILY, QUALIFIER));
-    Assert.assertTrue(transaction.secondaryRows.get(2).getSecond().hasMutation(ANOTHER_FAMILY, QUALIFIER));
-    Assert.assertTrue(transaction.secondaryRows.get(2).getSecond().hasMutation(FAMILY, ANOTHER_QUALIFIER));
-    
     // test null mutations
     createTransactionWithMock();
     try {
       transaction.selectPrimaryAndSecondaries();
       Assert.fail();
-    } catch (IOException e) {}
-    
-    // test single mutations
-    createTransactionWithMock();
-    put = new ThemisPut(ROW);
-    put.add(FAMILY, QUALIFIER, VALUE);
-    transaction.put(TABLENAME, put);
-    transaction.selectPrimaryAndSecondaries();
-    Assert.assertEquals(1, transaction.primaryRow.size());
-    Assert.assertTrue(transaction.primaryRow.hasMutation(FAMILY, QUALIFIER));
-    Assert.assertEquals(0, transaction.secondaryRows.size());
+    } catch (IOException e) {
+    }
+
+    boolean[] isAddAuxiliaries = {true, false};
+    for (boolean isAddAuxiliary: isAddAuxiliaries) {
+      createTransactionWithMock();
+      applyTransactionMutations();
+      ThemisPut put = new ThemisPut(ANOTHER_ROW);
+      put.add(FAMILY, QUALIFIER, VALUE);
+      transaction.put(ANOTHER_TABLENAME, put);
+      put = new ThemisPut(ANOTHER_ROW);
+      put.add(ANOTHER_FAMILY, QUALIFIER, VALUE);
+      if (isAddAuxiliary) {
+        put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+            AUXILIARY_VALUE);
+      }
+      transaction.put(ANOTHER_TABLENAME, put);
+      transaction.selectPrimaryAndSecondaries();
+      ColumnCoordinate expectPrimary = new ColumnCoordinate(ANOTHER_TABLENAME, ANOTHER_ROW,
+          ANOTHER_FAMILY, QUALIFIER);
+      Assert.assertEquals(expectPrimary, transaction.primary);
+      Assert.assertEquals(2, transaction.primaryRow.size());
+      Assert.assertArrayEquals(ANOTHER_ROW, transaction.primaryRow.getRow());
+      Assert.assertTrue(transaction.primaryRow.hasMutation(ANOTHER_FAMILY, QUALIFIER));
+      Assert.assertTrue(transaction.primaryRow.hasMutation(FAMILY, QUALIFIER));
+      if (isAddAuxiliary) {
+        Assert.assertTrue(!transaction.primaryRow.hasMutation(ColumnUtil.getAuxiliaryFamilyBytes(),
+          ColumnUtil.getAuxiliaryQualifierBytes()));
+        Assert.assertArrayEquals(transaction.auxiliaryColumnMutation.getValue(), AUXILIARY_VALUE);
+      }
+      Assert.assertArrayEquals(ANOTHER_TABLENAME, transaction.secondaryRows.get(0).getFirst());
+      Assert.assertArrayEquals(ROW, transaction.secondaryRows.get(0).getSecond().getRow());
+      Assert.assertEquals(1, transaction.secondaryRows.get(0).getSecond().size());
+      Assert
+          .assertTrue(transaction.secondaryRows.get(0).getSecond().hasMutation(FAMILY, QUALIFIER));
+
+      Assert.assertArrayEquals(TABLENAME, transaction.secondaryRows.get(1).getFirst());
+      Assert.assertArrayEquals(ANOTHER_ROW, transaction.secondaryRows.get(1).getSecond().getRow());
+      Assert.assertEquals(1, transaction.secondaryRows.get(1).getSecond().size());
+      Assert
+          .assertTrue(transaction.secondaryRows.get(1).getSecond().hasMutation(FAMILY, QUALIFIER));
+
+      Assert.assertArrayEquals(TABLENAME, transaction.secondaryRows.get(2).getFirst());
+      Assert.assertArrayEquals(ROW, transaction.secondaryRows.get(2).getSecond().getRow());
+      Assert.assertEquals(3, transaction.secondaryRows.get(2).getSecond().size());
+      Assert
+          .assertTrue(transaction.secondaryRows.get(2).getSecond().hasMutation(FAMILY, QUALIFIER));
+      Assert.assertTrue(
+          transaction.secondaryRows.get(2).getSecond().hasMutation(ANOTHER_FAMILY, QUALIFIER));
+      Assert.assertTrue(
+          transaction.secondaryRows.get(2).getSecond().hasMutation(FAMILY, ANOTHER_QUALIFIER));
+
+      // test single mutations
+      createTransactionWithMock();
+      put = new ThemisPut(ROW);
+      put.add(FAMILY, QUALIFIER, VALUE);
+      if (isAddAuxiliary) {
+        put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+            AUXILIARY_VALUE);
+      }
+      transaction.put(TABLENAME, put);
+      transaction.selectPrimaryAndSecondaries();
+      Assert.assertEquals(1, transaction.primaryRow.size());
+      Assert.assertTrue(transaction.primaryRow.hasMutation(FAMILY, QUALIFIER));
+      if (isAddAuxiliary) {
+        Assert.assertTrue(!transaction.primaryRow.hasMutation(ColumnUtil.getAuxiliaryFamilyBytes(),
+          ColumnUtil.getAuxiliaryQualifierBytes()));
+        Assert.assertArrayEquals(transaction.auxiliaryColumnMutation.getValue(), AUXILIARY_VALUE);
+      }
+      Assert.assertEquals(0, transaction.secondaryRows.size());
+    }
   }
   
   @Test
@@ -140,12 +169,23 @@ public class TestTransactionWrite extends ClientTestBase {
   }
 
   @Test
+  public void testPrewritePrimaryWithAuxiliary() throws IOException {
+    preparePrewrite(false, true);
+    transaction.prewritePrimary();
+    Assert.assertNotNull(transaction.auxiliaryColumnMutation);
+    ColumnCoordinate auxiliaryCC = new ColumnCoordinate(transaction.primary.getTableName(),
+        transaction.primary.getRow(), transaction.auxiliaryColumnMutation);
+    checkPrewriteRowSuccess(transaction.primary.getTableName(), transaction.primaryRow,
+        auxiliaryCC);
+  }
+
+  @Test
   public void testPrewriteSecondariesSuccess() throws IOException {
     preparePrewrite();
     transaction.prewriteSecondaries();
     checkPrewriteSecondariesSuccess();
   }
-  
+
   @Test
   public void testPrewriteFailDueToNewerWrite() throws IOException {
     ColumnCoordinate conflictColumn = COLUMN_WITH_ANOTHER_ROW;
@@ -172,6 +212,51 @@ public class TestTransactionWrite extends ClientTestBase {
       Assert.fail();
     } catch (LockConflictException e) {
       checkTransactionRollback();
+    }
+  }
+
+  @Test
+  public void testCommitPrimaryWithAuxiliary() throws IOException {
+    prepareCommit(false, true);
+    transaction.commitPrimary();
+    checkCommitRowSuccess(transaction.primary.getTableName(), transaction.primaryRow);
+    ColumnCoordinate auxiliaryCC = new ColumnCoordinate(transaction.primary.getTableName(),
+        transaction.primary.getRow(), transaction.auxiliaryColumnMutation);
+    checkCommitAuxiliaryColumnSuccess(auxiliaryCC);
+
+    // primary lock erased, commit primary fail
+    deleteOldDataAndUpdateTs();
+    prepareCommit(false, true);
+    eraseLock(COLUMN, prewriteTs);
+    try {
+      transaction.commitPrimary();
+      Assert.fail();
+    } catch (LockCleanedException e) {
+      Assert.assertNull(readPut(COLUMN));
+      checkSecondariesRollback();
+      auxiliaryCC = new ColumnCoordinate(transaction.primary.getTableName(), transaction.primary.getRow(),
+          transaction.auxiliaryColumnMutation);
+      Assert.assertNull(readDataValue(auxiliaryCC, commitTs));
+    }
+
+    // other ioexception, commit primary fail
+    deleteOldDataAndUpdateTs();
+    prepareCommit(false, true);
+    HBaseAdmin admin = new HBaseAdmin(connection.getConfiguration());
+    admin.disableTable(TABLENAME);
+    try {
+      transaction.commitPrimary();
+      Assert.fail();
+    } catch (IOException e) {
+      Assert.assertFalse(e instanceof LockCleanedException);
+      admin.enableTable(TABLENAME);
+      checkPrewriteRowSuccess(transaction.primary.getTableName(), transaction.primaryRow);
+      checkPrewriteSecondariesSuccess();
+      auxiliaryCC = new ColumnCoordinate(transaction.primary.getTableName(), transaction.primary.getRow(),
+          transaction.auxiliaryColumnMutation);
+      Assert.assertNull(readDataValue(auxiliaryCC, commitTs));
+    } finally {
+      admin.close();
     }
   }
   
@@ -245,20 +330,62 @@ public class TestTransactionWrite extends ClientTestBase {
     admin.close();
   }
 
+  protected Pair<byte[], ThemisPut> getAuxiliaryRequest() throws IOException {
+    byte[] tableName = null;
+    byte[] row = null;
+    if (transaction.primary != null) {
+      tableName = transaction.primary.getTableName();
+      row = transaction.primary.getRow();
+    } else {
+      Map.Entry<byte[], Map<byte[], RowMutation>> primaryEntry = transaction.getMutations()
+          .getMutations().iterator().next();
+      tableName = primaryEntry.getKey();
+      row = primaryEntry.getValue().keySet().iterator().next();
+    }
+    ThemisPut put = new ThemisPut(row);
+    put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+        AUXILIARY_VALUE);
+    return new Pair<byte[], ThemisPut>(tableName, put);
+  }
+
   @Test
   public void testTransactionSuccess() throws IOException {
-    applyMutations(TRANSACTION_COLUMNS);
-    transaction.commit();
-    checkTransactionCommitSuccess();
-    
-    // test single-row transaction
-    deleteOldDataAndUpdateTs();
-    createTransactionWithMock();
-    applyMutations(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER});
-    mockTimestamp(commitTs);
-    transaction.commit();
-    Assert.assertEquals(0, transaction.secondaryRows.size());
-    checkCommitRowSuccess(TABLENAME, transaction.primaryRow);
+    boolean[] isAddAuxiliaries = {false, true};
+    for (boolean isAddAuxiliary : isAddAuxiliaries) {
+      deleteOldDataAndUpdateTs();
+      createTransactionWithMock();
+      applyMutations(TRANSACTION_COLUMNS);
+      if (isAddAuxiliary) {
+        Pair<byte[], ThemisPut> auxiliaryRequest = getAuxiliaryRequest();
+        transaction.put(auxiliaryRequest.getFirst(), auxiliaryRequest.getSecond());
+      }
+      transaction.commit();
+      checkTransactionCommitSuccess();
+      if (isAddAuxiliary) {
+        ColumnCoordinate auxiliaryCC = new ColumnCoordinate(transaction.primary.getTableName(),
+            transaction.primary.getRow(), transaction.auxiliaryColumnMutation);
+        checkCommitAuxiliaryColumnSuccess(auxiliaryCC);
+      }
+
+      // test single-row transaction
+      deleteOldDataAndUpdateTs();
+      createTransactionWithMock();
+      applyMutations(new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY,
+          COLUMN_WITH_ANOTHER_QUALIFIER });
+      mockTimestamp(commitTs);
+      if (isAddAuxiliary) {
+        Pair<byte[], ThemisPut> auxiliaryRequest = getAuxiliaryRequest();
+        transaction.put(auxiliaryRequest.getFirst(), auxiliaryRequest.getSecond());
+      }
+      transaction.commit();
+      Assert.assertEquals(0, transaction.secondaryRows.size());
+      checkCommitRowSuccess(TABLENAME, transaction.primaryRow);
+      if (isAddAuxiliary) {
+        ColumnCoordinate auxiliaryCC = new ColumnCoordinate(transaction.primary.getTableName(),
+            transaction.primary.getRow(), transaction.auxiliaryColumnMutation);
+        checkCommitAuxiliaryColumnSuccess(auxiliaryCC);
+      }
+    }
   }
   
   @Test

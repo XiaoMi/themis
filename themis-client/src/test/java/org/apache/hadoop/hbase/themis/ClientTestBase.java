@@ -7,6 +7,7 @@ import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister;
@@ -101,11 +102,20 @@ public class ClientTestBase extends TransactionTestBase {
   }
   
   protected void preparePrewrite(boolean singleRowTransaction) throws IOException {
+    preparePrewrite(singleRowTransaction, false);
+  }
+
+  protected void preparePrewrite(boolean singleRowTransaction, boolean addAuxiliary) throws IOException {
     createTransactionWithMock();
-    preparePrewriteWithoutCreateTransaction(singleRowTransaction);
+    preparePrewriteWithoutCreateTransaction(singleRowTransaction, addAuxiliary);
   }
   
   protected void preparePrewriteWithoutCreateTransaction(boolean singleRowTransaction)
+      throws IOException {
+    preparePrewriteWithoutCreateTransaction(singleRowTransaction, false);
+  }
+
+  protected void preparePrewriteWithoutCreateTransaction(boolean singleRowTransaction, boolean addAuxiliary)
       throws IOException {
     if (singleRowTransaction) {
       applySingleRowTransactionMutations();
@@ -113,7 +123,14 @@ public class ClientTestBase extends TransactionTestBase {
       applyTransactionMutations();
     }
     transaction.primary = COLUMN;
-    transaction.selectPrimaryAndSecondaries();    
+    // auxiliary column is in primary row
+    if (addAuxiliary) {
+      ThemisPut put = new ThemisPut(COLUMN.getRow());
+      put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+          AUXILIARY_VALUE);
+      transaction.put(COLUMN.getTableName(), put);
+    }
+    transaction.selectPrimaryAndSecondaries();
   }
   
   protected void checkPrewriteSecondariesSuccess() throws IOException {
@@ -127,7 +144,11 @@ public class ClientTestBase extends TransactionTestBase {
   }
   
   protected void prepareCommit(boolean singleRow) throws IOException {
-    preparePrewrite(singleRow);
+    prepareCommit(singleRow, false);
+  }
+
+  protected void prepareCommit(boolean singleRow, boolean addAuxiliary) throws IOException {
+    preparePrewrite(singleRow, addAuxiliary);
     transaction.prewritePrimary();
     transaction.prewriteSecondaries();
     transaction.commitTs = commitTs;

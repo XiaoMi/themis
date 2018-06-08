@@ -12,6 +12,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
@@ -115,9 +116,13 @@ public class TransactionTestBase extends TestBase {
     HBaseAdmin admin = new HBaseAdmin(conf);
     for (byte[] tableName : new byte[][]{TABLENAME, ANOTHER_TABLENAME}) {
       HTableDescriptor tableDesc = new HTableDescriptor(tableName);
-      for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY}) {
+      // auxiliary family
+      byte[] auxiliaryFamily = Bytes.toBytes(ColumnUtil.getAuxiliaryFamily());
+      for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY, auxiliaryFamily}) {
         HColumnDescriptor columnDesc = new HColumnDescriptor(family);
-        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+        if (!Bytes.equals(family, auxiliaryFamily)) {
+          columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+        }
         tableDesc.addFamily(columnDesc);
       }
       admin.createTable(tableDesc);
@@ -160,6 +165,11 @@ public class TransactionTestBase extends TestBase {
           hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
               .deleteFamily(ANOTHER_FAMILY, timestampBase)
               .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+          if (hTable.getName().equals(TableName.valueOf(TABLENAME))
+            || hTable.getName().equals(TableName.valueOf(ANOTHER_TABLENAME))) {
+            hTable.delete(new Delete(row).deleteFamily(ColumnUtil.getAuxiliaryFamilyBytes(),
+              timestampBase));
+          }
           if (!ColumnUtil.isCommitToSameFamily()) {
             hTable.delete(new Delete(row).deleteFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES,
               timestampBase).deleteFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES, timestampBase));
@@ -355,6 +365,10 @@ public class TransactionTestBase extends TestBase {
     Delete delete = new Delete(c.getRow()).deleteColumn(lc.getFamily(), lc.getQualifier(), ts);
     getTable(c.getTableName()).delete(delete);
   }
+
+  protected void checkCommitAuxiliaryColumnSuccess(ColumnCoordinate auxiliaryCC) throws IOException {
+    Assert.assertArrayEquals(AUXILIARY_VALUE, readDataValue(auxiliaryCC, commitTs));
+  }
   
   // help method for coprocessor write methods
   protected void checkCommitColumnSuccess(ColumnCoordinate c) throws IOException {
@@ -369,14 +383,24 @@ public class TransactionTestBase extends TestBase {
       Assert.assertEquals(prewriteTs, readDelete(c).longValue());
     }
   }
-  
+
   protected void checkPrewriteColumnSuccess(ColumnCoordinate c) throws IOException {
     checkPrewriteColumnSuccess(c, prewriteTs);
   }
   
   protected void checkPrewriteColumnSuccess(ColumnCoordinate c, boolean singleRow)
       throws IOException {
-    checkPrewriteColumnSuccess(c, prewriteTs, singleRow);
+    checkPrewriteColumnSuccess(c, singleRow, null);
+  }
+
+  protected void checkPrewriteColumnSuccess(ColumnCoordinate c, ColumnCoordinate auxiliaryColumn)
+      throws IOException {
+    checkPrewriteColumnSuccess(c, false, auxiliaryColumn);
+  }
+
+  protected void checkPrewriteColumnSuccess(ColumnCoordinate c, boolean singleRow,
+      ColumnCoordinate auxiliaryColumn) throws IOException {
+    checkPrewriteColumnSuccess(c, prewriteTs, singleRow, auxiliaryColumn);
   }
   
   protected void checkPrewriteColumnSuccess(ColumnCoordinate c, long prewriteTs) throws IOException {
@@ -385,13 +409,28 @@ public class TransactionTestBase extends TestBase {
   
   protected void checkPrewriteColumnSuccess(ColumnCoordinate c, long prewriteTs, boolean singleRow)
       throws IOException {
+    checkPrewriteColumnSuccess(c, prewriteTs, singleRow, null);
+  }
+
+  protected void checkPrewriteColumnSuccess(ColumnCoordinate c, long prewriteTs,
+      ColumnCoordinate auxiliaryColumn)
+      throws IOException {
+    checkPrewriteColumnSuccess(c, prewriteTs, false, auxiliaryColumn);
+  }
+
+  protected void checkPrewriteColumnSuccess(ColumnCoordinate c, long prewriteTs, boolean singleRow,
+      ColumnCoordinate auxiliaryColumn) throws IOException {
     byte[] lockBytes = ThemisLock.toByte(getLock(c, prewriteTs, singleRow));
     Assert.assertArrayEquals(lockBytes, readLockBytes(c, prewriteTs));
     if (getColumnType(c).equals(Type.Put) && !singleRow) {
-      Assert.assertArrayEquals(VALUE, readDataValue(c, prewriteTs));    
+      Assert.assertArrayEquals(VALUE, readDataValue(c, prewriteTs));
     } else {
       Assert.assertNull(readDataValue(c, prewriteTs));
-    }        
+    }
+
+    if (auxiliaryColumn != null) {
+      Assert.assertNull(readDataValue(auxiliaryColumn, prewriteTs));
+    }
   }
     
   protected void checkCommitRowSuccess(byte[] tableName, RowMutation rowMutation) throws IOException {
@@ -411,6 +450,21 @@ public class TransactionTestBase extends TestBase {
       ColumnCoordinate columnCoordinate = new ColumnCoordinate(tableName, rowMutation.getRow(),
           mutation);
       checkPrewriteColumnSuccess(columnCoordinate, singleRow);
+    }
+  }
+
+  protected void checkPrewriteRowSuccess(byte[] tableName, RowMutation rowMutation,
+      ColumnCoordinate auxiliaryCoordinate)
+      throws IOException {
+    checkPrewriteRowSuccess(tableName, rowMutation, false, auxiliaryCoordinate);
+  }
+
+  protected void checkPrewriteRowSuccess(byte[] tableName, RowMutation rowMutation, boolean singleRow,
+      ColumnCoordinate auxiliaryCoordinate) throws IOException {
+    for (ColumnMutation mutation : rowMutation.mutationList()) {
+      ColumnCoordinate columnCoordinate = new ColumnCoordinate(tableName, rowMutation.getRow(),
+          mutation);
+      checkPrewriteColumnSuccess(columnCoordinate, singleRow, auxiliaryCoordinate);
     }
   }
   

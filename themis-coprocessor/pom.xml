@@ -17,6 +17,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava-annotations</artifactId>
+      <version>${guava.version}</version>
+    </dependency>
+    <dependency>
       <groupId>com.xiaomi.infra</groupId>
       <artifactId>themis-protocol</artifactId>
       <version>${project.version}</version>

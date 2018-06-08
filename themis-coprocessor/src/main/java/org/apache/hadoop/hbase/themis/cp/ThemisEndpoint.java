@@ -114,7 +114,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     }
     callback.run(clientResult);
   }
-  
+
   public static void checkReadTTL(long currentMs, long startTs, byte[] row)
       throws TransactionExpiredException {
     if (!TransactionTTL.transactionTTLEnable) {
@@ -287,7 +287,8 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
             + region.getTableDesc().getNameAsString());
       }
       String themisEnable = store.getFamily().getValue(ThemisMasterObserver.THEMIS_ENABLE_KEY);
-      if (themisEnable == null || !Boolean.parseBoolean(themisEnable)) {
+      if ((themisEnable == null || !Boolean.parseBoolean(themisEnable))
+          && !ColumnUtil.isAuxiliaryFamily(store.getFamily().getName())) {
         throw new DoNotRetryIOException("can not access family : '" + Bytes.toString(family)
             + "' because " + ThemisMasterObserver.THEMIS_ENABLE_KEY + " is not set");
       }
@@ -399,7 +400,7 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
     }
     return conflict;
   }
-  
+
   protected byte[][] judgePrewriteConflict(Column column, byte[] existLockBytes, Long newerWriteTs,
       boolean lockExpired) {
     if (newerWriteTs != null || existLockBytes != null) {
@@ -464,6 +465,15 @@ public class ThemisEndpoint extends ThemisService implements CoprocessorService,
       throws IOException {
     List<Mutation> rowMutations = new ArrayList<Mutation>();
     for (ColumnMutation mutation : mutations) {
+      // auxiliary column should stay quiet, neither not to write timestamp or delete lock
+      if (ColumnUtil.isAuxiliaryColumn(mutation)) {
+        Put auxiliaryPut = new Put(row);
+        auxiliaryPut.add(mutation.getFamily(), mutation.getQualifier(), commitTs,
+            mutation.getValue());
+        rowMutations.add(auxiliaryPut);
+        continue;
+      }
+
       Put writePut = new Put(row);
       Column writeColumn = null;
       if (mutation.getType() == Type.Put) {

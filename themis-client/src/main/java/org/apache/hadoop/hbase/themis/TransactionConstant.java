@@ -1,5 +1,6 @@
 package org.apache.hadoop.hbase.themis;
 
+import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.index.Indexer.NullIndexer;
 import org.apache.hadoop.hbase.themis.lockcleaner.WorkerRegister.NullWorkerRegister;
 import org.apache.hadoop.hbase.themis.timestamp.BaseTimestampOracle.LocalTimestampOracle;
@@ -33,5 +34,11 @@ public class TransactionConstant {
   public static final int DEFAULT_CLIENT_LOCK_TTL = 0;
   
   public static final String ENABLE_SINGLE_ROW_WRITE = "themis.enable.singlerow.write";
-  public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";  
+  public static final String DISABLE_LOCK_CLEAN = "themis.disable.lock.clean";
+
+  // auxiliary family and qualifier
+  public static final String AUXILIARY_FAMILY_NAME_KEY = ColumnUtil.AUXILIARY_FAMILY_NAME_KEY;
+  public static final String DEFAULT_AUXILIARY_FAMILY_NAME = ColumnUtil.DEFAULT_AUXILIARY_FAMILY_NAME;
+  public static final String AUXILIARY_QUALIFIER_NAME_KEY = ColumnUtil.AUXILIARY_QUALIFIER_NAME_KEY;
+  public static final String DEFAULT_AUXILIARY_QUALIFIER_NAME = ColumnUtil.DEFAULT_AUXILIARY_QUALIFIER_NAME;
 }

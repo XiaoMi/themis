@@ -33,6 +33,12 @@ public class RowMutation {
     mutations.put(column, new Pair<Type, byte[]>(type, value));
     return !contained;
   }
+
+  public void removeMutation(Column column) {
+    if (mutations != null && !mutations.isEmpty()) {
+      mutations.remove(column);
+    }
+  }
   
   public List<ColumnMutation> mutationList() {
     return mutationList(true);
