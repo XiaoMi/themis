@@ -16,6 +16,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HConnectionManager;
@@ -81,51 +82,72 @@ public class ThemisMasterObserver extends BaseMasterObserver {
     if (isReturnedThemisTableDesc(desc)) {
       return;
     }
-    boolean themisEnable = false;
+    if (isThemisEnable(desc)) {
+      addAuxiliaryFamily(desc);
+    }
+  }
+
+  @Override
+  public void preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx, TableName tableName,
+      HTableDescriptor desc) throws IOException {
+    if (isReturnedThemisTableDesc(desc)) {
+      return;
+    }
+    if (isThemisEnable(desc)) {
+      addAuxiliaryFamily(desc);
+    }
+  }
+
+  private void addAuxiliaryFamily(HTableDescriptor desc) throws DoNotRetryIOException {
+    int replicationScope = HColumnDescriptor.DEFAULT_REPLICATION_SCOPE;
     for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
-      if (isThemisEnableFamily(columnDesc)) {
-        themisEnable = true;
-        break;
+      checkColumnDescriptorWhenThemisEnable(columnDesc);
+      columnDesc.setMaxVersions(Integer.MAX_VALUE);
+      int scope = columnDesc.getScope();
+      if (scope != HColumnDescriptor.DEFAULT_REPLICATION_SCOPE) {
+        replicationScope = scope;
       }
     }
-    
-    if (themisEnable) {
-      int replicationScope = HColumnDescriptor.DEFAULT_REPLICATION_SCOPE;
-      for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
-        if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName())) {
-          throw new DoNotRetryIOException("family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING
-              + "' is preserved by themis when " + THEMIS_ENABLE_KEY
-              + " is true, please change your family name");
-        }
-        // make sure TTL and MaxVersion is not set by user
-        if (columnDesc.getTimeToLive() != HConstants.FOREVER) {
-          throw new DoNotRetryIOException("can not set TTL for family '"
-              + columnDesc.getNameAsString() + "' when " + THEMIS_ENABLE_KEY + " is true, TTL="
-              + columnDesc.getTimeToLive());
-        }
-        if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS
-            && columnDesc.getMaxVersions() != Integer.MAX_VALUE) {
-          throw new DoNotRetryIOException("can not set MaxVersion for family '"
-              + columnDesc.getNameAsString() + "' when " + THEMIS_ENABLE_KEY
-              + " is true, MaxVersion=" + columnDesc.getMaxVersions());
-        }
-        columnDesc.setMaxVersions(Integer.MAX_VALUE);
-        int scope = columnDesc.getScope();
-        if (scope != HColumnDescriptor.DEFAULT_REPLICATION_SCOPE) {
-          replicationScope = scope;
-        }
-      }
-      desc.addFamily(createLockFamily(replicationScope));
-      LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc
+    desc.addFamily(createLockFamily(replicationScope));
+    LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc
         .getNameAsString());
-      if (!ColumnUtil.isCommitToSameFamily()) {
-        addCommitFamilies(desc, replicationScope);
-        LOG.info("add commit family '" + ColumnUtil.PUT_FAMILY_NAME + "' and '"
-            + ColumnUtil.DELETE_FAMILY_NAME + "' for table:" + desc.getNameAsString());
-      }
-    }    
+    if (!ColumnUtil.isCommitToSameFamily()) {
+      addCommitFamilies(desc, replicationScope);
+      LOG.info("add commit family '" + ColumnUtil.PUT_FAMILY_NAME + "' and '"
+          + ColumnUtil.DELETE_FAMILY_NAME + "' for table:" + desc.getNameAsString());
+    }
   }
-  
+
+  private boolean isThemisEnable(HTableDescriptor desc) {
+    for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
+      if (isThemisEnableFamily(columnDesc)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private void checkColumnDescriptorWhenThemisEnable(HColumnDescriptor columnDesc)
+      throws DoNotRetryIOException {
+    if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName())) {
+      throw new DoNotRetryIOException(
+          "family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' is preserved by themis when "
+              + THEMIS_ENABLE_KEY + " is true, please change your family name");
+    }
+    // make sure TTL and MaxVersion is not set by user
+    if (columnDesc.getTimeToLive() != HConstants.FOREVER) {
+      throw new DoNotRetryIOException(
+          "can not set TTL for family '" + columnDesc.getNameAsString() + "' when "
+              + THEMIS_ENABLE_KEY + " is true, TTL=" + columnDesc.getTimeToLive());
+    }
+    if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS
+        && columnDesc.getMaxVersions() != Integer.MAX_VALUE) {
+      throw new DoNotRetryIOException(
+          "can not set MaxVersion for family '" + columnDesc.getNameAsString() + "' when "
+              + THEMIS_ENABLE_KEY + " is true, MaxVersion=" + columnDesc.getMaxVersions());
+    }
+  }
+
   protected static void setReturnedThemisTableDesc(HTableDescriptor desc) {
     desc.setValue(RETURNED_THEMIS_TABLE_DESC, "true");
   }

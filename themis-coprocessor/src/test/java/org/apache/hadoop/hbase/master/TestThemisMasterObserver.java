@@ -26,7 +26,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   private HBaseAdmin admin = null;
   private byte[] testTable = Bytes.toBytes("test_table");
   private byte[] testFamily = Bytes.toBytes("test_family");
-  
+
   @Before
   public void initEnv() throws IOException {
     super.initEnv();
@@ -48,11 +48,6 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     checkLockFamilyDesc(columnDesc);
   }
   
-  protected void checkLockFamilyDesc(HTableDescriptor tableDescriptor) {
-    Assert.assertNotNull(tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
-    checkLockFamilyDesc(tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
-  }
-  
   @Test
   public void testGetThemisCommitFamily() throws Exception {
     for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
@@ -61,40 +56,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
       checkCommitFamilyDesc(columnDesc);
     }
   }
-  
-  protected void checkLockFamilyDesc(HColumnDescriptor columnDesc) {
-    Assert.assertArrayEquals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName());
-    Assert.assertEquals(1, columnDesc.getMaxVersions());
-    Assert.assertTrue(columnDesc.isInMemory());
-    Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
-  }
 
-  protected void checkCommitFamilyDesc(HTableDescriptor desc) {
-    for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-      Assert.assertNotNull(desc.getFamily(family));
-      checkCommitFamilyDesc(desc.getFamily(family));
-    }
-  }
-  
-  protected void checkCommitFamilyDesc(HColumnDescriptor columnDesc) {
-    Assert.assertEquals(Integer.MAX_VALUE, columnDesc.getMaxVersions());
-    Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
-  }
-  
-  protected void createTestTable(boolean themisEnable) throws IOException {
-    admin.createTable(getTestTableDesc(themisEnable));
-  }
-
-  protected HTableDescriptor getTestTableDesc(boolean themisEnable) throws IOException {
-    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
-    if (themisEnable) {
-      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-    }
-    tableDesc.addFamily(columnDesc);
-    return tableDesc;
-  }
-  
   @Test
   public void testAddLockFamilyForThemisTable() throws Exception {
     // create table without setting THEMIS_ENABLE
@@ -102,7 +64,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     createTestTable(false);
     Assert
         .assertFalse(admin.getTableDescriptor(testTable).getFamiliesKeys().contains(ColumnUtil.LOCK_FAMILY_NAME));
-    
+
     // create table with THEMIS_ENABLE and family 'L'
     deleteTable(admin, testTable);
     HTableDescriptor tableDesc = getTestTableDesc(true);
@@ -114,7 +76,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     } catch (DoNotRetryIOException e) {
       Assert.assertTrue(e.getMessage().indexOf("is preserved by themis when THEMIS_ENABLE is true") >= 0);
     }
-    
+
     // create table with THEMIS_ENABLE
     deleteTable(admin, testTable);
     createTestTable(true);
@@ -226,5 +188,97 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     Assert.assertNull(readLockBytes(COLUMN_WITH_ANOTHER_TABLE, prewriteTs + 1));
     
     writeLockAndData(COLUMN, prewriteTs + 100);
+  }
+
+  @Test
+  public void testAlterThemisTable() throws IOException {
+    // create table with THEMIS_ENABLE
+    deleteTable(admin, testTable);
+    createTestTable(true);
+    HTableDescriptor tableDesc = admin.getTableDescriptor(testTable);
+    checkLockFamilyDesc(tableDesc);
+    if (ColumnUtil.isCommitToDifferentFamily()) {
+      checkCommitFamilyDesc(tableDesc);
+    }
+    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      Assert.assertEquals(HConstants.REPLICATION_SCOPE_LOCAL, columnDesc.getScope());
+    }
+
+    // Alter table replication scope to global
+    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      columnDesc.setScope(HConstants.REPLICATION_SCOPE_GLOBAL);
+    }
+    admin.modifyTable(testTable, tableDesc);
+    tableDesc = admin.getTableDescriptor(testTable);
+    checkLockFamilyDesc(tableDesc);
+    if (ColumnUtil.isCommitToDifferentFamily()) {
+      checkCommitFamilyDesc(tableDesc);
+    }
+    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      Assert.assertEquals(HConstants.REPLICATION_SCOPE_GLOBAL, columnDesc.getScope());
+    }
+
+    // Remove RETURNED_THEMIS_TABLE_DESC and lock/commit family to test the table desc from libsds
+    tableDesc.remove(ThemisMasterObserver.RETURNED_THEMIS_TABLE_DESC);
+    tableDesc.removeFamily(ColumnUtil.LOCK_FAMILY_NAME);
+    if (ColumnUtil.isCommitToDifferentFamily()) {
+      for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
+        tableDesc.removeFamily(family);
+      }
+    }
+    // Alter table replication scope to local
+    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      columnDesc.setScope(HConstants.REPLICATION_SCOPE_LOCAL);
+    }
+    admin.modifyTable(testTable, tableDesc);
+    tableDesc = admin.getTableDescriptor(testTable);
+    checkLockFamilyDesc(tableDesc);
+    if (ColumnUtil.isCommitToDifferentFamily()) {
+      checkCommitFamilyDesc(tableDesc);
+    }
+    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      Assert.assertEquals(HConstants.REPLICATION_SCOPE_LOCAL, columnDesc.getScope());
+    }
+  }
+
+  private void createTestTable(boolean themisEnable) throws IOException {
+    admin.createTable(getTestTableDesc(themisEnable));
+  }
+
+  private HTableDescriptor getTestTableDesc(boolean themisEnable) throws IOException {
+    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
+    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
+    if (themisEnable) {
+      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+    }
+    tableDesc.addFamily(columnDesc);
+    return tableDesc;
+  }
+
+  private void checkLockFamilyDesc(HTableDescriptor tableDescriptor) {
+    Assert.assertNotNull(
+        "Table should have lock family " + Bytes.toString(ColumnUtil.LOCK_FAMILY_NAME),
+        tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
+    checkLockFamilyDesc(tableDescriptor.getFamily(ColumnUtil.LOCK_FAMILY_NAME));
+  }
+
+  private void checkLockFamilyDesc(HColumnDescriptor columnDesc) {
+    Assert.assertArrayEquals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName());
+    Assert.assertEquals(1, columnDesc.getMaxVersions());
+    Assert.assertTrue(columnDesc.isInMemory());
+    Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
+  }
+
+  private void checkCommitFamilyDesc(HTableDescriptor desc) {
+    for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
+      Assert.assertNotNull("Table should have commit family " + Bytes.toString(family),
+          desc.getFamily(family));
+      checkCommitFamilyDesc(desc.getFamily(family));
+    }
+  }
+
+  private void checkCommitFamilyDesc(HColumnDescriptor columnDesc) {
+    Assert.assertEquals(Integer.MAX_VALUE, columnDesc.getMaxVersions());
+    Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
   }
 }
