@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
 
+import com.xiaomi.infra.hbase.client.HConfigUtil;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -27,15 +28,15 @@ public class ThemisTransactionService extends TransactionService {
   private HConnection connection;
 
   public ThemisTransactionService(String configPath) throws HException {
-    this(InternalHBaseClient.loadConfiguration(configPath));
-    slowAccessCutoff = this.config.getInt(InternalHBaseClient.HBASE_SLOW_ACCESS_CUTOFF,
-      InternalHBaseClient.DEFAULT_HBASE_SLOW_ACCESS_CUTOFF);
-    clusterName = this.config.get(InternalHBaseClient.HBASE_CLUSTER_NAME);
+    this(HConfigUtil.loadConfiguration(configPath));
+    slowAccessCutoff = this.config.getInt(HConfigUtil.HBASE_SLOW_ACCESS_CUTOFF,
+        HConfigUtil.DEFAULT_HBASE_SLOW_ACCESS_CUTOFF);
+    clusterName = this.config.get(HConfigUtil.HBASE_CLUSTER_NAME);
   }
   
   public ThemisTransactionService(Configuration conf) throws HException {
     super(conf);
-    String clusterName = conf.get(InternalHBaseClient.HBASE_CLUSTER_NAME, "");
+    String clusterName = conf.get(HConfigUtil.HBASE_CLUSTER_NAME, "");
     try {
       if (clusterName.length() == 0) {
         connection = HConnectionManager.createConnection(conf);

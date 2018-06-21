@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.transaction;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.xiaomi.infra.hbase.client.HConfigUtil;
 import com.xiaomi.infra.hbase.client.InternalHBaseClient;
 
 import org.apache.commons.logging.Log;
@@ -29,7 +30,7 @@ public abstract class TransactionTable implements HTableInterface {
   public TransactionTable(byte[] tableName, Transaction transaction) throws HException {
     this.tableName = tableName;
     this.transaction = transaction;
-    this.scannerCaching = transaction.getConf().getInt(InternalHBaseClient.HBASE_CLIENT_SCANNER_CACHING, 1);
+    this.scannerCaching = transaction.getConf().getInt(HConfigUtil.HBASE_CLIENT_SCANNER_CACHING, 1);
   }
   
   public List<Result> scan(Scan scan) throws HException {
