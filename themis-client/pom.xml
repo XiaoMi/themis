@@ -4,20 +4,19 @@
     <chronos.version>1.0.1-thrift0.8.0</chronos.version>
   </properties>
 
+  <parent>
+    <groupId>com.xiaomi.infra</groupId>
+    <artifactId>themis</artifactId>
+    <version>2.5-SNAPSHOT</version>
+    <relativePath>../</relativePath>
+  </parent>
+
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.xiaomi.infra</groupId>
   <artifactId>themis-client</artifactId>
   <packaging>jar</packaging>
-  <version>${themis.version}</version>
   <description>Themis Client Implementation for HBase</description>
   <name>themis-client</name>
-
-  <parent>
-    <groupId>com.xiaomi.infra</groupId>
-    <artifactId>themis</artifactId>
-    <version>2.3.1</version>
-    <relativePath>../</relativePath>
-  </parent>
 
   <dependencies>
     <dependency>
