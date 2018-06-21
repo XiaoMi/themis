@@ -1,6 +1,6 @@
 {
   "project_id" : "themis",
   "conduit_uri" : "https://phabricator.d.xiaomi.net/",
-  "base" : "git:merge-base(origin/themis-2.3), arc:prompt",
-  "arc.land.onto.default": "themis-2.3"
+  "base" : "git:merge-base(origin/themis-2), arc:prompt",
+  "arc.land.onto.default": "themis-2"
 }
