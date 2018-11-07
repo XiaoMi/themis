@@ -557,4 +557,12 @@ public class Transaction extends Configured implements TransactionInterface {
   public ColumnMutationCache getMutations() {
     return this.mutationCache;
   }
+
+  public long getStartTs() {
+    return startTs;
+  }
+
+  public void setStartTs(long startTs) {
+    this.startTs = startTs;
+  }
 }
