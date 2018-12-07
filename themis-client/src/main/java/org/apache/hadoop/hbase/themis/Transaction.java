@@ -1,13 +1,21 @@
 package org.apache.hadoop.hbase.themis;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
@@ -17,8 +25,8 @@ import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
-import org.apache.hadoop.hbase.themis.cp.ThemisStatisticsBase;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
+import org.apache.hadoop.hbase.themis.cp.ThemisStatisticsBase;
 import org.apache.hadoop.hbase.themis.exception.InvalidRowMutationException;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
@@ -36,20 +44,12 @@ import org.apache.hadoop.hbase.themis.timestamp.TimestampOracleFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Transaction extends Configured implements TransactionInterface {
-  private static final Log LOG = LogFactory.getLog(Transaction.class);
-  private HConnection connection;
+  private static final Logger LOG = LoggerFactory.getLogger(Transaction.class);
+  private Connection connection;
   private ThemisTimestamp timestampOracle;
   protected LockCleaner lockCleaner;
   // wallClock will be include into lock to judge whether the transaction is expired
@@ -58,12 +58,13 @@ public class Transaction extends Configured implements TransactionInterface {
   protected long startTs;
   protected long commitTs;
   protected ColumnMutationCache mutationCache;
-  // the selected primary column coordinate. subclasses and unit tests could set the primary manually
+  // the selected primary column coordinate. subclasses and unit tests could set the primary
+  // manually
   protected ColumnCoordinate primary;
   private int primaryIndexInRow = -1; // the index of selected primary column in primary row
   protected List<ColumnCoordinate> secondaries; // coordinates of secondary columns
   protected RowMutation primaryRow = null; // the row contains the primary column
-  protected List<Pair<byte[], RowMutation>> secondaryRows;
+  protected List<Pair<TableName, RowMutation>> secondaryRows;
   protected byte[] secondaryLockBytesWithoutType;
   protected volatile static ExecutorService singletonThreadPool;
   private static Object singletonThreadPoolLock = new Object();
@@ -72,81 +73,86 @@ public class Transaction extends Configured implements TransactionInterface {
   protected boolean enableSingleRowWrite;
   protected Indexer indexer;
   protected boolean disableLockClean = false;
-  // auxiliary mutation will be written in AUX family in commit-primary phase, which ensures transaction
+  // auxiliary mutation will be written in AUX family in commit-primary phase, which ensures
+  // transaction
   // will be committed eventually
   protected ColumnMutation auxiliaryColumnMutation = null;
-  
+
   public static void init(Configuration conf) {
     ColumnUtil.init(conf);
   }
-  
+
   // will use the connection.getConfiguation() to config the Transaction
-  public Transaction(HConnection connection) throws IOException {
+  public Transaction(Connection connection) throws IOException {
     this(connection.getConfiguration(), connection);
   }
-  
-  public Transaction(Configuration conf, HConnection connection)
-      throws IOException {
-    this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf), WorkerRegister
-        .getWorkerRegister(conf));
+
+  public Transaction(Configuration conf, Connection connection) throws IOException {
+    this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf),
+      WorkerRegister.getWorkerRegister(conf));
   }
-  
-  protected Transaction(Configuration conf, HConnection connection,
+
+  protected Transaction(Configuration conf, Connection connection,
       BaseTimestampOracle timestampOracle, WorkerRegister register) throws IOException {
     setConf(conf);
     this.connection = connection;
     this.timestampOracle = new ThemisTimestamp(timestampOracle);
     this.register = register;
     this.register.registerWorker();
-    this.enableConcurrentRpc = getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
+    this.enableConcurrentRpc =
+      getConf().getBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
     this.cpClient = new WrappedCoprocessorClient(connection);
     // TODO : use LockCleaner.getLockCleaner(...) ?
     this.lockCleaner = new LockCleaner(getConf(), connection, this.register, this.cpClient);
     this.mutationCache = new ColumnMutationCache();
     this.startTs = this.timestampOracle.getStartTs();
-    this.enableSingleRowWrite = getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
+    this.enableSingleRowWrite =
+      getConf().getBoolean(TransactionConstant.ENABLE_SINGLE_ROW_WRITE, false);
     this.indexer = Indexer.getIndexer(conf);
     this.disableLockClean = getConf().getBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, false);
     ThemisStatistics.init(getConf());
   }
-  
+
   protected static void setThreadPool(ExecutorService threadPool) {
     Transaction.singletonThreadPool = threadPool;
   }
-  
+
   protected static ExecutorService getThreadPool() {
     if (singletonThreadPool == null) {
       synchronized (singletonThreadPoolLock) {
         if (singletonThreadPool == null) {
           singletonThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
-              Integer.MAX_VALUE, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
-              Threads.newDaemonThreadFactory("themis-client-transaction-shared-executor"));
+            Integer.MAX_VALUE, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
+            Threads.newDaemonThreadFactory("themis-client-transaction-shared-executor"));
         }
       }
     }
     return singletonThreadPool;
   }
-  
-  public void put(byte[] tableName, ThemisPut put) throws IOException {
+
+  @Override
+  public void put(TableName tableName, ThemisPut put) throws IOException {
     ThemisRequest.checkContainColumn(put);
     mergeMutation(tableName, put.getHBasePut());
   }
 
-  public void delete(byte[] tableName, ThemisDelete delete) throws IOException {
+  @Override
+  public void delete(TableName tableName, ThemisDelete delete) throws IOException {
     ThemisRequest.checkContainColumn(delete);
     mergeMutation(tableName, delete.getHBaseDelete());
   }
 
   // merge mutation with same column coordinate
-  protected void mergeMutation(byte[] tableName, Mutation mutation) throws IOException {
-    for (Entry<byte[], List<KeyValue>> entry : mutation.getFamilyMap().entrySet()) {
-      for (KeyValue keyValue : entry.getValue()) {
+  protected void mergeMutation(TableName tableName, Mutation mutation) throws IOException {
+    for (Entry<byte[], List<Cell>> entry : mutation.getFamilyCellMap().entrySet()) {
+      for (Cell keyValue : entry.getValue()) {
         mutationCache.addMutation(tableName, keyValue);
       }
     }
   }
-  
-  public Result get(byte[] tableName, ThemisGet userGet) throws IOException {
+
+  @Override
+  public Result get(TableName tableName, ThemisGet userGet) throws IOException {
     long beginTs = System.nanoTime();
     boolean lockClean = false;
     try {
@@ -155,7 +161,7 @@ public class Transaction extends Configured implements TransactionInterface {
       // locks and need to clean lock before retry
       if (ThemisCpUtil.isLockResult(pResult)) {
         lockClean = true;
-        return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.list());
+        return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.listCells());
       }
       return pResult;
     } finally {
@@ -163,45 +169,50 @@ public class Transaction extends Configured implements TransactionInterface {
         "rowkey=" + Bytes.toStringBinary(userGet.getRow()) + ", lockClean=" + lockClean);
     }
   }
-  
-  protected Result tryToCleanLockAndGetAgain(byte[] tableName, Get get,
-      List<KeyValue> lockKvs) throws IOException {
+
+  protected Result tryToCleanLockAndGetAgain(TableName tableName, Get get, List<Cell> lockKvs)
+      throws IOException {
     if (disableLockClean) {
-      throw new LockConflictException("lockClean disabled, can't be cleaned after lockResult="
-          + lockKvs);
+      throw new LockConflictException(
+        "lockClean disabled, can't be cleaned after lockResult=" + lockKvs);
     }
 
-    // we only need to try once to clean lock; although later transaction may write a lock with smaller startTs
-    // than Transaction.startTs, the commitTs of the write must be larger than Transaction.startTs. Therefore
+    // we only need to try once to clean lock; although later transaction may write a lock with
+    // smaller startTs
+    // than Transaction.startTs, the commitTs of the write must be larger than Transaction.startTs.
+    // Therefore
     // should not be read out by this transaction
     lockCleaner.tryToCleanLocks(tableName, lockKvs);
-    // after cleaning lock successfully, we must read write columns again to get the newest write-column
-    // KeyValue having the commitTs < this.startTs. This time, we must ignore any lock because the commitTs of
+    // after cleaning lock successfully, we must read write columns again to get the newest
+    // write-column
+    // KeyValue having the commitTs < this.startTs. This time, we must ignore any lock because the
+    // commitTs of
     // corresponding transaction must greater than this.startTs and should be read out
     Result pResult = this.cpClient.themisGet(tableName, get, startTs, true);
     if (ThemisCpUtil.isLockResult(pResult)) {
       // should not encounter lock conflict as we ignore conflict lock this time
       throw new ThemisFatalException(
-          "encounter conflict lock after lock clean when read, conflict lock kv count="
-              + pResult.list().size() + ", lockKvs=" + pResult.list());
+        "encounter conflict lock after lock clean when read, conflict lock kv count=" +
+          pResult.size() + ", lockKvs=" + pResult.listCells());
     }
     return pResult;
   }
-  
-  public ThemisScanner getScanner(byte[] tableName, ThemisScan userScan) throws IOException {
+
+  @Override
+  public ThemisScanner getScanner(TableName tableName, ThemisScan userScan) throws IOException {
     ThemisScanner indexScanner = indexer.getScanner(tableName, userScan, this);
     if (indexScanner != null) {
       return indexScanner;
     }
     return new ThemisScanner(tableName, userScan.getHBaseScan(), this);
   }
-  
+
   public void commit() throws IOException {
     if (mutationCache.size() == 0) {
       return;
     }
     long beginTs = System.nanoTime();
-    
+
     try {
       indexer.addIndexMutations(mutationCache);
 
@@ -224,15 +235,15 @@ public class Transaction extends Configured implements TransactionInterface {
       }
     } finally {
       // TODO : do not calculate the message if not a slow log
-      ThemisStatisticsBase.logSlowOperation("themisCommit", beginTs, "rowSize="
-          + mutationCache.getMutationsCount().getFirst() + ", columnSize=" + mutationCache.size());
+      ThemisStatisticsBase.logSlowOperation("themisCommit", beginTs, "rowSize=" +
+        mutationCache.getMutationsCount().getFirst() + ", columnSize=" + mutationCache.size());
     }
   }
-  
-  public HConnection getHConnection() {
+
+  public Connection getHConnection() {
     return this.connection;
   }
-  
+
   // destroy inter-threads used by themis
   public static void destroy() throws IOException {
     BaseTimestampOracle timestampOracle = TimestampOracleFactory.getTimestampOracleWithoutCreate();
@@ -243,10 +254,9 @@ public class Transaction extends Configured implements TransactionInterface {
       singletonThreadPool.shutdownNow();
     }
   }
-  
+
   protected void asyncPrewriteRowWithLockClean(ConcurrentRowCallables<Void> calls,
-      final byte[] tableName, final RowMutation rowMutation, final boolean containPrimary)
-      throws IOException {
+      TableName tableName, RowMutation rowMutation, boolean containPrimary) throws IOException {
     calls.addCallable(new RowCallable<Void>(tableName, rowMutation.getRow()) {
       @Override
       public Void call() throws Exception {
@@ -255,9 +265,9 @@ public class Transaction extends Configured implements TransactionInterface {
       }
     });
   }
-  
-  protected void asyncRollback(ConcurrentRowCallables<Void> calls, final byte[] tableName,
-      final RowMutation rowMutation) throws IOException {
+
+  protected void asyncRollback(ConcurrentRowCallables<Void> calls, TableName tableName,
+      RowMutation rowMutation) throws IOException {
     calls.addCallable(new RowCallable<Void>(tableName, rowMutation.getRow()) {
       @Override
       public Void call() throws Exception {
@@ -266,12 +276,13 @@ public class Transaction extends Configured implements TransactionInterface {
       }
     });
   }
-  
+
   protected void concurrentPrewriteSecondaries() throws IOException {
     ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
     for (int i = 0; i < secondaryRows.size(); ++i) {
-      final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
-      asyncPrewriteRowWithLockClean(calls, secondaryRow.getFirst(), secondaryRow.getSecond(), false);
+      final Pair<TableName, RowMutation> secondaryRow = secondaryRows.get(i);
+      asyncPrewriteRowWithLockClean(calls, secondaryRow.getFirst(), secondaryRow.getSecond(),
+        false);
     }
     calls.waitForResult();
     if (calls.getExceptions().size() != 0) {
@@ -283,17 +294,17 @@ public class Transaction extends Configured implements TransactionInterface {
         asyncRollback(rollbacks, tableAndRow.getTableName(),
           mutationCache.getRowMutation(tableAndRow));
       }
-      
+
       // throw multi-excpetions to show failed rows
       throw new MultiRowExceptions("concurrent prewrite fail", calls.getExceptions());
     }
   }
 
   protected void selectPrimaryAndSecondaries() throws IOException {
-    secondaryRows = new ArrayList<Pair<byte[], RowMutation>>();
-    secondaries = new ArrayList<ColumnCoordinate>();
-    for (Entry<byte[], Map<byte[], RowMutation>> tableEntry : mutationCache.getMutations()) {
-      byte[] table = tableEntry.getKey();
+    secondaryRows = new ArrayList<>();
+    secondaries = new ArrayList<>();
+    for (Entry<TableName, Map<byte[], RowMutation>> tableEntry : mutationCache.getMutations()) {
+      TableName table = tableEntry.getKey();
       for (Entry<byte[], RowMutation> rowEntry : tableEntry.getValue().entrySet()) {
         byte[] row = rowEntry.getValue().getRow();
         boolean findPrimaryInRow = false;
@@ -319,14 +330,17 @@ public class Transaction extends Configured implements TransactionInterface {
           }
         }
         if (auxiliaryColumnIndex >= 0) {
-          if (primary == null || primaryRow == null || !Bytes.equals(table, primary.getTableName())
-              || !Bytes.equals(row, primary.getRow())) {
-            throw new InvalidRowMutationException("Found auxiliary column " + auxiliaryColumnMutation
-              + " in non-primary row " + rowEntry.getValue() + " of table " + Bytes.toString(table)
-              + ", but primary row is " + primaryRow + ", primary is " + primary, rowEntry.getValue());
+          if (primary == null || primaryRow == null || !table.equals(primary.getTableName()) ||
+            !Bytes.equals(row, primary.getRow())) {
+            throw new InvalidRowMutationException(
+              "Found auxiliary column " + auxiliaryColumnMutation + " in non-primary row " +
+                rowEntry.getValue() + " of table " + table + ", but primary row is " + primaryRow +
+                ", primary is " + primary,
+              rowEntry.getValue());
           }
 
-          // remove auxiliary will change original index of item in list, so adjust primary index if needed
+          // remove auxiliary will change original index of item in list, so adjust primary index if
+          // needed
           primaryRow.removeMutation(auxiliaryColumnMutation);
           if (auxiliaryColumnIndex < primaryIndexInRow) {
             primaryIndexInRow--;
@@ -334,7 +348,7 @@ public class Transaction extends Configured implements TransactionInterface {
         }
 
         if (!findPrimaryInRow) {
-          secondaryRows.add(new Pair<byte[], RowMutation>(tableEntry.getKey(), rowEntry.getValue()));
+          secondaryRows.add(new Pair<>(tableEntry.getKey(), rowEntry.getValue()));
         }
       }
     }
@@ -347,14 +361,14 @@ public class Transaction extends Configured implements TransactionInterface {
     SecondaryLock secondaryLock = constructSecondaryLock(Type.Put);
     secondaryLockBytesWithoutType = secondaryLock == null ? null : ThemisLock.toByte(secondaryLock);
   }
-  
+
   public void prewritePrimary() throws IOException {
     prewriteRowWithLockClean(primary.getTableName(), primaryRow, true);
   }
 
   public void prewriteSecondaries() throws IOException {
     for (int i = 0; i < secondaryRows.size(); ++i) {
-      Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+      Pair<TableName, RowMutation> secondaryRow = secondaryRows.get(i);
       try {
         prewriteRowWithLockClean(secondaryRow.getFirst(), secondaryRow.getSecond(), false);
       } catch (IOException e) {
@@ -366,38 +380,41 @@ public class Transaction extends Configured implements TransactionInterface {
     }
   }
 
-  protected void prewriteRowWithLockClean(byte[] tableName, RowMutation mutation, boolean containPrimary)
-      throws IOException {
+  protected void prewriteRowWithLockClean(TableName tableName, RowMutation mutation,
+      boolean containPrimary) throws IOException {
     ThemisLock lock = prewriteRow(tableName, mutation, containPrimary);
     if (lock != null) {
       if (disableLockClean) {
-        throw new LockConflictException("lockClean disabled, can't clean lock, column="
-            + lock.getColumn() + ", conflict lock=" + lock);
+        throw new LockConflictException("lockClean disabled, can't clean lock, column=" +
+          lock.getColumn() + ", conflict lock=" + lock);
       }
-      
+
       if (lock.getTimestamp() == this.startTs) {
         LOG.warn("Lock by self, success last time, continue.");
         return;
       }
-      
-      // we must do lock cleaning if encountering conflict lock. We must make sure the returned conflict column
-      // is the data column other than the corresponding write/lock columns; otherwise, fatal errors might be caused.
+
+      // we must do lock cleaning if encountering conflict lock. We must make sure the returned
+      // conflict column
+      // is the data column other than the corresponding write/lock columns; otherwise, fatal errors
+      // might be caused.
       if (!ColumnUtil.isDataColumn(lock.getColumn())) {
-        throw new ThemisFatalException("prewrite returned non-data conflict column, tableName="
-            + Bytes.toString(tableName) + ", RowMutation=" + mutation + ", returned column=" + lock.getColumn());
+        throw new ThemisFatalException("prewrite returned non-data conflict column, tableName=" +
+          tableName + ", RowMutation=" + mutation + ", returned column=" + lock.getColumn());
       }
       // TODO : get lock expired in server side for the first time to check ttl
       lockCleaner.checkLockExpiredAndTryToCleanLock(lock);
       // try one more time after clean lock successfully
       lock = prewriteRow(tableName, mutation, containPrimary);
       if (lock != null) {
-        throw new LockConflictException("can't clean lock, column=" + lock.getColumn()
-            + ", conflict lock=" + lock);
+        throw new LockConflictException(
+          "can't clean lock, column=" + lock.getColumn() + ", conflict lock=" + lock);
       }
     }
   }
 
-  private List<ColumnMutation> constructColumnMutationList(RowMutation mutation, boolean withoutValue) {
+  private List<ColumnMutation> constructColumnMutationList(RowMutation mutation,
+      boolean withoutValue) {
     List<ColumnMutation> mutationList = null;
     if (withoutValue) {
       mutationList = mutation.mutationListWithoutValue();
@@ -408,8 +425,8 @@ public class Transaction extends Configured implements TransactionInterface {
   }
 
   // prewrite a PrimaryRow or SecondaryRow indicated by containPrimary
-  protected ThemisLock prewriteRow(byte[] tableName, RowMutation mutation, boolean containPrimary)
-      throws IOException {
+  protected ThemisLock prewriteRow(TableName tableName, RowMutation mutation,
+      boolean containPrimary) throws IOException {
     if (containPrimary) {
       boolean singleRow = singleRowTransaction && enableSingleRowWrite;
       List<ColumnMutation> mutationList = constructColumnMutationList(mutation, singleRow);
@@ -427,7 +444,7 @@ public class Transaction extends Configured implements TransactionInterface {
         startTs, secondaryLockBytesWithoutType);
     }
   }
-  
+
   protected PrimaryLock constructPrimaryLock() {
     PrimaryLock lock = new PrimaryLock(primaryRow.getType(primary));
     setThemisLock(lock);
@@ -437,36 +454,37 @@ public class Transaction extends Configured implements TransactionInterface {
     }
     return lock;
   }
-  
+
   protected SecondaryLock constructSecondaryLock(Type type) {
     // indicates there are no secondaries, is single-column transactions
     if (primaryRow.size() <= 1 && secondaryRows.size() == 0) {
       return null;
     }
-    
+
     SecondaryLock lock = new SecondaryLock();
     lock.setPrimaryColumn(primary);
     setThemisLock(lock);
-    return lock;    
+    return lock;
   }
-  
+
   protected void setThemisLock(ThemisLock lock) {
     lock.setTimestamp(startTs);
     lock.setClientAddress(register.getClientAddress());
   }
-  
+
   protected void rollbackSecondaryRows(int secondarySuccessIndex) throws IOException {
     for (int i = secondarySuccessIndex; i >= 0; --i) {
-      Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+      Pair<TableName, RowMutation> secondaryRow = secondaryRows.get(i);
       rollbackRow(secondaryRow.getFirst(), secondaryRow.getSecond());
     }
   }
-  
-  protected void rollbackRow(byte[] tableName, RowMutation rowMutation) throws IOException {
-    lockCleaner.eraseLockAndData(tableName, rowMutation.getRow(), rowMutation.getColumns(), startTs);
+
+  protected void rollbackRow(TableName tableName, RowMutation rowMutation) throws IOException {
+    lockCleaner.eraseLockAndData(tableName, rowMutation.getRow(), rowMutation.getColumns(),
+      startTs);
     ThemisStatistics.getStatistics().rollbackCount.inc();
   }
-  
+
   public void commitPrimary() throws IOException {
     try {
       boolean singleRow = singleRowTransaction && enableSingleRowWrite;
@@ -483,8 +501,8 @@ public class Transaction extends Configured implements TransactionInterface {
       }
     } catch (LockCleanedException e) {
       // rollback all prewrites if commit primary fail because primary lock has been erased
-      LOG.warn("primary lock has been cleaned, transaction will rollback, primary column="
-          + primary + ", prewriteTs=" + startTs);
+      LOG.warn("primary lock has been cleaned, transaction will rollback, primary column=" +
+        primary + ", prewriteTs=" + startTs);
       rollbackRow(primary.getTableName(), primaryRow);
       rollbackSecondaryRows(secondaryRows.size() - 1);
       throw e;
@@ -498,43 +516,44 @@ public class Transaction extends Configured implements TransactionInterface {
   protected void concurrentCommitSecondaries() throws IOException {
     ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
     for (int i = 0; i < secondaryRows.size(); ++i) {
-      final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
-      calls.addCallable(new RowCallable<Void>(secondaryRow.getFirst(),
-          secondaryRow.getSecond().getRow()) {
-        @Override
-        public Void call() throws Exception {
-          cpClient.commitSecondaryRow(secondaryRow.getFirst(), secondaryRow.getSecond().getRow(),
-            secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
-          return null;
-        }
-      });
+      Pair<TableName, RowMutation> secondaryRow = secondaryRows.get(i);
+      calls.addCallable(
+        new RowCallable<Void>(secondaryRow.getFirst(), secondaryRow.getSecond().getRow()) {
+          @Override
+          public Void call() throws Exception {
+            cpClient.commitSecondaryRow(secondaryRow.getFirst(), secondaryRow.getSecond().getRow(),
+              secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
+            return null;
+          }
+        });
     }
     // TODO(cuijianwei) : do not need to wait for returning
     calls.waitForResult();
     // log commit failed rows
     for (Entry<TableAndRow, IOException> failedRow : calls.getExceptions().entrySet()) {
       TableAndRow tableAndRow = failedRow.getKey();
-      LOG.warn("commit secondary fail, table=" + tableAndRow.getTableName() + ", columns="
-          + mutationCache.getRowMutation(tableAndRow) + ", prewriteTs=" + startTs,
+      LOG.warn(
+        "commit secondary fail, table=" + tableAndRow.getTableName() + ", columns=" +
+          mutationCache.getRowMutation(tableAndRow) + ", prewriteTs=" + startTs,
         failedRow.getValue());
     }
   }
-  
+
   public void commitSecondaries() throws IOException {
     for (int i = 0; i < secondaryRows.size(); ++i) {
-      Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+      Pair<TableName, RowMutation> secondaryRow = secondaryRows.get(i);
       try {
         cpClient.commitSecondaryRow(secondaryRow.getFirst(), secondaryRow.getSecond().getRow(),
           secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
       } catch (IOException e) {
         // fail of secondary commit will not stop the commits of next seconderies
-        LOG.warn("commit secondary fail, table=" + Bytes.toString(secondaryRow.getFirst())
-            + ", put=" + secondaryRow.getSecond() + ", prewriteTs=" + startTs
-            + ", will continue committing next column", e);
+        LOG.warn("commit secondary fail, table=" + secondaryRow.getFirst() + ", put=" +
+          secondaryRow.getSecond() + ", prewriteTs=" + startTs +
+          ", will continue committing next column", e);
       }
     }
   }
-  
+
   public ColumnMutationCache getMutations() {
     return this.mutationCache;
   }

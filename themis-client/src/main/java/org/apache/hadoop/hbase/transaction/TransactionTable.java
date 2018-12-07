@@ -1,38 +1,30 @@
 package org.apache.hadoop.hbase.transaction;
 
+import com.xiaomi.infra.hbase.client.HConfigUtil;
+import com.xiaomi.infra.hbase.client.HException;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.xiaomi.infra.hbase.client.HConfigUtil;
-import com.xiaomi.infra.hbase.client.InternalHBaseClient;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.ThemisTransactionService;
-import org.apache.hadoop.hbase.util.Bytes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.xiaomi.infra.hbase.client.HException;
-
-public abstract class TransactionTable implements HTableInterface {
-  protected static final Log LOG = LogFactory.getLog(TransactionTable.class);
+public abstract class TransactionTable implements Table {
+  protected static final Logger LOG = LoggerFactory.getLogger(TransactionTable.class);
   protected Transaction transaction;
-  protected byte[] tableName;
+  protected TableName tableName;
   protected int scannerCaching;
-  
-  public TransactionTable(String tableName, Transaction transaction) throws HException {
-    this(Bytes.toBytes(tableName), transaction);
-  }
-  
-  public TransactionTable(byte[] tableName, Transaction transaction) throws HException {
+
+  public TransactionTable(TableName tableName, Transaction transaction) throws HException {
     this.tableName = tableName;
     this.transaction = transaction;
     this.scannerCaching = transaction.getConf().getInt(HConfigUtil.HBASE_CLIENT_SCANNER_CACHING, 1);
   }
-  
+
   public List<Result> scan(Scan scan) throws HException {
     return scan(scan, Integer.MAX_VALUE);
   }

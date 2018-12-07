@@ -3,42 +3,39 @@ package org.apache.hadoop.hbase.themis.mapreduce;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Map;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.ScannerCallable;
 import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.ThemisScanner;
 import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.metrics.util.MetricsTimeVaryingLong;
 import org.apache.hadoop.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // TableRecordReaderImpl is not easy to inherit, so that we copy its code and make change when necessary.
 // TODO : create a jira to make TableRecordReaderImpl inheritable?
 public class ThemisTableRecordReaderImpl {
   public static final String LOG_PER_ROW_COUNT = "hbase.mapreduce.log.scanner.rowcount";
 
-  static final Log LOG = LogFactory.getLog(ThemisTableRecordReaderImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ThemisTableRecordReaderImpl.class);
 
   // HBASE_COUNTER_GROUP_NAME is the name of mapreduce counter group for HBase
   private static final String HBASE_COUNTER_GROUP_NAME = "Themis Counters";
-  private HConnection connection = null;
+  private Connection connection = null;
   private Transaction transaction = null;
   private ThemisScanner scanner = null;
-  private byte[] tableName;
+  private TableName tableName;
   private Configuration conf;
   private Scan scan = null;
   private Scan currentScan = null;
@@ -56,19 +53,19 @@ public class ThemisTableRecordReaderImpl {
 
   public void restart(byte[] firstRow) throws IOException {
     if (connection == null) {
-      connection = HConnectionManager.createConnection(conf);
+      connection = ConnectionFactory.createConnection(conf);
     }
-    
+
     currentScan = new Scan(scan);
-    currentScan.setStartRow(firstRow);
-    currentScan.setAttribute(Scan.SCAN_ATTRIBUTES_METRICS_ENABLE, Bytes.toBytes(Boolean.TRUE));
+    currentScan.withStartRow(firstRow);
+    currentScan.setScanMetricsEnabled(true);
     if (this.scanner != null) {
       if (logScannerActivity) {
         LOG.info("Closing the previously opened scanner object.");
       }
       this.scanner.close();
     }
-    
+
     // TODO : should use the same timestamp when the Transaction first constructed?
     this.transaction = new Transaction(connection);
     this.scanner = transaction.getScanner(tableName, new ThemisScan(currentScan));
@@ -80,19 +77,19 @@ public class ThemisTableRecordReaderImpl {
     }
   }
 
-  public void setTableName(byte[] tableName) {
+  public void setTableName(TableName tableName) {
     this.tableName = tableName;
   }
-  
+
   public void setConf(Configuration conf) {
     this.conf = conf;
-    logScannerActivity = conf.getBoolean(
-      ScannerCallable.LOG_SCANNER_ACTIVITY, false);
+    logScannerActivity = conf.getBoolean(ScannerCallable.LOG_SCANNER_ACTIVITY, false);
     logPerRowCount = conf.getInt(LOG_PER_ROW_COUNT, 100);
   }
 
   // the following methods are all coped from TableRecordReaderImpl.java
-  private Method retrieveGetCounterWithStringsParams(TaskAttemptContext context) throws IOException {
+  private Method retrieveGetCounterWithStringsParams(TaskAttemptContext context)
+      throws IOException {
     Method m = null;
     try {
       m = context.getClass().getMethod("getCounter", new Class[] { String.class, String.class });
@@ -108,8 +105,8 @@ public class ThemisTableRecordReaderImpl {
     this.scan = scan;
   }
 
-  public void initialize(InputSplit inputsplit, TaskAttemptContext context) throws IOException,
-      InterruptedException {
+  public void initialize(InputSplit inputsplit, TaskAttemptContext context)
+      throws IOException, InterruptedException {
     if (context != null) {
       this.context = context;
       getCounter = retrieveGetCounterWithStringsParams(context);
@@ -149,8 +146,8 @@ public class ThemisTableRecordReaderImpl {
           totalRowCount++;
           if (rowcount >= logPerRowCount) {
             long now = System.currentTimeMillis();
-            LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows"
-                + ", totalReadRows=" + totalRowCount);
+            LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount + " rows" +
+              ", totalReadRows=" + totalRowCount);
             timestamp = now;
             rowcount = 0;
           }
@@ -160,10 +157,10 @@ public class ThemisTableRecordReaderImpl {
         // the scanner, if the second call fails, it will be rethrown
         LOG.info("recovered from " + StringUtils.stringifyException(e));
         if (lastSuccessfulRow == null) {
-          LOG.warn("We are restarting the first next() invocation,"
-              + " if your mapper has restarted a few other times like this"
-              + " then you should consider killing this job and investigate"
-              + " why it's taking so long.");
+          LOG.warn("We are restarting the first next() invocation," +
+            " if your mapper has restarted a few other times like this" +
+            " then you should consider killing this job and investigate" +
+            " why it's taking so long.");
         }
         if (lastSuccessfulRow == null) {
           restart(scan.getStartRow());
@@ -185,11 +182,11 @@ public class ThemisTableRecordReaderImpl {
     } catch (IOException ioe) {
       if (logScannerActivity) {
         long now = System.currentTimeMillis();
-        LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount
-            + " rows, totalReadRows=" + totalRowCount);
-        LOG.info(ioe);
-        String lastRow = lastSuccessfulRow == null ? "null" : Bytes
-            .toStringBinary(lastSuccessfulRow);
+        LOG.info("Mapper took " + (now - timestamp) + "ms to process " + rowcount +
+          " rows, totalReadRows=" + totalRowCount);
+        LOG.info("", ioe);
+        String lastRow =
+          lastSuccessfulRow == null ? "null" : Bytes.toStringBinary(lastSuccessfulRow);
         LOG.info("lastSuccessfulRow=" + lastRow);
       }
       throw ioe;
@@ -202,21 +199,15 @@ public class ThemisTableRecordReaderImpl {
       return;
     }
 
-    byte[] serializedMetrics = currentScan.getAttribute(Scan.SCAN_ATTRIBUTES_METRICS_DATA);
-    if (serializedMetrics == null || serializedMetrics.length == 0) {
-      return;
-    }
-
-    ScanMetrics scanMetrics = ProtobufUtil.toScanMetrics(serializedMetrics);
+    ScanMetrics scanMetrics = scanner.getScanMetrics();
     try {
-      for (Map.Entry<String, Long> entry:scanMetrics.getMetricsMap().entrySet()) {
-        Counter ct = (Counter)getCounter.invoke(context,
-            HBASE_COUNTER_GROUP_NAME, entry.getKey());
+      for (Map.Entry<String, Long> entry : scanMetrics.getMetricsMap().entrySet()) {
+        Counter ct = (Counter) getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME, entry.getKey());
 
         ct.increment(entry.getValue());
       }
-      ((Counter) getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME,
-          "NUM_SCANNER_RESTARTS")).increment(numRestarts);
+      ((Counter) getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME, "NUM_SCANNER_RESTARTS"))
+        .increment(numRestarts);
     } catch (Exception e) {
       LOG.debug("can't update counter." + StringUtils.stringifyException(e));
     }

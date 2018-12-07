@@ -1,10 +1,9 @@
 package org.apache.hadoop.hbase.transaction;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.themis.ThemisTransactionService;
-
 import com.xiaomi.infra.hbase.client.HException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.themis.ThemisTransactionService;
 
 public abstract class TransactionService {
   private static final Object lock = new Object();
@@ -50,6 +49,6 @@ public abstract class TransactionService {
   public abstract void setTransactionTimeout(final int timeoutSeconds) throws HException;
   public abstract TransactionIsolationLevel[] getSupportedIsolationLevels() throws HException;
   
-  public abstract HConnection getHConnection();
+  public abstract Connection getHConnection();
   public void close() throws HException {};
 }

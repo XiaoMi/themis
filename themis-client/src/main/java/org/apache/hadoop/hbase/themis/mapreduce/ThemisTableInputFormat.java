@@ -18,22 +18,17 @@ public class ThemisTableInputFormat extends TableInputFormat {
   @Override
   public RecordReader<ImmutableBytesWritable, Result> createRecordReader(InputSplit split,
       TaskAttemptContext context) throws IOException {
-    if (getHTable() == null) {
-      throw new IOException("Cannot create a record reader because of a"
-          + " previous error. Please look at the previous logs lines from"
-          + " the task's full log for more details.");
-    }
     TableSplit tSplit = (TableSplit) split;
     ThemisTableRecordReader trr = this.themisTableRecordReader;
     if (trr == null) {
       trr = new ThemisTableRecordReader();
     }
     Scan sc = new Scan(this.getScan());
-    sc.setStartRow(tSplit.getStartRow());
-    sc.setStopRow(tSplit.getEndRow());
+    sc.withStartRow(tSplit.getStartRow());
+    sc.withStopRow(tSplit.getEndRow());
     trr.setScan(sc);
-    trr.setConf(getHTable().getConfiguration());
-    trr.setTableName(getHTable().getTableName());
+    trr.setConf(getTable().getConfiguration());
+    trr.setTableName(getTable().getName());
     try {
       trr.initialize(tSplit, context);
     } catch (InterruptedException e) {

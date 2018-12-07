@@ -8,14 +8,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell.Type;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.util.Bytes;
 
 public class PrimaryLock extends ThemisLock {
   static class ColumnCoordinateComparator implements Comparator<ColumnCoordinate> {
     public int compare(ColumnCoordinate o1, ColumnCoordinate o2) {
-      int ret = Bytes.compareTo(o1.getTableName(), o2.getTableName());
+      int ret = o1.getTableName().compareTo(o2.getTableName());
       if (ret == 0) {
         ret = Bytes.compareTo(o1.getRow(), o2.getRow());
         if (ret == 0) {
@@ -26,28 +26,31 @@ public class PrimaryLock extends ThemisLock {
       return ret;
     }
   }
-  private static final ColumnCoordinateComparator COLUMN_COORDINATE_COMPARATOR = new ColumnCoordinateComparator();
-  protected Map<ColumnCoordinate, Type> secondaryColumns = new TreeMap<ColumnCoordinate, Type>(
-      COLUMN_COORDINATE_COMPARATOR);
 
-  public PrimaryLock() {}
-  
+  private static final ColumnCoordinateComparator COLUMN_COORDINATE_COMPARATOR =
+    new ColumnCoordinateComparator();
+  protected Map<ColumnCoordinate, Type> secondaryColumns =
+    new TreeMap<ColumnCoordinate, Type>(COLUMN_COORDINATE_COMPARATOR);
+
+  public PrimaryLock() {
+  }
+
   public PrimaryLock(Type type) {
     super(type);
   }
-  
+
   public Type getSecondaryColumn(ColumnCoordinate columnCoordinate) {
     return secondaryColumns.get(columnCoordinate);
   }
-  
+
   public Map<ColumnCoordinate, Type> getSecondaryColumns() {
     return secondaryColumns;
   }
-  
+
   public void addSecondaryColumn(ColumnCoordinate columnCoordinate, Type put) {
     this.secondaryColumns.put(columnCoordinate, put);
   }
-  
+
   @Override
   public void write(DataOutput out) throws IOException {
     super.write(out);
@@ -66,18 +69,18 @@ public class PrimaryLock extends ThemisLock {
     for (int i = 0; i < secondarySize; ++i) {
       ColumnCoordinate columnCoordinate = new ColumnCoordinate();
       columnCoordinate.readFields(in);
-      Type type = Type.codeToType(in.readByte());
+      Type type = codeToType(in.readByte());
       secondaryColumns.put(columnCoordinate, type);
     }
   }
-  
+
   @Override
   public boolean equals(Object object) {
     if (!(object instanceof PrimaryLock)) {
       return false;
     }
-    PrimaryLock lock = (PrimaryLock)object;
-    if (!super.equals((ThemisLock)lock)) {
+    PrimaryLock lock = (PrimaryLock) object;
+    if (!super.equals((ThemisLock) lock)) {
       return false;
     }
     if (!lock.isPrimary()) {
@@ -94,7 +97,7 @@ public class PrimaryLock extends ThemisLock {
     }
     return true;
   }
-  
+
   @Override
   public String toString() {
     String result = super.toString() + "/secondariesSize=" + secondaryColumns.size() + "\n";

@@ -3,7 +3,6 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.Map;
 import java.util.NavigableSet;
-
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
@@ -11,40 +10,40 @@ import org.apache.hadoop.hbase.filter.Filter;
 //a wrapper class of Scan in HBase which not expose timestamp to user
 public class ThemisScan extends ThemisRead {
   private Scan scan;
-  
+
   public ThemisScan() {
     this(HConstants.EMPTY_START_ROW, HConstants.EMPTY_END_ROW);
   }
-  
+
   public ThemisScan(Scan scan) throws IOException {
     checkContainingPreservedColumns(scan.getFamilyMap());
     setHBaseScan(scan);
   }
-  
+
   public ThemisScan(byte[] startRow, byte[] stopRow) {
-    this.scan = new Scan(startRow, stopRow);
+    this.scan = new Scan().withStartRow(startRow).withStopRow(stopRow);
   }
-  
+
   public ThemisScan(byte[] startRow) {
     this(startRow, HConstants.EMPTY_END_ROW);
   }
-  
+
   protected Scan getHBaseScan() {
     return this.scan;
   }
-  
+
   protected void setHBaseScan(Scan scan) {
     this.scan = scan;
   }
-  
+
   // must specify both the family and qualifier when add mutation
   @Override
-  public ThemisScan addColumn(byte [] family, byte [] qualifier) throws IOException {
+  public ThemisScan addColumn(byte[] family, byte[] qualifier) throws IOException {
     checkContainingPreservedColumn(family, qualifier);
     this.scan.addColumn(family, qualifier);
     return this;
   }
-  
+
   @Override
   public ThemisScan addFamily(byte[] family) throws IOException {
     checkContainingPreservedColumn(family, null);
@@ -56,17 +55,17 @@ public class ThemisScan extends ThemisRead {
   public Map<byte[], NavigableSet<byte[]>> getFamilyMap() {
     return scan.getFamilyMap();
   }
-  
-  public ThemisScan setStartRow(byte [] startRow) {
-    scan.setStartRow(startRow);
+
+  public ThemisScan setStartRow(byte[] startRow) {
+    scan.withStartRow(startRow);
     return this;
   }
-  
-  public ThemisScan setStopRow(byte [] stopRow) {
-    scan.setStopRow(stopRow);
+
+  public ThemisScan setStopRow(byte[] stopRow) {
+    scan.withStopRow(stopRow);
     return this;
   }
-  
+
   public int getCaching() {
     return scan.getCaching();
   }
@@ -77,11 +76,11 @@ public class ThemisScan extends ThemisRead {
     return this;
   }
 
-  public byte [] getStartRow() {
+  public byte[] getStartRow() {
     return scan.getStartRow();
   }
 
-  public byte [] getStopRow() {
+  public byte[] getStopRow() {
     return scan.getStopRow();
   }
 
@@ -105,10 +104,10 @@ public class ThemisScan extends ThemisRead {
   public Filter getFilter() {
     return this.scan.getFilter();
   }
-  
+
   public Scan getInternalScan() {
     return this.scan;
   }
-  
+
   // TODO(cuijianwei): support reverse scan
 }

@@ -6,7 +6,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Assert;
@@ -23,7 +23,7 @@ public class TestConcurrentRowCallables extends TestBase {
   }
   
   class TestRowCallable extends RowCallable<byte[]> {
-    public TestRowCallable(byte[] tableName, byte[] rowkey) {
+    public TestRowCallable(TableName tableName, byte[] rowkey) {
       super(tableName, rowkey);
     }
 
@@ -47,7 +47,7 @@ public class TestConcurrentRowCallables extends TestBase {
   
   class ExceptionRowCallable extends RowCallable<byte[]> {
     public static final String EXCEPTION_STRING = "RowCallable Exception";
-    public ExceptionRowCallable(byte[] tableName, byte[] rowkey) {
+    public ExceptionRowCallable(TableName tableName, byte[] rowkey) {
       super(tableName, rowkey);
     }
     
@@ -71,7 +71,7 @@ public class TestConcurrentRowCallables extends TestBase {
   }
   
   class TimeoutRowCallable extends RowCallable<byte[]> {
-    public TimeoutRowCallable(byte[] tableName, byte[] rowkey) {
+    public TimeoutRowCallable(TableName tableName, byte[] rowkey) {
       super(tableName, rowkey);
     }
 

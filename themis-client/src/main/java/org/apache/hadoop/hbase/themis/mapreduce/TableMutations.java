@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
@@ -22,33 +22,34 @@ import org.apache.hadoop.io.Writable;
 
 public class TableMutations implements Writable {
   private List<Mutation> mutations = new ArrayList<Mutation>();
-  private byte [] tableName;
+  private TableName tableName;
 
   /** Constructor for Writable. DO NOT USE */
-  public TableMutations() {}
+  public TableMutations() {
+  }
 
-  public TableMutations(byte[] tableName) {
+  public TableMutations(TableName tableName) {
     this.tableName = tableName;
   }
-  
+
   public void add(Mutation m) throws IOException {
     mutations.add(m);
   }
 
   @Override
   public void readFields(final DataInput in) throws IOException {
-    this.tableName = Bytes.readByteArray(in);
+    this.tableName = TableName.valueOf(Bytes.readByteArray(in));
     int numMutations = in.readInt();
     mutations.clear();
-    for(int i = 0; i < numMutations; i++) {
-      MutationProto proto = MutationProto.parseDelimitedFrom((DataInputStream)in);
+    for (int i = 0; i < numMutations; i++) {
+      MutationProto proto = MutationProto.parseDelimitedFrom((DataInputStream) in);
       mutations.add(ProtobufUtil.toMutation(proto));
     }
   }
 
   @Override
   public void write(final DataOutput out) throws IOException {
-    Bytes.writeByteArray(out, this.tableName);
+    Bytes.writeByteArray(out, this.tableName.getName());
     out.writeInt(mutations.size());
     for (Mutation mutation : mutations) {
       MutationType type;
@@ -59,10 +60,10 @@ public class TableMutations implements Writable {
       } else {
         throw new IllegalArgumentException("Only Put and Delete are supported");
       }
-      ProtobufUtil.toMutation(type, mutation).writeDelimitedTo((DataOutputStream)out);
+      ProtobufUtil.toMutation(type, mutation).writeDelimitedTo((DataOutputStream) out);
     }
   }
-  
+
   public TableMutations cloneTableMuations() throws IOException {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     this.write(new DataOutputStream(os));
@@ -74,13 +75,14 @@ public class TableMutations implements Writable {
   public List<Mutation> getMutations() {
     return Collections.unmodifiableList(mutations);
   }
-  
-  public byte[] getTableName() {
+
+  public TableName getTableName() {
     return tableName;
   }
-  
+
+  @Override
   public String toString() {
-    String result = "TableName=" + Bytes.toString(tableName) + "\n";
+    String result = "TableName=" + tableName + "\n";
     for (Mutation mutation : mutations) {
       result += (mutation.toString() + "\n");
     }

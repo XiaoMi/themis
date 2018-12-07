@@ -62,15 +62,15 @@ public class ThemisRowCounter {
       }
     }
 
-    Job job = new Job(conf, NAME + "_" + tableName);
+    Job job = Job.getInstance(conf, NAME + "_" + tableName);
     job.setJarByClass(RowCounter.class);
     Scan scan = new Scan();
     scan.setCacheBlocks(false);
     if (startKey != null && !startKey.equals("")) {
-      scan.setStartRow(Bytes.toBytes(startKey));
+      scan.withStartRow(Bytes.toBytes(startKey));
     }
     if (endKey != null && !endKey.equals("")) {
-      scan.setStopRow(Bytes.toBytes(endKey));
+      scan.withStopRow(Bytes.toBytes(endKey));
     }
     scan.setFilter(new FirstKeyOnlyFilter());
     if (sb.length() > 0) {

@@ -1,14 +1,15 @@
 package org.apache.hadoop.hbase.themis.example;
 
 import java.io.IOException;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.apache.hadoop.hbase.themis.ThemisPut;
@@ -20,52 +21,46 @@ import org.apache.hadoop.hbase.util.Bytes;
 // This class shows an example of transfer $3 from Joe to Bob in cash table, where rows of Joe and Bob are
 // located in different regions. The example will use the 'put' and 'get' APIs of Themis to do transaction.
 public class Example {
-  private static final byte[] CASHTABLE = Bytes.toBytes("CashTable"); // cash table
+  private static final TableName CASHTABLE = TableName.valueOf("CashTable"); // cash table
   private static final byte[] JOE = Bytes.toBytes("Joe"); // row for Joe
   private static final byte[] BOB = Bytes.toBytes("Bob"); // row for Bob
-  private static final byte[][] splits = new byte[][]{Bytes.toBytes("C")};
+  private static final byte[][] splits = new byte[][] { Bytes.toBytes("C") };
   private static final byte[] FAMILY = Bytes.toBytes("Account");
   private static final byte[] CASH = Bytes.toBytes("cash");
   private static Configuration conf;
-  
-  protected static void createTable(HConnection connection) throws IOException {
-    HBaseAdmin admin = null;
-    try {
-      admin = new HBaseAdmin(connection);
+
+  protected static void createTable(Connection connection) throws IOException {
+    try (Admin admin = connection.getAdmin()) {
       if (!admin.tableExists(CASHTABLE)) {
-        HTableDescriptor tableDesc = new HTableDescriptor(CASHTABLE);
-        HColumnDescriptor themisCF = new HColumnDescriptor(FAMILY);
-        // set THEMIS_ENABLE to allow Themis transaction on this family
-        themisCF.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-        tableDesc.addFamily(themisCF);
+        TableDescriptor tableDesc = TableDescriptorBuilder.newBuilder(CASHTABLE)
+          .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY)
+            .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true").build())
+          .build();
         // the splits makes rows of Joe and Bob located in different regions
         admin.createTable(tableDesc, splits);
       } else {
-        System.out.println(Bytes.toString(CASHTABLE)
-            + " exist, won't create, please check the schema of the table");
+        System.out
+          .println(CASHTABLE + " exist, won't create, please check the schema of the table");
         if (!admin.isTableEnabled(CASHTABLE)) {
           admin.enableTable(CASHTABLE);
         }
       }
-    } finally {
-      if (admin != null) {
-        admin.close();
-      }
     }
   }
-  
+
   public static void main(String args[]) throws IOException {
-    System.out.println("\n############################The Themis Example###########################\n");
+    System.out
+      .println("\n############################The Themis Example###########################\n");
     conf = HBaseConfiguration.create();
-    HConnection connection = HConnectionManager.createConnection(conf);
+    Connection connection = ConnectionFactory.createConnection(conf);
     // will create 'CashTable' for test, the corresponding shell command is:
     // create 'CashTable', {NAME=>'ThemisCF', METADATA => {'THEMIS_ENABLE', 'true'}}
     createTable(connection);
-    
+
     String timeStampOracleCls = conf.get(TransactionConstant.TIMESTAMP_ORACLE_CLASS_KEY,
       LocalTimestampOracle.class.getName());
     System.out.println("use timestamp oracle class : " + timeStampOracleCls);
-    
+
     {
       // initialize the accounts, Joe's cash is $20, Bob's cash is $9
       Transaction transaction = new Transaction(conf, connection);
@@ -76,7 +71,7 @@ public class Example {
       transaction.commit();
       System.out.println("initialize the accounts, Joe's account is $20, Bob's account is $9");
     }
-    
+
     {
       // transfer $3 from Joe to Bob
       System.out.println("will transfer $3 from Joe to Bob");
@@ -86,9 +81,9 @@ public class Example {
       int cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
       get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
       int cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
-      System.out.println("firstly, read out cash of the two users, Joe's cash is : $" + cashOfJoe
-          + ", Bob's cash is : $" + cashOfBob);
-      
+      System.out.println("firstly, read out cash of the two users, Joe's cash is : $" + cashOfJoe +
+        ", Bob's cash is : $" + cashOfBob);
+
       // then, transfer $3 from Joe to Bob, the mutations will be cached in client-side
       int transfer = 3;
       ThemisPut put = new ThemisPut(JOE).add(FAMILY, CASH, Bytes.toBytes(cashOfJoe - transfer));
@@ -98,19 +93,21 @@ public class Example {
       // commit the mutations to server-side
       transaction.commit();
       System.out.println("then, transfer $3 from Joe to Bob and commit mutations to server-side");
-      
+
       // lastly, read out the result after transferred
       transaction = new Transaction(conf, connection);
       get = new ThemisGet(JOE).addColumn(FAMILY, CASH);
       cashOfJoe = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
       get = new ThemisGet(BOB).addColumn(FAMILY, CASH);
       cashOfBob = Bytes.toInt(transaction.get(CASHTABLE, get).getValue(FAMILY, CASH));
-      System.out.println("after cash transferred, read out cash of the two users, Joe's cash is : $" + cashOfJoe
-          + ", Bob's cash is : $" + cashOfBob);
+      System.out
+        .println("after cash transferred, read out cash of the two users, Joe's cash is : $" +
+          cashOfJoe + ", Bob's cash is : $" + cashOfBob);
     }
-    
+
     connection.close();
     Transaction.destroy();
-    System.out.println("\n###############################Example End###############################");
+    System.out
+      .println("\n###############################Example End###############################");
   }
 }

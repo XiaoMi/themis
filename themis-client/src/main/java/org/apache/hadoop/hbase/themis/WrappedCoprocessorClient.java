@@ -2,9 +2,9 @@ package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
 import java.util.List;
-
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
@@ -12,13 +12,13 @@ import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 
 // a wrapped client of ThemisCoprocessorClient which computes latency of key methods
 public class WrappedCoprocessorClient extends ThemisEndpointClient {
-  public WrappedCoprocessorClient(HConnection connection) {
+  public WrappedCoprocessorClient(Connection connection) {
     super(connection);
   }
-  
+
   @Override
-  public Result themisGet(final byte[] tableName, final Get get, final long startTs,
-      final boolean ignoreLock) throws IOException {
+  public Result themisGet(TableName tableName, Get get, long startTs, boolean ignoreLock)
+      throws IOException {
     long beginTs = System.nanoTime();
     try {
       return super.themisGet(tableName, get, startTs, ignoreLock);
@@ -26,38 +26,36 @@ public class WrappedCoprocessorClient extends ThemisEndpointClient {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().readLatency, beginTs);
     }
   }
-  
+
   @Override
-  public ThemisLock prewriteRow(final byte[] tableName, final byte[] row,
-      final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
-      final byte[] secondaryLock, final int primaryIndex) throws IOException {
+  public ThemisLock prewriteRow(TableName tableName, byte[] row, List<ColumnMutation> mutations,
+      long prewriteTs, byte[] primaryLock, byte[] secondaryLock, int primaryIndex)
+      throws IOException {
     long beginTs = System.nanoTime();
     try {
-      return super.prewriteRow(tableName, row, mutations, prewriteTs, primaryLock, secondaryLock, primaryIndex);
+      return super.prewriteRow(tableName, row, mutations, prewriteTs, primaryLock, secondaryLock,
+        primaryIndex);
     } finally {
-      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().prewriteLatency,
-        beginTs);
+      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().prewriteLatency, beginTs);
     }
   }
-  
+
   @Override
-  public ThemisLock prewriteSingleRow(final byte[] tableName, final byte[] row,
-      final List<ColumnMutation> mutations, final long prewriteTs, final byte[] primaryLock,
-      final byte[] secondaryLock, final int primaryIndex) throws IOException {
+  public ThemisLock prewriteSingleRow(TableName tableName, byte[] row,
+      List<ColumnMutation> mutations, long prewriteTs, byte[] primaryLock, byte[] secondaryLock,
+      int primaryIndex) throws IOException {
     long beginTs = System.nanoTime();
     try {
       return super.prewriteSingleRow(tableName, row, mutations, prewriteTs, primaryLock,
         secondaryLock, primaryIndex);
     } finally {
-      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().prewriteLatency,
-        beginTs);
+      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().prewriteLatency, beginTs);
     }
   }
-  
+
   @Override
-  public void commitRow(final byte[] tableName, final byte[] row,
-      final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
-      final int primaryIndex) throws IOException {
+  public void commitRow(TableName tableName, byte[] row, List<ColumnMutation> mutations,
+      long prewriteTs, long commitTs, int primaryIndex) throws IOException {
     long beginTs = System.nanoTime();
     try {
       super.commitRow(tableName, row, mutations, prewriteTs, commitTs, primaryIndex);
@@ -67,15 +65,14 @@ public class WrappedCoprocessorClient extends ThemisEndpointClient {
           beginTs);
       } else {
         ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().commitSecondaryLatency,
-          beginTs);        
+          beginTs);
       }
     }
   }
-  
+
   @Override
-  public void commitSingleRow(final byte[] tableName, final byte[] row,
-      final List<ColumnMutation> mutations, final long prewriteTs, final long commitTs,
-      final int primaryIndex) throws IOException {
+  public void commitSingleRow(TableName tableName, byte[] row, List<ColumnMutation> mutations,
+      long prewriteTs, long commitTs, int primaryIndex) throws IOException {
     long beginTs = System.nanoTime();
     try {
       super.commitSingleRow(tableName, row, mutations, prewriteTs, commitTs, primaryIndex);
@@ -85,20 +82,19 @@ public class WrappedCoprocessorClient extends ThemisEndpointClient {
           beginTs);
       } else {
         ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().commitSecondaryLatency,
-          beginTs);        
+          beginTs);
       }
     }
   }
-  
+
   @Override
-  public boolean isLockExpired(final byte[] tableName, final byte[] row, final long timestamp)
-      throws IOException {
+  public boolean isLockExpired(TableName tableName, byte[] row, long timestamp) throws IOException {
     long beginTs = System.nanoTime();
     try {
       return super.isLockExpired(tableName, row, timestamp);
     } finally {
-      ThemisStatistics
-          .updateLatency(ThemisStatistics.getStatistics().isLockExpiredLatency, beginTs);
+      ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().isLockExpiredLatency,
+        beginTs);
     }
   }
 }

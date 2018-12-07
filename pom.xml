@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.xiaomi.infra</groupId>
   <artifactId>themis</artifactId>
-  <version>2.5-SNAPSHOT</version>
+  <version>3.0-SNAPSHOT</version>
   <description>themis</description>
   <name>Themis Implementationn for HBase</name>
   <packaging>pom</packaging>
@@ -11,12 +12,16 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>1.8</java.version>
-    <hbase.version>0.98.11-mdh2.4.13</hbase.version>
-    <infra-hbase.version>2.4.13</infra-hbase.version>
-    <hadoop.version>2.4.0-mdh2.3.10</hadoop.version>
+    <hbase.version>2.2.0-mdh3.0.0-SNAPSHOT</hbase.version>
+    <infra-hbase.version>3.0.0-SNAPSHOT</infra-hbase.version>
+    <hadoop.version>2.6.0-mdh3.12.5-jre8</hadoop.version>
     <guava.version>r03</guava.version>
-    <surefire.version>2.20</surefire.version>
-    <surefire.provider>surefire-junit47</surefire.provider>
+    <surefire.version>2.22.1</surefire.version>
+    <junit.version>4.12</junit.version>
+    <mockito.version>1.10.19</mockito.version>
+    <chronos.version>1.3.0-SNAPSHOT</chronos.version>
+    <protobuf.version>2.5.0</protobuf.version>
+    <slf4j.version>1.7.25</slf4j.version>
     <surefire.testFailureIgnore>false</surefire.testFailureIgnore>
     <test.output.tofile>true</test.output.tofile>
     <surefire.timeout>900</surefire.timeout>
@@ -35,20 +40,138 @@
     <url>http://www.mi.com</url>
   </organization>
 
-  <dependencies>
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.9</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-all</artifactId>
-      <version>1.8.5</version>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>themis-protocol</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>themis-coprocessor</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>themis-coprocessor</artifactId>
+        <version>${project.version}</version>
+        <classifier>tests</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>themis-client</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>themis-client</artifactId>
+        <version>${project.version}</version>
+        <classifier>tests</classifier>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${slf4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+        <version>${slf4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-protocol</artifactId>
+        <version>${hbase.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-client</artifactId>
+        <version>${hbase.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.xiaomi.infra</groupId>
+            <artifactId>scribe-log4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.xiaomi.infra</groupId>
+            <artifactId>themis-coprocessor</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-server</artifactId>
+        <version>${hbase.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.hbase</groupId>
+            <artifactId>hbase-hadoop1-compat</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-core</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.xiaomi.infra</groupId>
+            <artifactId>scribe-log4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.xiaomi.infra</groupId>
+            <artifactId>themis-coprocessor</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-testing-util</artifactId>
+        <version>${hbase.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>hbase-client</artifactId>
+        <version>${infra-hbase.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.xiaomi.infra</groupId>
+        <artifactId>chronos-client</artifactId>
+        <version>${chronos.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>${junit.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-all</artifactId>
+        <version>${mockito.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <modules>
     <module>themis-protocol</module>
@@ -58,42 +181,55 @@
   </modules>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.8.0</version>
+          <configuration>
+            <source>${java.version}</source>
+            <target>${java.version}</target>
+            <fork>true</fork>
+            <verbose>true</verbose>
+            <encoding>${project.build.sourceEncoding}</encoding>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.1.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>3.0.1</version>
+          <executions>
+            <execution>
+              <id>attach-sources</id>
+              <phase>verify</phase>
+              <goals>
+                <goal>jar-no-fork</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${surefire.version}</version>
+          <!-- Generic testing configuration for all packages -->
+          <configuration>
+            <failIfNoTests>false</failIfNoTests>
+            <reuseForks>false</reuseForks>
+            <testFailureIgnore>${surefire.testFailureIgnore}</testFailureIgnore>
+            <redirectTestOutputToFile>${test.output.tofile}</redirectTestOutputToFile>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.5.1</version>
-        <configuration>
-          <source>${java.version}</source>
-          <target>${java.version}</target>
-          <fork>true</fork>
-          <verbose>true</verbose>
-          <encoding>${project.build.sourceEncoding}</encoding>
-        </configuration>
-      </plugin>
       <!-- Test oriented plugins -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>${surefire.version}</version>
-        <dependencies>
-          <!-- by default surefire selects dynamically the connector to the unit tests
-            tool. We want to use always the same as the different connectors can have different
-            bugs and behaviour. -->
-          <dependency>
-            <groupId>org.apache.maven.surefire</groupId>
-            <artifactId>${surefire.provider}</artifactId>
-            <version>${surefire.version}</version>
-          </dependency>
-        </dependencies>
-        <!-- Generic testing configuration for all packages -->
-        <configuration>
-          <failIfNoTests>false</failIfNoTests>
-          <reuseForks>false</reuseForks>
-          <testFailureIgnore>${surefire.testFailureIgnore}</testFailureIgnore>
-          <redirectTestOutputToFile>${test.output.tofile}</redirectTestOutputToFile>
-        </configuration>
-      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-report-plugin</artifactId>

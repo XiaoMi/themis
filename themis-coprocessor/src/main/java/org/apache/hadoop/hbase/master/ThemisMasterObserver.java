@@ -1,34 +1,35 @@
 package org.apache.hadoop.hbase.master;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.Chore;
+import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
-import org.apache.hadoop.hbase.client.HTable;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.coprocessor.BaseMasterObserver;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
+import org.apache.hadoop.hbase.coprocessor.CoreCoprocessor;
+import org.apache.hadoop.hbase.coprocessor.HasMasterServices;
+import org.apache.hadoop.hbase.coprocessor.MasterCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
+import org.apache.hadoop.hbase.coprocessor.MasterObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
-import org.apache.hadoop.hbase.master.MasterCoprocessorHost.MasterEnvironment;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
@@ -38,322 +39,248 @@ import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class ThemisMasterObserver extends BaseMasterObserver {
-  private static final Log LOG = LogFactory.getLog(ThemisMasterObserver.class);
+import com.xiaomi.infra.thirdparty.com.google.common.annotations.VisibleForTesting;
+import com.xiaomi.infra.thirdparty.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-  public static final String RETURNED_THEMIS_TABLE_DESC = "__themis.returned.table.desc__"; // support truncate table
+@CoreCoprocessor
+public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ThemisMasterObserver.class);
+
   public static final String THEMIS_ENABLE_KEY = "THEMIS_ENABLE";
-  public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY = "themis.expired.timestamp.calculator.period";
-  public static final String THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY = "themis.expired.data.clean.enable";
+  public static final byte[] THEMIS_ENABLE_KEY_BYTES = Bytes.toBytes(THEMIS_ENABLE_KEY);
+
+  public static final String THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY =
+    "themis.expired.timestamp.calculator.period";
+  public static final String THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY =
+    "themis.expired.data.clean.enable";
   public static final String THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME = "themis-expired-ts";
-  public static final ConcurrentMap<String, String> tableDescLock = new ConcurrentHashMap<String, String>();
-  
-  protected int expiredTsCalculatePeriod;
-  protected Chore themisExpiredTsCalculator;
-  protected ZooKeeperWatcher zk;
-  protected String themisExpiredTsZNodePath;
-  protected HConnection connection;
-  protected ServerLockCleaner lockCleaner;
-  
+
+  @VisibleForTesting
+  MasterServices services;
+
+  @VisibleForTesting
+  String themisExpiredTsZNodePath;
+
+  @VisibleForTesting
+  ServerLockCleaner lockCleaner;
+
+  private ScheduledExecutorService executor;
+
   @Override
-  public void start(CoprocessorEnvironment ctx) throws IOException {
+  public Optional<MasterObserver> getMasterObserver() {
+    return Optional.ofNullable(this);
+  }
+
+  @Override
+  public void start(@SuppressWarnings("rawtypes") CoprocessorEnvironment ctx) throws IOException {
+    assert ctx instanceof HasMasterServices;
+    services = ((HasMasterServices) ctx).getMasterServices();
     ColumnUtil.init(ctx.getConfiguration());
     if (ctx.getConfiguration().getBoolean(THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true)) {
       TransactionTTL.init(ctx.getConfiguration());
       ThemisCpStatistics.init(ctx.getConfiguration());
-      startExpiredTimestampCalculator((MasterEnvironment) ctx);
-    }
-  }
-  
-  @Override
-  public void stop(CoprocessorEnvironment ctx) throws IOException {
-    if (connection != null) {
-      connection.close();
-    }
-  }
-  
-  @Override
-  public void preCreateTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      HTableDescriptor desc, HRegionInfo[] regions) throws IOException {
-    if (isReturnedThemisTableDesc(desc)) {
-      return;
-    }
-    if (isThemisEnable(desc)) {
-      addAuxiliaryFamily(desc);
+      startExpiredTimestampCalculator();
     }
   }
 
   @Override
-  public void preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx, TableName tableName,
-      HTableDescriptor desc) throws IOException {
-    if (isReturnedThemisTableDesc(desc)) {
-      return;
-    }
-    if (isThemisEnable(desc)) {
-      addAuxiliaryFamily(desc);
+  public void stop(@SuppressWarnings("rawtypes") CoprocessorEnvironment ctx) throws IOException {
+    if (executor != null) {
+      executor.shutdownNow();
     }
   }
 
-  private void addAuxiliaryFamily(HTableDescriptor desc) throws DoNotRetryIOException {
-    int replicationScope = HColumnDescriptor.DEFAULT_REPLICATION_SCOPE;
-    for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
-      checkColumnDescriptorWhenThemisEnable(columnDesc);
-      if (isThemisEnableFamily(columnDesc)) {
-        columnDesc.setMaxVersions(Integer.MAX_VALUE);
+  @Override
+  public TableDescriptor preCreateTableRegionsInfos(
+      ObserverContext<MasterCoprocessorEnvironment> ctx, TableDescriptor desc) throws IOException {
+    if (!isThemisEnableTable(desc)) {
+      return desc;
+    }
+    return addAuxiliaryFamily(desc);
+  }
 
+  private TableDescriptor addAuxiliaryFamily(TableDescriptor desc) throws DoNotRetryIOException {
+    TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(desc.getTableName());
+    int replicationScope = ColumnFamilyDescriptorBuilder.DEFAULT_REPLICATION_SCOPE;
+    for (ColumnFamilyDescriptor colDesc : desc.getColumnFamilies()) {
+      checkColumnDescriptorWhenThemisEnable(colDesc);
+      if (isThemisEnableFamily(colDesc)) {
+        builder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(colDesc)
+          .setMaxVersions(Integer.MAX_VALUE).build());
         // FIXME(qiankai): just use the scope value of the last CF?
-        int scope = columnDesc.getScope();
-        if (scope != HColumnDescriptor.DEFAULT_REPLICATION_SCOPE) {
+        int scope = colDesc.getScope();
+        if (scope != ColumnFamilyDescriptorBuilder.DEFAULT_REPLICATION_SCOPE) {
           replicationScope = scope;
         }
+      } else {
+        builder.setColumnFamily(colDesc);
       }
     }
-    desc.addFamily(createLockFamily(replicationScope));
-    LOG.info("add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc
-        .getNameAsString());
+    builder.setColumnFamily(createLockFamily(replicationScope));
+    LOG.info(
+      "add family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' for table:" + desc.getTableName());
     if (!ColumnUtil.isCommitToSameFamily()) {
-      addCommitFamilies(desc, replicationScope);
-      LOG.info("add commit family '" + ColumnUtil.PUT_FAMILY_NAME + "' and '"
-          + ColumnUtil.DELETE_FAMILY_NAME + "' for table:" + desc.getNameAsString());
+      addCommitFamilies(builder, replicationScope);
+      LOG.info("add commit family '" + ColumnUtil.PUT_FAMILY_NAME + "' and '" +
+        ColumnUtil.DELETE_FAMILY_NAME + "' for table:" + desc.getTableName());
     }
+    return builder.build();
   }
 
-  private boolean isThemisEnable(HTableDescriptor desc) {
-    for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
-      if (isThemisEnableFamily(columnDesc)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private void checkColumnDescriptorWhenThemisEnable(HColumnDescriptor columnDesc)
+  private void checkColumnDescriptorWhenThemisEnable(ColumnFamilyDescriptor colDesc)
       throws DoNotRetryIOException {
-    if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName())) {
+    if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, colDesc.getName())) {
       throw new DoNotRetryIOException(
-          "family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' is preserved by themis when "
-              + THEMIS_ENABLE_KEY + " is true, please change your family name");
+        "family '" + ColumnUtil.LOCK_FAMILY_NAME_STRING + "' is preserved by themis when " +
+          THEMIS_ENABLE_KEY + " is true, please change your family name");
     }
 
-    if (isThemisEnableFamily(columnDesc)) {
+    if (isThemisEnableFamily(colDesc)) {
       // make sure TTL and MaxVersion is not set by user
-      if (columnDesc.getTimeToLive() != HConstants.FOREVER) {
-        throw new DoNotRetryIOException(
-            "can not set TTL for family '" + columnDesc.getNameAsString() + "' when " 
-                 + THEMIS_ENABLE_KEY + " is true, TTL=" + columnDesc.getTimeToLive());
+      if (colDesc.getTimeToLive() != HConstants.FOREVER) {
+        throw new DoNotRetryIOException("can not set TTL for family '" + colDesc.getNameAsString() +
+          "' when " + THEMIS_ENABLE_KEY + " is true, TTL=" + colDesc.getTimeToLive());
       }
-      if (columnDesc.getMaxVersions() != HColumnDescriptor.DEFAULT_VERSIONS 
-           && columnDesc.getMaxVersions() != Integer.MAX_VALUE) {
+      if (colDesc.getMaxVersions() != ColumnFamilyDescriptorBuilder.DEFAULT_MAX_VERSIONS &&
+        colDesc.getMaxVersions() != Integer.MAX_VALUE) {
         throw new DoNotRetryIOException(
-            "can not set MaxVersion for family '" + columnDesc.getNameAsString() + "' when "
-                 + THEMIS_ENABLE_KEY + " is true, MaxVersion=" + columnDesc.getMaxVersions());
+          "can not set MaxVersion for family '" + colDesc.getNameAsString() + "' when " +
+            THEMIS_ENABLE_KEY + " is true, MaxVersion=" + colDesc.getMaxVersions());
       }
     }
   }
 
-  protected static void setReturnedThemisTableDesc(HTableDescriptor desc) {
-    desc.setValue(RETURNED_THEMIS_TABLE_DESC, "true");
-  }
-  
-  protected static boolean isReturnedThemisTableDesc(HTableDescriptor desc) {
-    return desc.getValue(RETURNED_THEMIS_TABLE_DESC) != null
-        && Boolean.parseBoolean(desc.getValue(RETURNED_THEMIS_TABLE_DESC));
-  }
-  
-  protected static String getTableDescLock(String tableName) {
-    tableDescLock.putIfAbsent(tableName, tableName);
-    return tableDescLock.get(tableName);
-  }
-  
-  @Override
-  public void postGetTableDescriptors(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      List<HTableDescriptor> descriptors, String regex) throws IOException {
-    for (HTableDescriptor desc : descriptors) {
-      // TODO: only set RETURNED_THEMIS_TABLE_DESC for themis-enable table?
-      synchronized (getTableDescLock(desc.getNameAsString())) {
-        setReturnedThemisTableDesc(desc);
-      }
-    }
-  }
-  
-  protected static HColumnDescriptor createLockFamily(int scope) {
-    HColumnDescriptor desc = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
-    desc.setInMemory(true);
-    desc.setMaxVersions(1);
-    desc.setTimeToLive(HConstants.FOREVER);
-    desc.setScope(scope);
+  @VisibleForTesting
+  static ColumnFamilyDescriptor createLockFamily(int scope) {
     // TODO(cuijianwei) : choose the best bloom filter type
-    // desc.setBloomFilterType(BloomType.ROWCOL);
-    return desc;
+    return ColumnFamilyDescriptorBuilder.newBuilder(ColumnUtil.LOCK_FAMILY_NAME).setInMemory(true)
+      .setMaxVersions(1).setTimeToLive(HConstants.FOREVER).setScope(scope).build();
   }
-  
-  protected static void addCommitFamilies(HTableDescriptor desc, int scope) {
+
+  private static void addCommitFamilies(TableDescriptorBuilder builder, int scope) {
     for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-      desc.addFamily(getCommitFamily(family, scope));
+      builder.setColumnFamily(getCommitFamily(family, scope));
     }
   }
-  
-  protected static HColumnDescriptor getCommitFamily(byte[] familyName, int scope) {
-    HColumnDescriptor desc = new HColumnDescriptor(familyName);
-    desc.setTimeToLive(HConstants.FOREVER);
-    desc.setMaxVersions(Integer.MAX_VALUE);
-    desc.setScope(scope);
-    return desc;
+
+  @VisibleForTesting
+  static ColumnFamilyDescriptor getCommitFamily(byte[] familyName, int scope) {
+    return ColumnFamilyDescriptorBuilder.newBuilder(familyName).setTimeToLive(HConstants.FOREVER)
+      .setMaxVersions(Integer.MAX_VALUE).setScope(scope).build();
   }
-  
-  public static boolean isThemisEnableFamily(HColumnDescriptor desc) {
-    String value = desc.getValue(THEMIS_ENABLE_KEY);
-    return value != null && Boolean.parseBoolean(value);
+
+  public static boolean isThemisEnableFamily(ColumnFamilyDescriptor desc) {
+    byte[] value = desc.getValue(THEMIS_ENABLE_KEY_BYTES);
+    return value != null && Boolean.parseBoolean(Bytes.toString(value));
   }
-  
-  public static boolean isThemisEnableTable(HTableDescriptor desc) {
-    for (HColumnDescriptor columnDesc : desc.getColumnFamilies()) {
-      if (isThemisEnableFamily(columnDesc)) {
-        return true;
-      }
-    }
-    return false;
+
+  public static boolean isThemisEnableTable(TableDescriptor desc) {
+    return Stream.of(desc.getColumnFamilies()).anyMatch(ThemisMasterObserver::isThemisEnableFamily);
   }
-  
-  protected synchronized void startExpiredTimestampCalculator(MasterEnvironment ctx)
-      throws IOException {
-    if (themisExpiredTsCalculator != null) {
+
+  private synchronized void startExpiredTimestampCalculator() throws IOException {
+    if (executor != null) {
       return;
     }
-
     LOG.info("try to start thread to compute the expired timestamp for themis table");
-    this.zk = ((MasterEnvironment)ctx).getMasterServices().getZooKeeper();
-    themisExpiredTsZNodePath = getThemisExpiredTsZNodePath(this.zk);
+    themisExpiredTsZNodePath = getThemisExpiredTsZNodePath(services.getZooKeeper());
+    lockCleaner = new ServerLockCleaner(services.getConnection(),
+      new ThemisEndpointClient(services.getConnection()));
 
-    connection = HConnectionManager.createConnection(ctx.getConfiguration());
-    lockCleaner = new ServerLockCleaner(connection, new ThemisEndpointClient(connection));
-    
-    String expiredTsCalculatePeriodStr = ctx.getConfiguration()
-        .get(THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY);
+    String expiredTsCalculatePeriodStr =
+      services.getConfiguration().get(THEMIS_EXPIRED_TIMESTAMP_CALCULATE_PERIOD_KEY);
+    long expiredTsCalculatePeriod;
     if (expiredTsCalculatePeriodStr == null) {
       expiredTsCalculatePeriod = TransactionTTL.readTransactionTTL / 1000;
     } else {
       expiredTsCalculatePeriod = Integer.parseInt(expiredTsCalculatePeriodStr);
     }
-    
-    themisExpiredTsCalculator = new ExpiredTimestampCalculator(expiredTsCalculatePeriod * 1000,
-        ctx.getMasterServices());
-    Threads.setDaemonThreadRunning(themisExpiredTsCalculator.getThread());
-    LOG.info("successfully start thread to compute the expired timestamp for themis table, timestampType="
-        + TransactionTTL.timestampType + ", calculatorPeriod=" + expiredTsCalculatePeriod + ", zkPath="
-        + themisExpiredTsZNodePath);
-  }
-  
-  class ExpiredTimestampCalculator extends Chore {
-    private long currentExpiredTs;
 
-    public ExpiredTimestampCalculator(int p, MasterServices service) {
-      super("ThemisExpiredTimestampCalculator", p, service);
-    }
-    
-    @Override
-    protected void chore() {
-      long currentMs = System.currentTimeMillis();
-      currentExpiredTs = TransactionTTL.getExpiredTimestampForReadByDataColumn(currentMs);
-      LOG.info("computed expired timestamp for themis, currentExpiredTs=" + currentExpiredTs
-          + ", currentMs=" + currentMs);
-      try {
-        cleanLockBeforeTimestamp(currentExpiredTs);
-        setExpiredTsToZk(currentExpiredTs);
-      } catch (Exception e) {
-        LOG.error("themis clean expired lock fail", e);
-      }
-     }
-    
-    public long getCurrentExpiredTs() {
-      return currentExpiredTs;
-    }
+    executor = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
+      .setNameFormat("Themis-Expired-Ts-Calculator").setDaemon(true).build());
+    executor.scheduleAtFixedRate(this::calculateExpiredTimestamp, expiredTsCalculatePeriod,
+      expiredTsCalculatePeriod, TimeUnit.SECONDS);
+    LOG.info(
+      "successfully start thread to compute the expired timestamp for themis table, timestampType=" +
+        TransactionTTL.timestampType + ", calculatorPeriod=" + expiredTsCalculatePeriod +
+        ", zkPath=" + themisExpiredTsZNodePath);
   }
-  
-  public static List<String> getThemisTables(HConnection connection) throws IOException {
-    List<String> tableNames = new ArrayList<String>();
-    HBaseAdmin admin = null;
+
+  private void calculateExpiredTimestamp() {
+    long currentMs = System.currentTimeMillis();
+    long currentExpiredTs = TransactionTTL.getExpiredTimestampForReadByDataColumn(currentMs);
+    LOG.info("computed expired timestamp for themis, currentExpiredTs=" + currentExpiredTs +
+      ", currentMs=" + currentMs);
     try {
-      admin = new HBaseAdmin(connection);
-      HTableDescriptor[] tables = admin.listTables();
-      for (HTableDescriptor table : tables) {
-        if (isThemisEnableTable(table)) {
-          tableNames.add(table.getNameAsString());
-        }
-      }
-    } catch (IOException e) {
-      LOG.error("get table names fail", e);
-      throw e;
-    } finally {
-      if (admin != null) {
-        admin.close();
-      }
+      cleanLockBeforeTimestamp(currentExpiredTs);
+      setExpiredTsToZk(currentExpiredTs);
+    } catch (Exception e) {
+      LOG.error("themis clean expired lock fail", e);
     }
-    return tableNames;
   }
-  
-  public static String getThemisExpiredTsZNodePath(ZooKeeperWatcher zk) {
-    return zk.getZnodePaths().baseZNode + "/" + THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME;
+
+  @VisibleForTesting
+  static List<TableName> getThemisTables(Connection conn) throws IOException {
+    try (Admin admin = conn.getAdmin()) {
+      return admin.listTableDescriptors().stream().filter(ThemisMasterObserver::isThemisEnableTable)
+        .map(desc -> desc.getTableName()).collect(Collectors.toList());
+    }
   }
-  
-  public static long getThemisExpiredTsFromZk(ZooKeeperWatcher zk) throws Exception {
+
+  public static String getThemisExpiredTsZNodePath(ZKWatcher zk) {
+    return zk.getZNodePaths().baseZNode + "/" + THEMIS_EXPIRED_TIMESTAMP_ZNODE_NAME;
+  }
+
+  public static long getThemisExpiredTsFromZk(ZKWatcher zk) throws Exception {
     return getThemisExpiredTsFromZk(zk, getThemisExpiredTsZNodePath(zk));
   }
-  
-  public static long getThemisExpiredTsFromZk(ZooKeeperWatcher zk, String path) throws Exception {
+
+  public static long getThemisExpiredTsFromZk(ZKWatcher zk, String path) throws Exception {
     byte[] data = ZKUtil.getData(zk, path);
     if (data == null) {
       return Long.MIN_VALUE;
     }
     return Long.parseLong(Bytes.toString(data));
   }
-  
+
   public void setExpiredTsToZk(long currentExpiredTs) throws Exception {
-    ZKUtil.createSetData(zk, themisExpiredTsZNodePath,
+    ZKUtil.createSetData(services.getZooKeeper(), themisExpiredTsZNodePath,
       Bytes.toBytes(String.valueOf(currentExpiredTs)));
-    LOG.info("successfully set currentExpiredTs to zk, currentExpiredTs=" + currentExpiredTs
-        + ", zkPath=" + themisExpiredTsZNodePath);
+    LOG.info("successfully set currentExpiredTs to zk, currentExpiredTs=" + currentExpiredTs +
+      ", zkPath=" + themisExpiredTsZNodePath);
   }
-  
+
   public void cleanLockBeforeTimestamp(long ts) throws IOException {
-    List<String> tableNames = getThemisTables(connection);
-    for (String tableName : tableNames) {
+    for (TableName tableName : getThemisTables(services.getConnection())) {
       LOG.info("start to clean expired lock for themis table:" + tableName);
-      byte[] tableNameBytes = Bytes.toBytes(tableName);
-      HTableInterface hTable = null;
       int cleanedLockCount = 0;
-      try {
-        hTable = new HTable(connection.getConfiguration(), tableName);
-        Scan scan = new Scan();
-        scan.addFamily(ColumnUtil.LOCK_FAMILY_NAME);
-        scan.setTimeRange(0, ts);
-        ResultScanner scanner = hTable.getScanner(scan);
+      Scan scan = new Scan().addFamily(ColumnUtil.LOCK_FAMILY_NAME).setTimeRange(0, ts);
+      try (Table table = services.getConnection().getTable(tableName);
+        ResultScanner scanner = table.getScanner(scan)) {
         Result result = null;
         while ((result = scanner.next()) != null) {
-          for (KeyValue kv : result.list()) {
-            ThemisLock lock = ThemisLock.parseFromByte(kv.getValue());
-            Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(new Column(kv.getFamily(),
-                kv.getQualifier()));
-            lock.setColumn(new ColumnCoordinate(tableNameBytes, kv.getRow(),
-                dataColumn.getFamily(), dataColumn.getQualifier()));
+          for (Cell cell : result.rawCells()) {
+            ThemisLock lock = ThemisLock.parseFromBytes(cell.getValueArray(), cell.getValueOffset(),
+              cell.getValueLength());
+            Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(
+              new Column(CellUtil.cloneFamily(cell), CellUtil.cloneQualifier(cell)));
+            lock.setColumn(new ColumnCoordinate(tableName, CellUtil.cloneRow(cell),
+              dataColumn.getFamily(), dataColumn.getQualifier()));
             lockCleaner.cleanLock(lock);
             ++cleanedLockCount;
-            LOG.info("themis clean expired lock, lockTs=" + kv.getTimestamp() + ", expiredTs=" + ts
-                + ", lock=" + ThemisLock.parseFromByte(kv.getValue()));
+            LOG.info("themis clean expired lock, lockTs=" + cell.getTimestamp() + ", expiredTs=" +
+              ts + ", lock=" + lock);
           }
         }
-        scanner.close();
-      } finally {
-        if (hTable != null) {
-          hTable.close();
-        }
       }
-      LOG.info("finish clean expired lock for themis table:" + tableName + ", cleanedLockCount="
-          + cleanedLockCount);
+      LOG.info("finish clean expired lock for themis table:" + tableName + ", cleanedLockCount=" +
+        cleanedLockCount);
     }
   }
 }

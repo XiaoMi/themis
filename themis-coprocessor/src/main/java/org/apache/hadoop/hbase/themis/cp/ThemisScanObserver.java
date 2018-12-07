@@ -3,43 +3,50 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.CoprocessorEnvironment;
+import java.util.Optional;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.regionserver.HRegion;
+import org.apache.hadoop.hbase.coprocessor.RegionObserver;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
+import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+public class ThemisScanObserver implements RegionObserver, RegionCoprocessor {
 
-public class ThemisScanObserver extends BaseRegionObserver {
+  private static final Logger LOG = LoggerFactory.getLogger(ThemisScanObserver.class);
+
   public static final String TRANSACTION_START_TS = "_themisTransationStartTs_";
   private static final byte[] PRE_SCANNER_OPEN_FEEK_ROW = Bytes.toBytes("preScannerOpen");
   private static final byte[] PRE_SCANNER_NEXT_FEEK_ROW = Bytes.toBytes("preScannerNext");
- private static final Log LOG = LogFactory.getLog(ThemisScanObserver.class);
-  
+
   @Override
-  public void start(CoprocessorEnvironment e) throws IOException {
+  public Optional<RegionObserver> getRegionObserver() {
+    return Optional.of(this);
+  }
+
+  @Override
+  public void start(@SuppressWarnings("rawtypes") CoprocessorEnvironment e) throws IOException {
     TransactionTTL.init(e.getConfiguration());
   }
 
-  protected static byte[] currentRow(List<Cell> values) {
-    return values.size() > 0 ? values.get(0).getRow() : PRE_SCANNER_NEXT_FEEK_ROW;
+  private static byte[] currentRow(List<Cell> values) {
+    return values.size() > 0 ? CellUtil.cloneFamily(values.get(0)) : PRE_SCANNER_NEXT_FEEK_ROW;
   }
-  
-  protected static boolean next(HRegion region, final ThemisServerScanner s,
-      List<Result> results, int limit) throws IOException {
+
+  private static boolean next(Region region, final ThemisServerScanner s, List<Result> results,
+      int limit) throws IOException {
     List<Cell> values = new ArrayList<Cell>();
     for (int i = 0; i < limit;) {
       try {
@@ -47,13 +54,13 @@ public class ThemisScanObserver extends BaseRegionObserver {
         boolean moreRows = s.next(values);
         ThemisEndpoint.checkReadTTL(System.currentTimeMillis(), s.getStartTs(), currentRow(values));
         if (!values.isEmpty()) {
-          Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getDataScan().getFamilyMap(),
+          Result result = ThemisCpUtil.removeNotRequiredLockColumns(s.getUserScan().getFamilyMap(),
             Result.create(values));
-          Pair<List<KeyValue>, List<KeyValue>> pResult = ThemisCpUtil
-              .seperateLockAndWriteKvs(result.list());
-          List<KeyValue> lockKvs = pResult.getFirst();
+          Pair<List<Cell>, List<Cell>> pResult =
+            ThemisCpUtil.seperateLockAndWriteKvs(result.rawCells());
+          List<Cell> lockKvs = pResult.getFirst();
           if (lockKvs.size() == 0) {
-            List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(pResult.getSecond());
+            List<Cell> putKvs = ThemisCpUtil.getPutKvs(pResult.getSecond());
             // should ignore rows which only contain delete columns
             if (putKvs.size() > 0) {
               Get dataGet = ThemisCpUtil.constructDataGetByPutKvs(putKvs, s.getDataColumnFilter());
@@ -65,7 +72,7 @@ public class ThemisScanObserver extends BaseRegionObserver {
             }
           } else {
             LOG.warn("encounter conflict lock in ThemisScan, row=" + result.getRow());
-            results.add(new Result(lockKvs));
+            results.add(Result.create(lockKvs));
             ++i;
           }
         }
@@ -80,16 +87,15 @@ public class ThemisScanObserver extends BaseRegionObserver {
     }
     return true;
   }
-  
+
   // will do themis next logic if passing ThemisScanner
   @Override
-  public boolean preScannerNext(final ObserverContext<RegionCoprocessorEnvironment> e,
-      final InternalScanner s, final List<Result> results,
-      final int limit, final boolean hasMore) throws IOException {
+  public boolean preScannerNext(ObserverContext<RegionCoprocessorEnvironment> e, InternalScanner s,
+      List<Result> results, int limit, boolean hasMore) throws IOException {
     try {
       if (s instanceof ThemisServerScanner) {
-        ThemisServerScanner pScanner = (ThemisServerScanner)s;
-        HRegion region = e.getEnvironment().getRegion();
+        ThemisServerScanner pScanner = (ThemisServerScanner) s;
+        Region region = e.getEnvironment().getRegion();
         boolean more = next(region, pScanner, results, limit);
         e.bypass();
         return more;
@@ -100,34 +106,46 @@ public class ThemisScanObserver extends BaseRegionObserver {
     }
   }
 
+  private final ThreadLocal<Scan> userScanHolder = new ThreadLocal<>();
+
   // will create ThemisScanner when '_themisTransationStartTs_' is set in the attributes of scan;
   // otherwise, follow the origin read path to do hbase scan
   @Override
-  public RegionScanner preScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> e,
-      final Scan scan, final RegionScanner s) throws IOException {
-    try {
-      Long themisStartTs = getStartTsFromAttribute(scan);
-      if (themisStartTs != null) {
-        ThemisCpUtil.prepareScan(scan, e.getEnvironment().getRegion().getTableDesc().getFamilies());
-        checkFamily(e.getEnvironment().getRegion(), scan);
-        ThemisEndpoint.checkReadTTL(System.currentTimeMillis(), themisStartTs,
-          PRE_SCANNER_OPEN_FEEK_ROW);
-        Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
-        ThemisServerScanner pScanner = new ThemisServerScanner(e.getEnvironment().getRegion()
-            .getScanner(internalScan), internalScan, themisStartTs, scan);
-        e.bypass();
-        return pScanner;
-      }
-      return s;
-    } catch (Throwable ex) {
-      throw new DoNotRetryIOException("themis exception in preScannerOpen", ex);
+  public void preScannerOpen(ObserverContext<RegionCoprocessorEnvironment> c, Scan scan)
+      throws IOException {
+    Long themisStartTs = getStartTsFromAttribute(scan);
+    if (themisStartTs == null) {
+      return;
     }
+    ThemisCpUtil.prepareScan(scan,
+      c.getEnvironment().getRegion().getTableDescriptor().getColumnFamilies());
+    ThemisEndpoint.checkReadTTL(System.currentTimeMillis(), themisStartTs,
+      PRE_SCANNER_OPEN_FEEK_ROW);
+    // here we return the internalScan to let the upper layer open a RegionScanner with the
+    // internalScan. The original scan instance is stored using thread local, and in
+    // postScannerOpen, we will fetch it and create the ThemisServerScanner.
+    Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
+    userScanHolder.set(new Scan(scan));
+    scan.copy(internalScan);
   }
-  
-  protected void checkFamily(final HRegion region, final Scan scan) throws IOException {
+
+  @Override
+  public RegionScanner postScannerOpen(ObserverContext<RegionCoprocessorEnvironment> c, Scan scan,
+      RegionScanner s) throws IOException {
+    Long themisStartTs = getStartTsFromAttribute(scan);
+    if (themisStartTs == null) {
+      return s;
+    }
+    Scan userScan = userScanHolder.get();
+    assert userScan != null;
+    userScanHolder.remove();
+    return new ThemisServerScanner(s, themisStartTs, userScan);
+  }
+
+  protected void checkFamily(Region region, Scan scan) throws IOException {
     ThemisEndpoint.checkFamily(region, scan.getFamilies());
   }
-  
+
   public static Long getStartTsFromAttribute(Scan scan) {
     byte[] startTsBytes = scan.getAttribute(TRANSACTION_START_TS);
     return startTsBytes == null ? null : Bytes.toLong(startTsBytes);

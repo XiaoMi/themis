@@ -1,22 +1,17 @@
 package org.apache.hadoop.hbase.themis;
 
+import com.xiaomi.infra.hbase.client.HException;
 import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.HConnection;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.transaction.NotSupportedException;
 import org.apache.hadoop.hbase.transaction.Transaction;
 import org.apache.hadoop.hbase.transaction.TransactionService;
 import org.apache.hadoop.hbase.transaction.TransactionStatus;
 
-import com.xiaomi.infra.hbase.client.HException;
-
 public class ThemisTransaction extends Transaction {
-  private static final Log LOG = LogFactory.getLog(ThemisTransaction.class);
-  
-  protected HConnection connection;
+
+  protected Connection connection;
   protected org.apache.hadoop.hbase.themis.Transaction impl;
 
   public ThemisTransaction(TransactionService service) throws HException {

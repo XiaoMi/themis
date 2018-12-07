@@ -7,8 +7,8 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
@@ -22,13 +22,13 @@ import org.junit.Test;
 
 public class TestTransactionWithConcurrentCallable extends ClientTestBase {
   private ExecutorService threadPool;
-  
+
   @Override
   public void initEnv() throws IOException {
     super.initEnv();
     createTransactionWithMock();
   }
-  
+
   protected void createTransactionWithMock() throws IOException {
     super.createTransactionWithMock();
     conf.setBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, true);
@@ -38,19 +38,19 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     Transaction.setThreadPool(this.threadPool);
     conf.setBoolean(TransactionConstant.THEMIS_ENABLE_CONCURRENT_RPC, false);
   }
-  
+
   protected void createThreadPoolForToRejectRequest() throws IOException {
     SynchronousQueue<Runnable> requestQueue = new SynchronousQueue<Runnable>();
     this.threadPool = new ThreadPoolExecutor(1, 1, 10, TimeUnit.SECONDS, requestQueue);
   }
-  
+
   @Test
   public void testConcurrentPrewriteSuccess() throws IOException {
     preparePrewrite();
     transaction.concurrentPrewriteSecondaries();
     checkPrewriteSecondariesSuccess();
   }
-  
+
   protected void waitForThreadPoolTerminated() throws IOException {
     try {
       threadPool.shutdown();
@@ -61,7 +61,7 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
       throw new IOException(e);
     }
   }
-  
+
   @Test
   public void testConcurrentPrewriteFailDueToNewerWrite() throws IOException {
     ColumnCoordinate conflictColumn = COLUMN_WITH_ANOTHER_ROW;
@@ -74,12 +74,13 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
       waitForThreadPoolTerminated();
       checkTransactionRollback();
       Assert.assertEquals(1, e.getExceptions().size());
-      TableAndRow tableAndRow = new TableAndRow(conflictColumn.getTableName(), conflictColumn.getRow());
+      TableAndRow tableAndRow =
+        new TableAndRow(conflictColumn.getTableName(), conflictColumn.getRow());
       IOException exception = e.getExceptions().get(tableAndRow);
       Assert.assertTrue(exception.getCause().getCause() instanceof WriteConflictException);
     }
   }
-  
+
   @Test
   public void testConcurrentPrewriteFailDueToLockConflict() throws IOException {
     ColumnCoordinate conflictColumn = COLUMN_WITH_ANOTHER_ROW;
@@ -93,12 +94,13 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
       waitForThreadPoolTerminated();
       checkTransactionRollback();
       Assert.assertEquals(1, e.getExceptions().size());
-      TableAndRow tableAndRow = new TableAndRow(conflictColumn.getTableName(), conflictColumn.getRow());
+      TableAndRow tableAndRow =
+        new TableAndRow(conflictColumn.getTableName(), conflictColumn.getRow());
       IOException exception = e.getExceptions().get(tableAndRow);
       Assert.assertTrue(exception.getCause().getCause() instanceof LockConflictException);
     }
   }
-  
+
   @Test
   public void testConcurrentPrewriteWithRequestRejected() throws IOException {
     preparePrewrite();
@@ -112,10 +114,11 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
       // the queue might be filled, can not ensure rollback successfully
       Assert.assertEquals(1, e.getExceptions().size());
       TableAndRow tableAndRow = new TableAndRow(TABLENAME, ANOTHER_ROW);
-      Assert.assertTrue(e.getExceptions().get(tableAndRow).getCause() instanceof RejectedExecutionException);
+      Assert.assertTrue(
+        e.getExceptions().get(tableAndRow).getCause() instanceof RejectedExecutionException);
     }
   }
-  
+
   @Test
   public void testConcurrentCommitSecondaries() throws IOException {
     // commit secondary success
@@ -131,14 +134,16 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     // commit one secondary lock fail
     deleteOldDataAndUpdateTs();
     prepareCommit();
-    HBaseAdmin admin = new HBaseAdmin(connection.getConfiguration());
-    admin.disableTable(ANOTHER_TABLENAME);
-    transaction.commitSecondaries();
-    admin.enableTable(ANOTHER_TABLENAME);
-    for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
+    try (Admin admin = connection.getAdmin()) {
+      admin.disableTable(ANOTHER_TABLENAME);
+      transaction.commitSecondaries();
+      admin.enableTable(ANOTHER_TABLENAME);
+    }
+    for (Pair<TableName, RowMutation> secondaryRow : transaction.secondaryRows) {
       RowMutation rowMutation = secondaryRow.getSecond();
       for (Column column : rowMutation.getColumns()) {
-        ColumnCoordinate c = new ColumnCoordinate(secondaryRow.getFirst(), rowMutation.getRow(), column); 
+        ColumnCoordinate c =
+          new ColumnCoordinate(secondaryRow.getFirst(), rowMutation.getRow(), column);
         if (COLUMN_WITH_ANOTHER_TABLE.equals(c)) {
           checkPrewriteColumnSuccess(c);
         } else {
@@ -146,9 +151,8 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
         }
       }
     }
-    admin.close();
   }
-  
+
   @Test
   public void testConcurrentConcurrentCommitWithRequestRejected() throws IOException {
     prepareCommit();
@@ -160,23 +164,25 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
       waitForThreadPoolTerminated();
       Assert.assertEquals(1, e.getExceptions().size());
       TableAndRow tableAndRow = new TableAndRow(TABLENAME, ANOTHER_ROW);
-      Assert.assertTrue(e.getExceptions().get(tableAndRow).getCause() instanceof RejectedExecutionException);
+      Assert.assertTrue(
+        e.getExceptions().get(tableAndRow).getCause() instanceof RejectedExecutionException);
     }
   }
-  
+
   @Test
   public void testTransactionSuccess() throws IOException {
     applyMutations(TRANSACTION_COLUMNS);
     transaction.commit();
     checkTransactionCommitSuccess();
-    
+
     // test single-row transaction
     deleteOldDataAndUpdateTs();
     createTransactionWithMock();
-    applyMutations(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER});
+    applyMutations(
+      new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER });
     mockTimestamp(commitTs);
     transaction.commit();
     Assert.assertEquals(0, transaction.secondaryRows.size());
     checkCommitRowSuccess(TABLENAME, transaction.primaryRow);
-  }  
+  }
 }

@@ -3,26 +3,28 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
-
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.AbstractClientScanner;
-import org.apache.hadoop.hbase.client.ClientSimpleScanner;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.util.Bytes;
 
+import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
+
 // scanner for range read
 public class ThemisScanner extends AbstractClientScanner {
+  protected final Table table;
   protected final ResultScanner scanner;
-  protected final byte[] tableName;
+  protected final TableName tableName;
   protected Transaction transaction;
   protected final Scan scan;
-  
-  public ThemisScanner(final byte[] tableName, final Scan scan, final Transaction transaction)
+
+  public ThemisScanner(TableName tableName, final Scan scan, final Transaction transaction)
       throws IOException {
     long beginTs = System.nanoTime();
     try {
@@ -33,13 +35,13 @@ public class ThemisScanner extends AbstractClientScanner {
       // themis coprocessor could recognize this scanner from hbase scanners and do themis logics.
       // TODO(cuijianwei): how to avoid no-themis users set this attribute when doing hbase scan?
       setStartTsToScan(scan, transaction.startTs);
-      this.scanner = new ClientSimpleScanner(transaction.getConf(), scan, TableName.valueOf(tableName),
-          transaction.getHConnection());
+      this.table = transaction.getHConnection().getTable(tableName);
+      this.scanner = table.getScanner(scan);
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().getScannerLatency, beginTs);
     }
   }
-  
+
   protected static void setStartTsToScan(Scan scan, long startTs) {
     scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(startTs));
   }
@@ -57,7 +59,7 @@ public class ThemisScanner extends AbstractClientScanner {
     }
     return get;
   }
-  
+
   public Result next() throws IOException {
     long beginTs = System.nanoTime();
     Result pResult = null;
@@ -72,7 +74,7 @@ public class ThemisScanner extends AbstractClientScanner {
       if (ThemisCpUtil.isLockResult(pResult)) {
         lockClean = true;
         Get rowGet = createGetFromScan(scan, pResult.getRow());
-        pResult = transaction.tryToCleanLockAndGetAgain(tableName, rowGet, pResult.list());
+        pResult = transaction.tryToCleanLockAndGetAgain(tableName, rowGet, pResult.listCells());
         // empty result indicates the current row has been erased, we should get next row
         if (pResult.isEmpty()) {
           return next();
@@ -83,7 +85,8 @@ public class ThemisScanner extends AbstractClientScanner {
       return pResult;
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().nextLatency, beginTs);
-      ThemisStatistics.logSlowOperation("themisNext", beginTs, "row=" + pResult + ", lockClean=" + lockClean);
+      ThemisStatistics.logSlowOperation("themisNext", beginTs,
+        "row=" + pResult + ", lockClean=" + lockClean);
     }
   }
 
@@ -91,15 +94,20 @@ public class ThemisScanner extends AbstractClientScanner {
     if (scanner != null) {
       this.scanner.close();
     }
+    try {
+      Closeables.close(table, true);
+    } catch (IOException e) {
+      // should not happen
+      throw new AssertionError(e);
+    }
   }
-  
+
   protected Scan getScan() {
     return this.scan;
   }
 
   @Override
-  public Result[] next(int nbRows) throws IOException {
-    // TODO implement this method
-    throw new IOException("not supported");
+  public boolean renewLease() {
+    return scanner.renewLease();
   }
 }

@@ -1,11 +1,14 @@
 package org.apache.hadoop.hbase.themis.index.cp;
 
 import java.io.IOException;
-
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ClientTestBase;
@@ -17,17 +20,20 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
+
 public class IndexTestBase extends ClientTestBase {
-  public static final byte[] MAIN_TABLE = Bytes.toBytes("test_index_main");
-  public static final byte[] INDEX_TABLE = Bytes.toBytes("__themis_index_test_index_main_ThemisCF_Qualifier_test_index");
+  public static final TableName MAIN_TABLE = TableName.valueOf("test_index_main");
+  public static final TableName INDEX_TABLE =
+    TableName.valueOf("__themis_index_test_index_main_ThemisCF_Qualifier_test_index");
   public static final byte[] INDEX_FAMILY = FAMILY;
   public static final byte[] INDEX_QUALIFIER = QUALIFIER;
-  public static final byte[] IDNEX_NAME = Bytes.toBytes("test_index:Qualifier");
+  public static final byte[] INDEX_NAME = Bytes.toBytes("test_index:Qualifier");
   public static final IndexColumn INDEX_COLUMN = new IndexColumn(MAIN_TABLE, FAMILY, QUALIFIER);
-  
-  protected HTableInterface mainTable = null;
-  protected HBaseAdmin admin = null;
-  
+
+  protected Table mainTable = null;
+  protected Admin admin = null;
+
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     if (useMiniCluster) {
@@ -39,64 +45,50 @@ public class IndexTestBase extends ClientTestBase {
     }
     createTableForIndexTest();
   }
-  
+
   @Before
   public void initEnv() throws IOException {
     super.initEnv();
     mainTable = connection.getTable(MAIN_TABLE);
     deleteOldDataAndUpdateTs(mainTable);
-    admin = new HBaseAdmin(connection);
+    admin = connection.getAdmin();
   }
-  
+
   @After
   public void tearUp() throws IOException {
     super.tearUp();
-    if (mainTable != null) {
-      mainTable.close();
-    }
-    if (admin != null) {
-      admin.close();
-    }
+    Closeables.close(mainTable, true);
+    Closeables.close(admin, true);
   }
-  
+
   protected static void createTableForIndexTest() throws IOException {
     createTableForIndexTest(MAIN_TABLE);
   }
-  
-  protected static void createTableForIndexTest(byte[] tableName) throws IOException {
-    HBaseAdmin admin = null;
-    try {
-      admin = new HBaseAdmin(conf);
+
+  protected static void createTableForIndexTest(TableName tableName) throws IOException {
+    try (Connection conn = ConnectionFactory.createConnection(conf);
+      Admin admin = conn.getAdmin()) {
       if (admin.tableExists(tableName)) {
         return;
       }
-      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
-      HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_FAMILY);
-      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
-      columnDesc.setValue(
-        Bytes.toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY), IDNEX_NAME);
-      tableDesc.addFamily(columnDesc);
-      columnDesc = new HColumnDescriptor(ANOTHER_FAMILY);
-      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
-      tableDesc.addFamily(columnDesc);
+      TableDescriptor tableDesc = TableDescriptorBuilder.newBuilder(tableName)
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(INDEX_FAMILY)
+          .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString())
+          .setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY_BYTES,
+            INDEX_NAME)
+          .build())
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(ANOTHER_FAMILY)
+          .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString()).build())
+        .build();
       admin.createTable(tableDesc);
-    } finally {
-      if (admin != null) {
-        admin.close();
-      }
     }
   }
-  
-  protected static void deleteTableForIndexTest(byte[] tableName) throws IOException {
-    HBaseAdmin admin = null;
-    try {
-      admin = new HBaseAdmin(conf);
+
+  protected static void deleteTableForIndexTest(TableName tableName) throws IOException {
+    try (Connection conn = ConnectionFactory.createConnection(conf);
+      Admin admin = conn.getAdmin()) {
       admin.disableTable(tableName);
       admin.deleteTable(tableName);
-    } finally {
-      if (admin != null) {
-        admin.close();
-      }
     }
   }
 }

@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis.mapreduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
@@ -59,7 +60,7 @@ public class ThemisTableRecordReader extends RecordReader<ImmutableBytesWritable
     this.impl.setConf(conf);
   }
   
-  public void setTableName(byte[] tableName) {
+  public void setTableName(TableName tableName) {
     this.impl.setTableName(tableName);
   }
 }

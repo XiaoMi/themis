@@ -1,9 +1,7 @@
 package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
-
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,8 +41,8 @@ public class TestTransactionRead extends ClientTestBase {
     createTransactionWithMock();
     Result result = transaction.get(TABLENAME, new ThemisGet(ROW));
     Assert.assertEquals(2, result.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, result.list().get(0));
-    checkResultKvColumn(COLUMN, result.list().get(1));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, result.rawCells()[0]);
+    checkResultKvColumn(COLUMN, result.rawCells()[1]);
   }
 
   @Test

@@ -8,14 +8,14 @@ import "Client.proto";
 import "Cell.proto";
 
 message ThemisGetRequest {
-  required Get get = 1;
+  required hbase.pb.Get get = 1;
   required uint64 startTs = 2;
   required bool ignoreLock = 3;
 }
 
 message ThemisPrewriteRequest {
   required bytes row = 1;
-  repeated Cell  mutations = 2;
+  repeated hbase.pb.Cell mutations = 2;
   required uint64 prewriteTs = 3;
   required bytes secondaryLock = 4;
   required bytes primaryLock = 5;
@@ -28,7 +28,7 @@ message ThemisPrewriteResponse {
 
 message ThemisCommitRequest {
   required bytes row = 1;
-  repeated Cell  mutations = 2;
+  repeated hbase.pb.Cell  mutations = 2;
   required uint64 prewriteTs = 3;
   required uint64 commitTs = 4;
   required int32 primaryIndex = 5;
@@ -59,7 +59,7 @@ message LockExpiredResponse {
 
 service ThemisService {
   rpc themisGet(ThemisGetRequest)
-    returns (Result);
+    returns (hbase.pb.Result);
   rpc prewriteRow(ThemisPrewriteRequest)
     returns (ThemisPrewriteResponse);
   rpc prewriteSingleRow(ThemisPrewriteRequest)

@@ -1,12 +1,11 @@
 package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
-
+import org.apache.hadoop.hbase.CompareOperator;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.FilterList.Operator;
@@ -14,9 +13,12 @@ import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
+import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil.CustomerColumnFilter;
+import org.apache.hadoop.hbase.themis.cp.TestThemisCpUtil.CustomerRowkeyFilter;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -26,7 +28,7 @@ public class TestThemisScanner extends ClientTestBase {
     super.initEnv();
     createTransactionWithMock();
   }
-  
+
   @Test
   public void testSetStartTsToScan() {
     Scan scan = new Scan();
@@ -38,7 +40,7 @@ public class TestThemisScanner extends ClientTestBase {
 
   @Test
   public void testCreateGetFromScan() {
-    Scan scan = new Scan(ANOTHER_ROW, ROW);
+    Scan scan = new Scan().withStartRow(ANOTHER_ROW).withStopRow(ROW);
     scan.addColumn(FAMILY, QUALIFIER).addColumn(ANOTHER_FAMILY, ANOTHER_QUALIFIER);
     Get get = ThemisScanner.createGetFromScan(scan, ROW);
     Assert.assertArrayEquals(ROW, get.getRow());
@@ -49,11 +51,11 @@ public class TestThemisScanner extends ClientTestBase {
     Assert.assertArrayEquals(ANOTHER_QUALIFIER,
       get.getFamilyMap().get(ANOTHER_FAMILY).iterator().next());
   }
-  
+
   protected ThemisScan prepareScan(ColumnCoordinate[] columns) throws IOException {
     return prepareScan(columns, null);
   }
-  
+
   protected ThemisScan prepareScan(ColumnCoordinate[] columns, Filter filter) throws IOException {
     ThemisScan pScan = new ThemisScan();
     for (ColumnCoordinate columnCoordinate : columns) {
@@ -64,73 +66,76 @@ public class TestThemisScanner extends ClientTestBase {
     }
     return pScan;
   }
-  
+
   protected ThemisScanner prepareScanner(ColumnCoordinate[] columns) throws IOException {
     return prepareScanner(columns, null);
   }
-  
-  protected ThemisScanner prepareScanner(ColumnCoordinate[] columns, Filter filter) throws IOException {
+
+  protected ThemisScanner prepareScanner(ColumnCoordinate[] columns, Filter filter)
+      throws IOException {
     return transaction.getScanner(TABLENAME, prepareScan(columns, filter));
   }
 
   protected void checkScanRow(ColumnCoordinate[] columns, Result result) throws IOException {
     Assert.assertEquals(columns.length, result.size());
     for (ColumnCoordinate columnCoordinate : columns) {
-      Assert.assertArrayEquals(VALUE, result.getValue(columnCoordinate.getFamily(), columnCoordinate.getQualifier()));
+      Assert.assertArrayEquals(VALUE,
+        result.getValue(columnCoordinate.getFamily(), columnCoordinate.getQualifier()));
     }
-    for (int i = 0; i < result.list().size(); ++i) {
-      Assert.assertEquals(lastTs(prewriteTs), result.list().get(i).getTimestamp());
+    for (int i = 0; i < result.size(); ++i) {
+      Assert.assertEquals(lastTs(prewriteTs), result.rawCells()[i].getTimestamp());
     }
     Assert.assertArrayEquals(columns[0].getRow(), result.getRow());
   }
-  
+
   @Test
   public void testScanOneRow() throws Exception {
     // null result
-    ColumnCoordinate[] columns = new ColumnCoordinate[]{COLUMN};
+    ColumnCoordinate[] columns = new ColumnCoordinate[] { COLUMN };
     ThemisScanner scanner = prepareScanner(columns);
     checkAndCloseScanner(scanner);
     // only one column written
-    columns = new ColumnCoordinate[]{COLUMN};
+    columns = new ColumnCoordinate[] { COLUMN };
     prepareScanData(columns);
     scanner = prepareScanner(columns);
     Result result = scanner.next();
     checkScanRow(columns, result);
     checkAndCloseScanner(scanner);
     // one row with multi-columns
-    columns = new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER};
+    columns =
+      new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER };
     prepareScanData(columns);
     scanner = prepareScanner(columns);
     result = scanner.next();
     checkScanRow(columns, result);
     checkAndCloseScanner(scanner);
-    
+
     // test scan family
     scanner = transaction.getScanner(TABLENAME, new ThemisScan().addFamily(FAMILY));
     result = scanner.next();
-    checkScanRow(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_QUALIFIER}, result);
+    checkScanRow(new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_QUALIFIER }, result);
     checkAndCloseScanner(scanner);
-    
+
     // test scan entire row
     scanner = transaction.getScanner(TABLENAME, new ThemisScan());
     result = scanner.next();
     checkScanRow(columns, result);
     checkAndCloseScanner(scanner);
-    
+
     // test scan family together with column
-    scanner = transaction.getScanner(TABLENAME, new ThemisScan().addFamily(ANOTHER_FAMILY)
-        .addColumn(FAMILY, QUALIFIER));
+    scanner = transaction.getScanner(TABLENAME,
+      new ThemisScan().addFamily(ANOTHER_FAMILY).addColumn(FAMILY, QUALIFIER));
     result = scanner.next();
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_FAMILY, COLUMN}, result);
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_FAMILY, COLUMN }, result);
     checkAndCloseScanner(scanner);
   }
-  
+
   protected void checkResultForROW(Result result) throws IOException {
-    ColumnCoordinate[] checkColumnsForRow = new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY,
-        COLUMN_WITH_ANOTHER_QUALIFIER };
+    ColumnCoordinate[] checkColumnsForRow =
+      new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER };
     checkScanRow(checkColumnsForRow, result);
   }
-  
+
   @Test
   public void testScanMultiRows() throws Exception {
     // scan multi rows
@@ -138,7 +143,7 @@ public class TestThemisScanner extends ClientTestBase {
     ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS);
     Result result = scanner.next();
     // should fetch 'AnotherRow' firstly
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, result);
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, result);
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
     // scan with start-stop row
@@ -148,32 +153,34 @@ public class TestThemisScanner extends ClientTestBase {
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
   }
-  
+
   @Test
   public void testScanWithDeletedRow() throws Exception {
     nextTransactionTs();
     writePutAndData(COLUMN, prewriteTs - 6, commitTs - 6);
     createTransactionWithMock();
-    ThemisScanner scanner = prepareScanner(new ColumnCoordinate[]{COLUMN});
+    ThemisScanner scanner = prepareScanner(new ColumnCoordinate[] { COLUMN });
     checkReadColumnResultWithTs(scanner.next(), COLUMN, prewriteTs - 6);
     checkAndCloseScanner(scanner);
     // deleted row is at tail
     writeDeleteColumn(COLUMN, prewriteTs - 3, commitTs - 3);
-    scanner = prepareScanner(new ColumnCoordinate[]{COLUMN});
+    scanner = prepareScanner(new ColumnCoordinate[] { COLUMN });
     checkAndCloseScanner(scanner);
     // deleted row is at head
     writeDeleteColumn(COLUMN_WITH_ANOTHER_ROW, prewriteTs - 2, commitTs - 2);
     writePutAndData(COLUMN, prewriteTs - 2, commitTs - 2);
     writePutAndData(COLUMN_WITH_ZZ_ROW, prewriteTs - 2, commitTs - 2);
-    scanner = prepareScanner(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW, COLUMN, COLUMN_WITH_ZZ_ROW});
+    scanner = prepareScanner(
+      new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW, COLUMN, COLUMN_WITH_ZZ_ROW });
     checkReadColumnResultWithTs(scanner.next(), COLUMN, prewriteTs - 2);
     checkReadColumnResultWithTs(scanner.next(), COLUMN_WITH_ZZ_ROW, prewriteTs - 2);
     checkAndCloseScanner(scanner);
   }
-  
+
   @Test
   public void testScanWithDelete() throws Exception {
-    ColumnCoordinate[] scanColumns = new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER};
+    ColumnCoordinate[] scanColumns =
+      new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER };
     // delete and put both before prewriteTs
     nextTransactionTs();
     createTransactionWithMock();
@@ -191,7 +198,7 @@ public class TestThemisScanner extends ClientTestBase {
     checkReadColumnResultWithTs(result, COLUMN_WITH_ANOTHER_FAMILY, prewriteTs - 2);
     checkAndCloseScanner(scanner);
   }
-  
+
   @Test
   public void testScanWithLockClean() throws Exception {
     // lock could be cleaned
@@ -201,15 +208,15 @@ public class TestThemisScanner extends ClientTestBase {
     ThemisScan pScan = prepareScan(TRANSACTION_COLUMNS);
     pScan.setCaching(10);
     ThemisScanner scanner = transaction.getScanner(TABLENAME, pScan);
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
-    
+
     // lock can not be cleaned
     writeLockAndData(COLUMN, prewriteTs - 4);
     pScan = prepareScan(TRANSACTION_COLUMNS);
     scanner = transaction.getScanner(TABLENAME, pScan);
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
     try {
       scanner.next();
@@ -218,12 +225,12 @@ public class TestThemisScanner extends ClientTestBase {
     } finally {
       scanner.close();
     }
-    
+
     // scan family with lock in another family
     scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(ANOTHER_FAMILY));
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_FAMILY}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
     checkAndCloseScanner(scanner);
-    
+
     // scan family with lock in the read family
     scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(FAMILY));
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
@@ -234,15 +241,15 @@ public class TestThemisScanner extends ClientTestBase {
     } finally {
       scanner.close();
     }
-    
+
     // scan family and column with lock in another column
-    scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW).addFamily(ANOTHER_FAMILY)
-        .addColumn(FAMILY, ANOTHER_QUALIFIER));
+    scanner = transaction.getScanner(TABLENAME,
+      new ThemisScan(ROW, ROW).addFamily(ANOTHER_FAMILY).addColumn(FAMILY, ANOTHER_QUALIFIER));
     checkScanRow(
       new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER },
       scanner.next());
     checkAndCloseScanner(scanner);
-    
+
     // scan entire row with lock conflict
     scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(true);
@@ -253,17 +260,17 @@ public class TestThemisScanner extends ClientTestBase {
     } finally {
       scanner.close();
     }
-    
+
     // scan entire row with lock conflict resolved
     scanner = transaction.getScanner(TABLENAME, new ThemisScan(ROW, ROW));
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
   }
-  
+
   @Test
   public void testScanWithEmptyRowLeftAfterLockClean() throws Exception {
-    prepareScanData(new ColumnCoordinate[]{});
+    prepareScanData(new ColumnCoordinate[] {});
     writeLockAndData(COLUMN_WITH_ANOTHER_ROW, lastTs(prewriteTs));
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
     ThemisScan pScan = prepareScan(TRANSACTION_COLUMNS);
@@ -271,8 +278,9 @@ public class TestThemisScanner extends ClientTestBase {
     ThemisScanner scanner = transaction.getScanner(TABLENAME, pScan);
     // no rows left after the lock has been cleaned
     checkAndCloseScanner(scanner);
-    
-    prepareScanData(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER});
+
+    prepareScanData(
+      new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER });
     writeLockAndData(COLUMN_WITH_ANOTHER_ROW, lastTs(prewriteTs));
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
     pScan = prepareScan(TRANSACTION_COLUMNS);
@@ -281,71 +289,72 @@ public class TestThemisScanner extends ClientTestBase {
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
   }
-    
+
   @Test
   public void testScanWithRowkeyFilter() throws Exception {
     prepareScanData(TRANSACTION_COLUMNS);
-    
+
     ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS, new PrefixFilter(ROW));
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
-    
+
     scanner = prepareScanner(TRANSACTION_COLUMNS, new PrefixFilter(ANOTHER_ROW));
     // should fetch 'AnotherRow' firstly
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
     checkAndCloseScanner(scanner);
-    
+
     FilterList filterList = new FilterList();
     filterList.addFilter(new PrefixFilter(ROW));
     filterList.addFilter(new PrefixFilter(ANOTHER_ROW));
     scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
     checkAndCloseScanner(scanner);
-    
+
     filterList = new FilterList(Operator.MUST_PASS_ONE);
     filterList.addFilter(new PrefixFilter(ROW));
     filterList.addFilter(new PrefixFilter(ANOTHER_ROW));
     scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
     // should fetch 'AnotherRow' firstly
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
   }
-  
+
   @Test
   public void testScanWithNoRowkeyFilter() throws Exception {
     prepareScanData(TRANSACTION_COLUMNS);
-    ValueFilter valueFilter = new ValueFilter(CompareOp.EQUAL, new BinaryComparator(ANOTHER_VALUE));
+    ValueFilter valueFilter =
+      new ValueFilter(CompareOperator.EQUAL, new BinaryComparator(ANOTHER_VALUE));
     ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS, valueFilter);
     checkAndCloseScanner(scanner);
-    
-    SingleColumnValueFilter singleColumnFilter = new SingleColumnValueFilter(ANOTHER_FAMILY, QUALIFIER,
-        CompareOp.EQUAL, VALUE);
+
+    SingleColumnValueFilter singleColumnFilter =
+      new SingleColumnValueFilter(ANOTHER_FAMILY, QUALIFIER, CompareOperator.EQUAL, VALUE);
     singleColumnFilter.setFilterIfMissing(true);
     scanner = prepareScanner(TRANSACTION_COLUMNS, singleColumnFilter);
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
-    
-    valueFilter = new ValueFilter(CompareOp.EQUAL, new BinaryComparator(VALUE));
-    singleColumnFilter = new SingleColumnValueFilter(QUALIFIER, QUALIFIER, CompareOp.EQUAL,
-        ANOTHER_VALUE);
+
+    valueFilter = new ValueFilter(CompareOperator.EQUAL, new BinaryComparator(VALUE));
+    singleColumnFilter =
+      new SingleColumnValueFilter(QUALIFIER, QUALIFIER, CompareOperator.EQUAL, ANOTHER_VALUE);
     singleColumnFilter.setFilterIfMissing(true);
     FilterList filterList = new FilterList();
     filterList.addFilter(valueFilter);
     filterList.addFilter(singleColumnFilter);
     scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
     checkAndCloseScanner(scanner);
-    
+
     filterList = new FilterList(Operator.MUST_PASS_ONE);
     filterList.addFilter(valueFilter);
     filterList.addFilter(singleColumnFilter);
     scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
   }
-  
+
   // TODO : support filter serialization for 0.98
-  /*
+  @Ignore
   @Test
   public void testScanWithCustomerFilters() throws IOException {
     prepareScanData(TRANSACTION_COLUMNS);
@@ -353,32 +362,31 @@ public class TestThemisScanner extends ClientTestBase {
     ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS, rowLevelFilter);
     checkResultForROW(scanner.next());
     checkAndCloseScanner(scanner);
-    
     CustomerColumnFilter columnFilter = new CustomerColumnFilter(QUALIFIER);
     scanner = prepareScanner(TRANSACTION_COLUMNS, columnFilter);
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
-    checkScanRow(new ColumnCoordinate[]{COLUMN, COLUMN_WITH_ANOTHER_FAMILY}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN, COLUMN_WITH_ANOTHER_FAMILY }, scanner.next());
     checkAndCloseScanner(scanner);
   }
-  */
-  
+
   @Test
   public void testScanWithFilter() throws IOException {
     prepareScanData(TRANSACTION_COLUMNS);
     writeData(COLUMN, lastTs(prewriteTs), ANOTHER_VALUE);
-    ValueFilter valueFilter = new ValueFilter(CompareOp.EQUAL, new BinaryComparator(ANOTHER_VALUE));
+    ValueFilter valueFilter =
+      new ValueFilter(CompareOperator.EQUAL, new BinaryComparator(ANOTHER_VALUE));
     PrefixFilter prefixFilter = new PrefixFilter(ANOTHER_ROW);
     FilterList filterList = new FilterList();
     filterList.addFilter(valueFilter);
     filterList.addFilter(prefixFilter);
     ThemisScanner scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
     checkAndCloseScanner(scanner);
-    
+
     filterList = new FilterList(Operator.MUST_PASS_ONE);
     filterList.addFilter(valueFilter);
     filterList.addFilter(prefixFilter);
     scanner = prepareScanner(TRANSACTION_COLUMNS, filterList);
-    checkScanRow(new ColumnCoordinate[]{COLUMN_WITH_ANOTHER_ROW}, scanner.next());
+    checkScanRow(new ColumnCoordinate[] { COLUMN_WITH_ANOTHER_ROW }, scanner.next());
     Assert.assertEquals(1, scanner.next().size());
     checkAndCloseScanner(scanner);
   }
