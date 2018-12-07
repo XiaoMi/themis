@@ -59,7 +59,6 @@ public class ThemisEndpoint extends ThemisService implements RegionCoprocessor {
 
   @Override
   public void start(@SuppressWarnings("rawtypes") CoprocessorEnvironment env) throws IOException {
-    // super.start(env);
     if (env instanceof RegionCoprocessorEnvironment) {
       this.env = (RegionCoprocessorEnvironment) env;
       ColumnUtil.init(env.getConfiguration());

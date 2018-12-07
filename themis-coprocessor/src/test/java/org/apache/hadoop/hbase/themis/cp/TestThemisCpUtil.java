@@ -15,11 +15,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CompareOperator;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -389,12 +390,14 @@ public class TestThemisCpUtil extends TestBase {
     List<Cell> sourceKvs = new ArrayList<>();
     sourceKvs.add(KEYVALUE);
     Column lockColumn = ColumnUtil.getLockColumn(FAMILY, QUALIFIER);
-    KeyValue lockKv = new KeyValue(ROW, lockColumn.getFamily(), lockColumn.getQualifier(),
-      PREWRITE_TS, Type.Put, VALUE);
+    Cell lockKv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW)
+      .setFamily(lockColumn.getFamily()).setQualifier(lockColumn.getQualifier())
+      .setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE).build();
     sourceKvs.add(lockKv);
     lockColumn = ColumnUtil.getLockColumn(ANOTHER_FAMILY, QUALIFIER);
-    sourceKvs.add(new KeyValue(ROW, lockColumn.getFamily(), lockColumn.getQualifier(), PREWRITE_TS,
-      Type.Put, VALUE));
+    sourceKvs.add(CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW)
+      .setFamily(lockColumn.getFamily()).setQualifier(lockColumn.getQualifier())
+      .setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE).build());
     Result result =
       ThemisCpUtil.removeNotRequiredLockColumns(get.getFamilyMap(), Result.create(sourceKvs));
     assertEquals(2, result.size());
@@ -469,8 +472,9 @@ public class TestThemisCpUtil extends TestBase {
     kvs.add(getLockKv(KEYVALUE));
     kvs.add(getPutKv(KEYVALUE));
     Column column = ColumnUtil.getDeleteColumn(new Column(FAMILY, QUALIFIER));
-    KeyValue deleteKv =
-      new KeyValue(ROW, column.getFamily(), column.getQualifier(), PREWRITE_TS, Type.Put, VALUE);
+    Cell deleteKv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW)
+      .setFamily(column.getFamily()).setQualifier(column.getQualifier()).setTimestamp(PREWRITE_TS)
+      .setType(Type.Put).setValue(VALUE).build();
     kvs.add(deleteKv);
     Pair<List<Cell>, List<Cell>> result =
       ThemisCpUtil.seperateLockAndWriteKvs(kvs.toArray(new Cell[0]));

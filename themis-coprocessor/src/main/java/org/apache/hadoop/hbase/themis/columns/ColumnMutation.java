@@ -41,7 +41,7 @@ public class ColumnMutation extends Column {
 
   @Override
   public String toString() {
-    return "column=" + super.toString() + ",\type=" + type;
+    return "column=" + super.toString() + ", type=" + type;
   }
 
   public static Cell toCell(ColumnMutation mutation) {

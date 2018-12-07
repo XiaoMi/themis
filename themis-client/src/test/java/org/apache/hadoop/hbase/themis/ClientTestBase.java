@@ -6,9 +6,10 @@ import static org.junit.Assert.assertNull;
 
 import java.io.IOException;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
@@ -52,8 +53,10 @@ public class ClientTestBase extends TransactionTestBase {
 
   }
 
-  public static KeyValue getKeyValue(ColumnCoordinate c, Type type, long ts) {
-    return new KeyValue(c.getRow(), c.getFamily(), c.getQualifier(), ts, type, VALUE);
+  public static Cell getKeyValue(ColumnCoordinate c, Type type, long ts) {
+    return CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(c.getRow())
+      .setFamily(c.getFamily()).setQualifier(c.getQualifier()).setType(type).setValue(VALUE)
+      .build();
   }
 
   protected ThemisGet getThemisGet(ColumnCoordinate c) throws IOException {

@@ -13,9 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.TableNotEnabledException;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.themis.ClientTestBase;
@@ -79,8 +80,10 @@ public class TestLockCleaner extends ClientTestBase {
     ColumnCoordinate c = lock.getColumn();
     if (cleanLocks) {
       Column lockColumn = ColumnUtil.getLockColumn(c);
-      KeyValue kv = new KeyValue(c.getRow(), lockColumn.getFamily(), lockColumn.getQualifier(),
-        lock.getTimestamp(), Type.Put, ThemisLock.toByte(lock));
+      Cell kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(c.getRow())
+        .setFamily(lockColumn.getFamily()).setQualifier(lockColumn.getQualifier())
+        .setTimestamp(lock.getTimestamp()).setType(Type.Put).setValue(ThemisLock.toByte(lock))
+        .build();
       lockCleaner.tryToCleanLocks(c.getTableName(), Lists.newArrayList(kv));
     } else {
       lockCleaner.tryToCleanLock(lock);

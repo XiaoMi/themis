@@ -3,9 +3,11 @@ package org.apache.hadoop.hbase.themis.cp;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.filter.Filter.ReturnCode;
 import org.apache.hadoop.hbase.themis.TestBase;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -16,19 +18,24 @@ public class TestColumnTimestampFilter extends TestBase {
   @Test
   public void testFilterKeyValue() {
     ColumnTimestampFilter filter = new ColumnTimestampFilter();
-    KeyValue kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    Cell kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE).build();
     assertEquals(ReturnCode.NEXT_ROW, filter.filterKeyValue(kv));
 
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
-    kv = new KeyValue(ROW, ANOTHER_FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW)
+      .setFamily(ANOTHER_FAMILY).setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put)
+      .setValue(VALUE).build();
     assertEquals(ReturnCode.SEEK_NEXT_USING_HINT, filter.filterKeyValue(kv));
     assertArrayEquals(CellUtil.cloneFamily(filter.getNextCellHint(kv)), FAMILY);
     assertArrayEquals(CellUtil.cloneQualifier(filter.getNextCellHint(kv)), QUALIFIER);
 
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
-    kv = new KeyValue(ROW, FAMILY, ANOTHER_QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(ANOTHER_QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.SEEK_NEXT_USING_HINT, filter.filterKeyValue(kv));
     assertArrayEquals(CellUtil.cloneFamily(filter.getNextCellHint(kv)), FAMILY);
     assertArrayEquals(CellUtil.cloneQualifier(filter.getNextCellHint(kv)), QUALIFIER);
@@ -36,38 +43,53 @@ public class TestColumnTimestampFilter extends TestBase {
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
     byte[] laterFamily = Bytes.toBytes(Bytes.toString(FAMILY) + "#");
-    kv = new KeyValue(ROW, laterFamily, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(laterFamily)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE).build();
     assertEquals(ReturnCode.NEXT_ROW, filter.filterKeyValue(kv));
 
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
-    kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS - 1, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS - 1).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.NEXT_COL, filter.filterKeyValue(kv));
 
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
-    kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE).build();
     assertEquals(ReturnCode.INCLUDE_AND_NEXT_COL, filter.filterKeyValue(kv));
 
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
-    kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS + 1, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS + 1).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.SKIP, filter.filterKeyValue(kv));
 
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
-    kv = new KeyValue(ROW, FAMILY, ANOTHER_QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(ANOTHER_QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.SEEK_NEXT_USING_HINT, filter.filterKeyValue(kv));
     assertArrayEquals(CellUtil.cloneFamily(filter.getNextCellHint(kv)), FAMILY);
     assertArrayEquals(CellUtil.cloneQualifier(filter.getNextCellHint(kv)), QUALIFIER);
-    kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS + 1, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS + 1).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.SKIP, filter.filterKeyValue(kv));
-    kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put).setValue(VALUE).build();
     assertEquals(ReturnCode.INCLUDE_AND_NEXT_COL, filter.filterKeyValue(kv));
-    kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS - 1, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS - 1).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.NEXT_ROW, filter.filterKeyValue(kv));
     byte[] laterQualifier = Bytes.toBytes(Bytes.toString(QUALIFIER) + "#");
-    kv = new KeyValue(ROW, FAMILY, laterQualifier, PREWRITE_TS + 1, Type.Put, VALUE);
+    kv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW).setFamily(FAMILY)
+      .setQualifier(laterQualifier).setTimestamp(PREWRITE_TS + 1).setType(Type.Put).setValue(VALUE)
+      .build();
     assertEquals(ReturnCode.NEXT_ROW, filter.filterKeyValue(kv));
 
   }

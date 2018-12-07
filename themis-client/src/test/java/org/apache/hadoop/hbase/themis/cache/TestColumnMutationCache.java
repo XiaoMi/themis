@@ -1,46 +1,53 @@
 package org.apache.hadoop.hbase.themis.cache;
 
-import junit.framework.Assert;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.themis.ClientTestBase;
 import org.apache.hadoop.hbase.themis.TestBase;
-import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.junit.Test;
 
 public class TestColumnMutationCache extends TestBase {
+
   @Test
   public void testAddAndGetMutationsForRow() {
     ColumnMutationCache cache = new ColumnMutationCache();
-    Assert.assertTrue(cache.addMutation(TABLENAME, KEYVALUE));
-    Assert.assertEquals(1, cache.size());
-    Assert.assertTrue(cache.hasMutation(COLUMN));
-    Assert.assertFalse(cache.addMutation(TABLENAME, KEYVALUE));
-    Assert.assertEquals(1, cache.size());
-    
-    KeyValue kvWithAnotherValue = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, ANOTHER_VALUE);
-    Assert.assertFalse(cache.addMutation(TABLENAME, kvWithAnotherValue));
-    Assert.assertEquals(1, cache.size());
+    assertTrue(cache.addMutation(TABLENAME, KEYVALUE));
+    assertEquals(1, cache.size());
+    assertTrue(cache.hasMutation(COLUMN));
+    assertFalse(cache.addMutation(TABLENAME, KEYVALUE));
+    assertEquals(1, cache.size());
+
+    Cell kvWithAnotherValue = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(ROW)
+      .setFamily(FAMILY).setQualifier(QUALIFIER).setTimestamp(PREWRITE_TS).setType(Type.Put)
+      .setValue(ANOTHER_VALUE).build();
+    assertFalse(cache.addMutation(TABLENAME, kvWithAnotherValue));
+    assertEquals(1, cache.size());
     byte[] actualValue = cache.getMutation(COLUMN).getSecond();
-    Assert.assertTrue(Bytes.equals(ANOTHER_VALUE, actualValue));
-    Assert.assertTrue(cache.hasMutation(COLUMN));
-    
-    Assert.assertTrue(cache.addMutation(ANOTHER_TABLENAME, KEYVALUE));
-    Assert.assertEquals(2, cache.size());
-    Assert.assertTrue(cache.hasMutation(COLUMN));
-    Assert.assertTrue(cache.hasMutation(COLUMN_WITH_ANOTHER_TABLE));
-    
-    KeyValue deleteKv = ClientTestBase.getKeyValue(COLUMN, Type.DeleteColumn, PREWRITE_TS);
-    Assert.assertFalse(cache.addMutation(TABLENAME, deleteKv));
-    Assert.assertEquals(2, cache.size());
-    Assert.assertEquals(Type.DeleteColumn, cache.getMutation(COLUMN).getFirst());
-    
-    cache.addMutation(TABLENAME, ClientTestBase.getKeyValue(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS));
+    assertTrue(Bytes.equals(ANOTHER_VALUE, actualValue));
+    assertTrue(cache.hasMutation(COLUMN));
+
+    assertTrue(cache.addMutation(ANOTHER_TABLENAME, KEYVALUE));
+    assertEquals(2, cache.size());
+    assertTrue(cache.hasMutation(COLUMN));
+    assertTrue(cache.hasMutation(COLUMN_WITH_ANOTHER_TABLE));
+
+    Cell deleteKv = ClientTestBase.getKeyValue(COLUMN, Type.DeleteColumn, PREWRITE_TS);
+    assertFalse(cache.addMutation(TABLENAME, deleteKv));
+    assertEquals(2, cache.size());
+    assertEquals(Type.DeleteColumn, cache.getMutation(COLUMN).getFirst());
+
+    cache.addMutation(TABLENAME,
+      ClientTestBase.getKeyValue(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS));
     Pair<Integer, Integer> mutationsCount = cache.getMutationsCount();
-    Assert.assertEquals(2, mutationsCount.getFirst().intValue());
-    Assert.assertEquals(3, mutationsCount.getSecond().intValue());
-  }  
+    assertEquals(2, mutationsCount.getFirst().intValue());
+    assertEquals(3, mutationsCount.getSecond().intValue());
+  }
 }

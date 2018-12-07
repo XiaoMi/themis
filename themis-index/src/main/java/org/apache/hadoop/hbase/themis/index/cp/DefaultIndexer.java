@@ -5,20 +5,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.Transaction;
@@ -46,7 +43,7 @@ public class DefaultIndexer extends Indexer {
 
   protected void loadSecondaryIndexes() throws IOException {
     try (Connection conn = ConnectionFactory.createConnection(getConf());
-      Admin admin = conn.getAdmin()) {
+        Admin admin = conn.getAdmin()) {
       for (TableDescriptor desc : admin.listTableDescriptors()) {
         loadSecondaryIndexesForTable(desc, columnIndexes);
       }
@@ -117,8 +114,9 @@ public class DefaultIndexer extends Indexer {
   }
 
   protected static Cell constructIndexKv(byte[] mainRowkey, byte[] mainValue) {
-
-    return new KeyValue(mainValue, IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES,
-      mainRowkey, Long.MAX_VALUE, Type.Put, HConstants.EMPTY_BYTE_ARRAY);
+    return CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(mainValue)
+      .setFamily(IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES)
+      .setQualifier(mainRowkey).setTimestamp(Long.MAX_VALUE).setType(Type.Put)
+      .setValue(HConstants.EMPTY_BYTE_ARRAY).build();
   }
 }

@@ -9,9 +9,10 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.util.Arrays;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
@@ -119,8 +120,9 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     Mockito.when(mockRegister.isWorkerAlive(TestBase.CLIENT_TEST_ADDRESS)).thenReturn(false);
     Column lc = ColumnUtil.getLockColumn(COLUMN);
     byte[] lockBytes = ThemisLock.toByte(getLock(COLUMN, prewriteTs - 2));
-    KeyValue lockKv = new KeyValue(COLUMN.getRow(), lc.getFamily(), lc.getQualifier(),
-      prewriteTs - 2, Type.Put, lockBytes);
+    Cell lockKv = CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(COLUMN.getRow())
+      .setFamily(lc.getFamily()).setQualifier(lc.getQualifier()).setTimestamp(prewriteTs - 2)
+      .setType(Type.Put).setValue(lockBytes).build();
     conf.setBoolean(TransactionConstant.DISABLE_LOCK_CLEAN, true);
     createTransactionWithMock();
     try {
