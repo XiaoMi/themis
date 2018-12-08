@@ -56,8 +56,8 @@ public class TestIndexMasterObserver extends IndexTestBase {
 
   @Test
   public void testConstructSecondaryIndexTableName() {
-    assertEquals("__themis_index_a_b_c_d",
-      IndexMasterObserver.constructSecondaryIndexTableName(TableName.valueOf("a"), "b", "c", "d"));
+    assertEquals("__themis_index_a_b_c_d", IndexMasterObserver
+      .constructSecondaryIndexTableName(TableName.valueOf("a"), "b", "c", "d").getNameAsString());
   }
 
   @Test
@@ -81,8 +81,7 @@ public class TestIndexMasterObserver extends IndexTestBase {
         .setColumnFamily(ColumnFamilyDescriptorBuilder.of("whatever")).build());
       fail();
     } catch (IOException e) {
-      // TODO: Fixme
-      // assertTrue(e.getMessage().indexOf("is preserved") >= 0);
+      assertThat(e.getMessage(), containsString("is preserved"));
     }
 
     TableName testMainTable = TableName.valueOf("temp_test");
@@ -100,7 +99,6 @@ public class TestIndexMasterObserver extends IndexTestBase {
     admin.deleteTable(testMainTable);
 
     // create table with index attribute but without themis enable key
-
     try {
       admin.createTable(TableDescriptorBuilder.newBuilder(testMainTable)
         .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(INDEX_FAMILY)
@@ -117,6 +115,9 @@ public class TestIndexMasterObserver extends IndexTestBase {
     TableDescriptor desc = admin.getDescriptor(testMainTable);
     assertNotNull(desc);
     assertNotNull(desc.getColumnFamily(ColumnUtil.LOCK_FAMILY_NAME));
+    for (TableDescriptor t : admin.listTableDescriptors()) {
+      System.err.println(t);
+    }
     desc = admin.getDescriptor(testIndexTable);
     assertNotNull(desc);
     assertNotNull(

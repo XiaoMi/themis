@@ -1,12 +1,15 @@
 package org.apache.hadoop.hbase.themis.index.cp;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
@@ -21,6 +24,7 @@ import org.apache.hadoop.hbase.coprocessor.MasterObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
+import org.apache.hadoop.hbase.procedure2.Procedure;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.slf4j.Logger;
@@ -47,6 +51,11 @@ public class IndexMasterObserver implements MasterObserver, MasterCoprocessor {
   public void start(@SuppressWarnings("rawtypes") CoprocessorEnvironment env) throws IOException {
     assert env instanceof HasMasterServices;
     services = ((HasMasterServices) env).getMasterServices();
+  }
+
+  @Override
+  public Optional<MasterObserver> getMasterObserver() {
+    return Optional.of(this);
   }
 
   @Override
@@ -105,6 +114,20 @@ public class IndexMasterObserver implements MasterObserver, MasterCoprocessor {
     }
   }
 
+  private boolean waitProcedureDone(long procId) throws InterruptedException {
+    for (;;) {
+      Procedure<?> proc = services.getMasterProcedureExecutor().getResultOrProcedure(procId);
+      if (proc == null) {
+        return true;
+      }
+      if (!proc.isFinished()) {
+        Thread.sleep(1000);
+        continue;
+      }
+      return proc.isSuccess();
+    }
+  }
+
   private void createSecondaryIndexTables(TableName tableName, ColumnFamilyDescriptor familyDesc)
       throws IOException {
     List<TableName> indexTableNames = getSecondaryIndexTableNames(tableName, familyDesc);
@@ -114,7 +137,17 @@ public class IndexMasterObserver implements MasterObserver, MasterCoprocessor {
           indexTableNames);
     }
     for (TableName indexTableName : indexTableNames) {
-      services.createTable(getSecondaryIndexTableDesc(indexTableName), null, -1, -1);
+      long procId = services.createTable(getSecondaryIndexTableDesc(indexTableName), null, -1,
+        HConstants.NO_NONCE);
+      try {
+        if (!waitProcedureDone(procId)) {
+          throw new IOException("Failed to create secondary index table:" + indexTableName);
+        }
+      } catch (InterruptedException e) {
+        throw (IOException) new InterruptedIOException(
+          "Interrupted while waiting for creating secondary index table:" + indexTableName)
+            .initCause(e);
+      }
       LOG.info("create secondary index table:" + indexTableName);
     }
   }
@@ -209,9 +242,18 @@ public class IndexMasterObserver implements MasterObserver, MasterCoprocessor {
           List<TableName> indexTableNames =
             getSecondaryIndexTableNames(tableDesc.getTableName(), familyDesc);
           for (TableName indexTableName : indexTableNames) {
-            services.disableTable(indexTableName, -1, -1);
+            services.disableTable(indexTableName, -1, HConstants.NO_NONCE);
             LOG.info("disabled index table name : " + indexTableName);
-            services.deleteTable(indexTableName, -1, -1);
+            long procId = services.deleteTable(indexTableName, -1, HConstants.NO_NONCE);
+            try {
+              if (!waitProcedureDone(procId)) {
+                throw new IOException("Failed to delete secondary index table:" + indexTableName);
+              }
+            } catch (InterruptedException e) {
+              throw (IOException) new InterruptedIOException(
+                "Interrupted while waiting for deleting secondary index table:" + indexTableName)
+                  .initCause(e);
+            }
             LOG.info("deleted index table name : " + indexTableName);
           }
         }

@@ -1,6 +1,7 @@
 package org.apache.hadoop.hbase.themis.index.cp;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,7 @@ public class DefaultIndexer extends Indexer {
 
   @Override
   public void addIndexMutations(ColumnMutationCache mutationCache) throws IOException {
+    List<Pair<TableName, Cell>> toAdd = new ArrayList<>();
     for (Entry<TableName, Map<byte[], RowMutation>> tableMutation : mutationCache.getMutations()) {
       TableName tableName = tableMutation.getKey();
       for (Entry<byte[], RowMutation> rowMutation : tableMutation.getValue().entrySet()) {
@@ -105,11 +107,14 @@ public class DefaultIndexer extends Indexer {
             if (columnIndexes.containsKey(indexColumn)) {
               TableName indexTableName = columnIndexes.get(indexColumn);
               Cell indexKv = constructIndexKv(row, columnMuation.getValue());
-              mutationCache.addMutation(indexTableName, indexKv);
+              toAdd.add(Pair.newPair(indexTableName, indexKv));
             }
           }
         }
       }
+    }
+    for (Pair<TableName, Cell> p : toAdd) {
+      mutationCache.addMutation(p.getFirst(), p.getSecond());
     }
   }
 

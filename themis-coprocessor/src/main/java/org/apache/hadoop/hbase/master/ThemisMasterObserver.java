@@ -106,20 +106,18 @@ public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
   }
 
   private TableDescriptor addAuxiliaryFamily(TableDescriptor desc) throws DoNotRetryIOException {
-    TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(desc.getTableName());
+    TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(desc);
     int replicationScope = ColumnFamilyDescriptorBuilder.DEFAULT_REPLICATION_SCOPE;
     for (ColumnFamilyDescriptor colDesc : desc.getColumnFamilies()) {
       checkColumnDescriptorWhenThemisEnable(colDesc);
       if (isThemisEnableFamily(colDesc)) {
-        builder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(colDesc)
+        builder.modifyColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(colDesc)
           .setMaxVersions(Integer.MAX_VALUE).build());
         // FIXME(qiankai): just use the scope value of the last CF?
         int scope = colDesc.getScope();
         if (scope != ColumnFamilyDescriptorBuilder.DEFAULT_REPLICATION_SCOPE) {
           replicationScope = scope;
         }
-      } else {
-        builder.setColumnFamily(colDesc);
       }
     }
     builder.setColumnFamily(createLockFamily(replicationScope));
@@ -262,7 +260,7 @@ public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
       int cleanedLockCount = 0;
       Scan scan = new Scan().addFamily(ColumnUtil.LOCK_FAMILY_NAME).setTimeRange(0, ts);
       try (Table table = services.getConnection().getTable(tableName);
-        ResultScanner scanner = table.getScanner(scan)) {
+          ResultScanner scanner = table.getScanner(scan)) {
         Result result = null;
         while ((result = scanner.next()) != null) {
           for (Cell cell : result.rawCells()) {
