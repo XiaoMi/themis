@@ -105,6 +105,19 @@ public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
     return addAuxiliaryFamily(desc);
   }
 
+  @Override
+  public TableDescriptor preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      TableName tableName, TableDescriptor currentDescriptor, TableDescriptor newDescriptor)
+      throws IOException {
+    // TODO: now we only support modify table call from libsds, an alter table from shell will fail.
+    // But we can know that if this is an alter table from shell, by comparing the currentDescriptor
+    // and the newDescriptor, and find out how to deal with it. Can be done later.
+    if (!isThemisEnableTable(newDescriptor)) {
+      return newDescriptor;
+    }
+    return addAuxiliaryFamily(newDescriptor);
+  }
+
   private TableDescriptor addAuxiliaryFamily(TableDescriptor desc) throws DoNotRetryIOException {
     TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(desc);
     int replicationScope = ColumnFamilyDescriptorBuilder.DEFAULT_REPLICATION_SCOPE;

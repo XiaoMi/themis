@@ -1,24 +1,25 @@
 package org.apache.hadoop.hbase.master;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisEndpointClient;
@@ -27,7 +28,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
@@ -76,14 +76,14 @@ public class TestThemisMasterObserver extends TransactionTestBase {
 
     // create table with THEMIS_ENABLE and family 'L'
     deleteTable(testTable);
-    HTableDescriptor tableDesc = getTestTableDesc(true);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(ColumnUtil.LOCK_FAMILY_NAME);
-    tableDesc.addFamily(columnDesc);
+    TableDescriptorBuilder builder = getTestTableDescBuilder(true);
+    builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(ColumnUtil.LOCK_FAMILY_NAME));
     try {
-      admin.createTable(tableDesc);
+      admin.createTable(builder.build());
       fail();
     } catch (DoNotRetryIOException e) {
-      assertTrue(e.getMessage().indexOf("is preserved by themis when THEMIS_ENABLE is true") >= 0);
+      assertThat(e.getMessage(),
+        containsString("is preserved by themis when THEMIS_ENABLE is true"));
     }
 
     // create table with THEMIS_ENABLE
@@ -91,32 +91,38 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     createTestTable(true);
     assertTrue(
       admin.getDescriptor(testTable).getColumnFamilyNames().contains(ColumnUtil.LOCK_FAMILY_NAME));
-    tableDesc = admin.getTableDescriptor(testTable);
+    TableDescriptor tableDesc = admin.getDescriptor(testTable);
     checkLockFamilyDesc(tableDesc);
     if (ColumnUtil.isCommitToSameFamily()) {
-      assertTrue(tableDesc.getFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES) == null);
-      assertTrue(tableDesc.getFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES) == null);
+      assertNull(tableDesc.getColumnFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES));
+      assertNull(tableDesc.getColumnFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES));
     }
-    HColumnDescriptor dataColumnDesc = tableDesc.getFamily(testFamily);
+    ColumnFamilyDescriptor dataColumnDesc = tableDesc.getColumnFamily(testFamily);
     assertEquals(Integer.MAX_VALUE, dataColumnDesc.getMaxVersions());
     assertEquals(HConstants.FOREVER, dataColumnDesc.getTimeToLive());
     // exception when set MaxVersion
     deleteTable(testTable);
-    tableDesc = getTestTableDesc(true);
-    tableDesc.getFamily(testFamily).setMaxVersions(1);
+    tableDesc =
+      getTestTableDescBuilder(true)
+        .modifyColumnFamily(
+          ColumnFamilyDescriptorBuilder.newBuilder(dataColumnDesc).setMaxVersions(1).build())
+        .build();
     try {
       admin.createTable(tableDesc);
     } catch (DoNotRetryIOException e) {
-      assertTrue(e.getMessage().indexOf("can not set MaxVersion for family") >= 0);
+      assertThat(e.getMessage(), containsString("can not set MaxVersion for family"));
     }
     deleteTable(testTable);
     // exception when set TTL
     tableDesc = getTestTableDesc(true);
-    tableDesc.getFamily(testFamily).setTimeToLive(60 * 1000);
+    tableDesc = getTestTableDescBuilder(true)
+      .modifyColumnFamily(
+        ColumnFamilyDescriptorBuilder.newBuilder(dataColumnDesc).setTimeToLive(60 * 1000).build())
+      .build();
     try {
       admin.createTable(tableDesc);
     } catch (DoNotRetryIOException e) {
-      assertTrue(e.getMessage().indexOf("can not set TTL for family") >= 0);
+      assertThat(e.getMessage(), containsString("can not set TTL for family"));
     }
     deleteTable(testTable);
   }
@@ -126,10 +132,10 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     if (ColumnUtil.isCommitToDifferentFamily()) {
       deleteTable(testTable);
       createTestTable(true);
-      HTableDescriptor tableDesc = admin.getTableDescriptor(testTable);
+      TableDescriptor tableDesc = admin.getDescriptor(testTable);
       checkLockFamilyDesc(tableDesc);
       checkCommitFamilyDesc(tableDesc);
-      HColumnDescriptor dataColumnDesc = tableDesc.getFamily(testFamily);
+      ColumnFamilyDescriptor dataColumnDesc = tableDesc.getColumnFamily(testFamily);
       assertEquals(Integer.MAX_VALUE, dataColumnDesc.getMaxVersions());
       assertEquals(HConstants.FOREVER, dataColumnDesc.getTimeToLive());
     }
@@ -196,56 +202,37 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     writeLockAndData(COLUMN, prewriteTs + 100);
   }
 
-  // Re-enable after we find out how to deal with preModifyTable
-  @Ignore
+  // TODO: test alter table from shell after we find the way to deal with it.
   @Test
   public void testAlterThemisTable() throws IOException {
     // create table with THEMIS_ENABLE
     deleteTable(testTable);
     createTestTable(true);
-    HTableDescriptor tableDesc = admin.getTableDescriptor(testTable);
+    TableDescriptor tableDesc = admin.getDescriptor(testTable);
     checkLockFamilyDesc(tableDesc);
     if (ColumnUtil.isCommitToDifferentFamily()) {
       checkCommitFamilyDesc(tableDesc);
     }
-    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+    for (ColumnFamilyDescriptor columnDesc : tableDesc.getColumnFamilies()) {
       assertEquals(HConstants.REPLICATION_SCOPE_LOCAL, columnDesc.getScope());
     }
 
-    // Alter table replication scope to global
-    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
-      columnDesc.setScope(HConstants.REPLICATION_SCOPE_GLOBAL);
-    }
-    admin.modifyTable(testTable, tableDesc);
-    tableDesc = admin.getTableDescriptor(testTable);
-    checkLockFamilyDesc(tableDesc);
-    if (ColumnUtil.isCommitToDifferentFamily()) {
-      checkCommitFamilyDesc(tableDesc);
-    }
-    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
-      assertEquals(HConstants.REPLICATION_SCOPE_GLOBAL, columnDesc.getScope());
-    }
-
-    // Remove RETURNED_THEMIS_TABLE_DESC and lock/commit family to test the table desc from libsds
-    // tableDesc.remove(ThemisMasterObserver.RETURNED_THEMIS_TABLE_DESC);
-    tableDesc.removeFamily(ColumnUtil.LOCK_FAMILY_NAME);
-    if (ColumnUtil.isCommitToDifferentFamily()) {
-      for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-        tableDesc.removeFamily(family);
-      }
-    }
+    // Test the table desc from libsds, where we do not have lock/commit families
+    tableDesc = getTestTableDesc(true);
+    TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(tableDesc);
     // Alter table replication scope to local
-    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
-      columnDesc.setScope(HConstants.REPLICATION_SCOPE_LOCAL);
+    for (ColumnFamilyDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      builder.modifyColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(columnDesc)
+        .setScope(HConstants.REPLICATION_SCOPE_GLOBAL).build());
     }
-    admin.modifyTable(testTable, tableDesc);
-    tableDesc = admin.getTableDescriptor(testTable);
+    admin.modifyTable(builder.build());
+    tableDesc = admin.getDescriptor(testTable);
     checkLockFamilyDesc(tableDesc);
     if (ColumnUtil.isCommitToDifferentFamily()) {
       checkCommitFamilyDesc(tableDesc);
     }
-    for (HColumnDescriptor columnDesc : tableDesc.getColumnFamilies()) {
-      assertEquals(HConstants.REPLICATION_SCOPE_LOCAL, columnDesc.getScope());
+    for (ColumnFamilyDescriptor columnDesc : tableDesc.getColumnFamilies()) {
+      assertEquals(HConstants.REPLICATION_SCOPE_GLOBAL, columnDesc.getScope());
     }
   }
 
@@ -253,14 +240,16 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     admin.createTable(getTestTableDesc(themisEnable));
   }
 
-  private HTableDescriptor getTestTableDesc(boolean themisEnable) throws IOException {
-    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
+  private TableDescriptor getTestTableDesc(boolean themisEnable) throws IOException {
+    return getTestTableDescBuilder(themisEnable).build();
+  }
+
+  private TableDescriptorBuilder getTestTableDescBuilder(boolean themisEnable) {
+    ColumnFamilyDescriptorBuilder builder = ColumnFamilyDescriptorBuilder.newBuilder(testFamily);
     if (themisEnable) {
-      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
+      builder.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
     }
-    tableDesc.addFamily(columnDesc);
-    return tableDesc;
+    return TableDescriptorBuilder.newBuilder(testTable).setColumnFamily(builder.build());
   }
 
   private void checkLockFamilyDesc(TableDescriptor tableDescriptor) {

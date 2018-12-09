@@ -5,11 +5,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
@@ -24,33 +22,34 @@ public class TestIndexMasterObserver extends IndexTestBase {
 
   @Test
   public void testCheckIndexNames() throws IOException {
-    HColumnDescriptor desc = new HColumnDescriptor("C");
+    ColumnFamilyDescriptorBuilder builder =
+      ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("C"));
     String familyIndexAttribute = "index_a:a;index_a:a";
 
-    desc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
+    builder.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
       familyIndexAttribute);
     try {
-      IndexMasterObserver.checkIndexNames(desc);
+      IndexMasterObserver.checkIndexNames(builder.build());
     } catch (IOException e) {
-      assertTrue(e.getMessage().indexOf("duplicate secondary index definition") >= 0);
+      assertThat(e.getMessage(), containsString("duplicate secondary index definition"));
     }
 
     String[] familyIndexAttributes = new String[] { "index_a:", ":index_a", ":" };
     for (String indexAttribute : familyIndexAttributes) {
-      desc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
+      builder.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
         indexAttribute);
       try {
-        IndexMasterObserver.checkIndexNames(desc);
+        IndexMasterObserver.checkIndexNames(builder.build());
       } catch (IOException e) {
-        assertTrue(e.getMessage().indexOf("illegal secondary index definition") >= 0);
+        assertThat(e.getMessage(), containsString("illegal secondary index definition"));
       }
     }
 
     familyIndexAttributes = new String[] { "index_a:a", "index_a:a;index_a:b;index_b:a" };
     for (String indexAttribute : familyIndexAttributes) {
-      desc.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
+      builder.setValue(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY,
         indexAttribute);
-      IndexMasterObserver.checkIndexNames(desc);
+      IndexMasterObserver.checkIndexNames(builder.build());
     }
   }
 
