@@ -32,23 +32,14 @@ public class ColumnUtil {
   }
 
   // auxiliary family and qualifier
-  public static final String AUXILIARY_FAMILY_NAME_KEY = "themis.auxiliary.family.name";
-  public static final String DEFAULT_AUXILIARY_FAMILY_NAME = "T";
-  public static final String AUXILIARY_QUALIFIER_NAME_KEY = "themis.auxiliary.qualifier.name";
-  public static final String DEFAULT_AUXILIARY_QUALIFIER_NAME = "__t";
-
-  protected static String auxiliaryFamily;
-  protected static byte[] auxiliaryFamilyBytes;
-  protected static String auxiliaryQualifier;
-  protected static byte[] auxiliaryQualifierBytes;
+  public static final String AUXILIARY_FAMILY = "T";
+  public static final byte[] AUXILIARY_FAMILY_BYTES = Bytes.toBytes(AUXILIARY_FAMILY);
+  public static final String AUXILIARY_QUALIFIER = "__t";
+  public static final byte[] AUXILIARY_QUALIFIER_BYTES = Bytes.toBytes(AUXILIARY_QUALIFIER);
 
   public static void init(Configuration conf) {
     commitFamily = CommitFamily
-      .valueOf(conf.get(THEMIS_COMMIT_FAMILY_TYPE, CommitFamily.DIFFERNT_FAMILY.toString()));
-    auxiliaryFamily = conf.get(AUXILIARY_FAMILY_NAME_KEY, DEFAULT_AUXILIARY_FAMILY_NAME);
-    auxiliaryFamilyBytes = Bytes.toBytes(auxiliaryFamily);
-    auxiliaryQualifier = conf.get(AUXILIARY_QUALIFIER_NAME_KEY, DEFAULT_AUXILIARY_QUALIFIER_NAME);
-    auxiliaryQualifierBytes = Bytes.toBytes(auxiliaryQualifier);
+        .valueOf(conf.get(THEMIS_COMMIT_FAMILY_TYPE, CommitFamily.DIFFERNT_FAMILY.toString()));
   }
 
   public static boolean isCommitToSameFamily() {
@@ -138,7 +129,7 @@ public class ColumnUtil {
   }
 
   public static boolean isAuxiliaryFamily(byte[] family) {
-    return Bytes.equals(family, auxiliaryFamilyBytes);
+    return Bytes.equals(family, AUXILIARY_FAMILY_BYTES);
   }
 
   public static boolean isAuxiliaryColumn(Column column) {
@@ -146,8 +137,8 @@ public class ColumnUtil {
       return false;
     }
 
-    if (Bytes.equals(auxiliaryFamilyBytes, column.getFamily()) &&
-      Bytes.equals(auxiliaryQualifierBytes, column.getQualifier())) {
+    if (Bytes.equals(AUXILIARY_FAMILY_BYTES, column.getFamily()) &&
+      Bytes.equals(AUXILIARY_QUALIFIER_BYTES, column.getQualifier())) {
       return true;
     }
     return false;
@@ -246,25 +237,5 @@ public class ColumnUtil {
 
   protected static byte[] constructQualifierFromColumn(Column column) {
     return Bytes.add(column.getFamily(), PRESERVED_COLUMN_CHARACTER_BYTES, column.getQualifier());
-  }
-
-  @VisibleForTesting
-  public static String getAuxiliaryFamily() {
-    return auxiliaryFamily;
-  }
-
-  @VisibleForTesting
-  public static byte[] getAuxiliaryFamilyBytes() {
-    return auxiliaryFamilyBytes;
-  }
-
-  @VisibleForTesting
-  public static String getAuxiliaryQualifier() {
-    return auxiliaryQualifier;
-  }
-
-  @VisibleForTesting
-  public static byte[] getAuxiliaryQualifierBytes() {
-    return auxiliaryQualifierBytes;
   }
 }

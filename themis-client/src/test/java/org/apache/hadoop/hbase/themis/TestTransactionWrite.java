@@ -98,7 +98,7 @@ public class TestTransactionWrite extends ClientTestBase {
       put = new ThemisPut(ANOTHER_ROW);
       put.add(ANOTHER_FAMILY, QUALIFIER, VALUE);
       if (isAddAuxiliary) {
-        put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+        put.add(ColumnUtil.AUXILIARY_FAMILY_BYTES, ColumnUtil.AUXILIARY_QUALIFIER_BYTES,
           AUXILIARY_VALUE);
       }
       transaction.put(ANOTHER_TABLENAME, put);
@@ -111,8 +111,8 @@ public class TestTransactionWrite extends ClientTestBase {
       assertTrue(transaction.primaryRow.hasMutation(ANOTHER_FAMILY, QUALIFIER));
       assertTrue(transaction.primaryRow.hasMutation(FAMILY, QUALIFIER));
       if (isAddAuxiliary) {
-        assertTrue(!transaction.primaryRow.hasMutation(ColumnUtil.getAuxiliaryFamilyBytes(),
-          ColumnUtil.getAuxiliaryQualifierBytes()));
+        assertTrue(!transaction.primaryRow
+            .hasMutation(ColumnUtil.AUXILIARY_FAMILY_BYTES, ColumnUtil.AUXILIARY_QUALIFIER_BYTES));
         assertArrayEquals(transaction.auxiliaryColumnMutation.getValue(), AUXILIARY_VALUE);
       }
       assertEquals(ANOTHER_TABLENAME, transaction.secondaryRows.get(0).getFirst());
@@ -142,7 +142,7 @@ public class TestTransactionWrite extends ClientTestBase {
       put = new ThemisPut(ROW);
       put.add(FAMILY, QUALIFIER, VALUE);
       if (isAddAuxiliary) {
-        put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+        put.add(ColumnUtil.AUXILIARY_FAMILY_BYTES, ColumnUtil.AUXILIARY_QUALIFIER_BYTES,
           AUXILIARY_VALUE);
       }
       transaction.put(TABLENAME, put);
@@ -150,8 +150,8 @@ public class TestTransactionWrite extends ClientTestBase {
       assertEquals(1, transaction.primaryRow.size());
       assertTrue(transaction.primaryRow.hasMutation(FAMILY, QUALIFIER));
       if (isAddAuxiliary) {
-        assertTrue(!transaction.primaryRow.hasMutation(ColumnUtil.getAuxiliaryFamilyBytes(),
-          ColumnUtil.getAuxiliaryQualifierBytes()));
+        assertTrue(!transaction.primaryRow.hasMutation(ColumnUtil.AUXILIARY_FAMILY_BYTES,
+          ColumnUtil.AUXILIARY_QUALIFIER_BYTES));
         assertArrayEquals(transaction.auxiliaryColumnMutation.getValue(), AUXILIARY_VALUE);
       }
       assertEquals(0, transaction.secondaryRows.size());
@@ -353,7 +353,7 @@ public class TestTransactionWrite extends ClientTestBase {
       row = primaryEntry.getValue().keySet().iterator().next();
     }
     ThemisPut put = new ThemisPut(row);
-    put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+    put.add(ColumnUtil.AUXILIARY_FAMILY_BYTES, ColumnUtil.AUXILIARY_QUALIFIER_BYTES,
       AUXILIARY_VALUE);
     return new Pair<>(tableName, put);
   }

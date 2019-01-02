@@ -120,10 +120,10 @@ public class TransactionTestBase extends TestBase {
     for (TableName tableName : Arrays.asList(TABLENAME, ANOTHER_TABLENAME)) {
       TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(tableName);
       builder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY)
-        .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true").build());
+          .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true").build());
       builder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(ANOTHER_FAMILY)
-        .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true").build());
-      builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(ColumnUtil.getAuxiliaryFamily()));
+          .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true").build());
+      builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(ColumnUtil.AUXILIARY_FAMILY_BYTES));
       TEST_UTIL.getAdmin().createTable(builder.build());
     }
     TransactionTTL.init(conf);
@@ -163,7 +163,7 @@ public class TransactionTestBase extends TestBase {
             .addFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
           if (table.getName().equals(TABLENAME) || table.getName().equals(ANOTHER_TABLENAME)) {
             table.delete(
-              new Delete(row).addFamily(ColumnUtil.getAuxiliaryFamilyBytes(), timestampBase));
+              new Delete(row).addFamily(ColumnUtil.AUXILIARY_FAMILY_BYTES, timestampBase));
           }
           if (!ColumnUtil.isCommitToSameFamily()) {
             table.delete(new Delete(row).addFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES, timestampBase)

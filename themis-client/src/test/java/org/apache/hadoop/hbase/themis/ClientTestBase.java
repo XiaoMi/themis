@@ -137,7 +137,7 @@ public class ClientTestBase extends TransactionTestBase {
     // auxiliary column is in primary row
     if (addAuxiliary) {
       ThemisPut put = new ThemisPut(COLUMN.getRow());
-      put.add(ColumnUtil.getAuxiliaryFamilyBytes(), ColumnUtil.getAuxiliaryQualifierBytes(),
+      put.add(ColumnUtil.AUXILIARY_FAMILY_BYTES, ColumnUtil.AUXILIARY_QUALIFIER_BYTES,
         AUXILIARY_VALUE);
       transaction.put(COLUMN.getTableName(), put);
     }
