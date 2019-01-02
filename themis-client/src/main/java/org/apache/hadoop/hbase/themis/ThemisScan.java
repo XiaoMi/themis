@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.NavigableSet;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.client.ClientUtil;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
 
@@ -21,7 +22,12 @@ public class ThemisScan extends ThemisRead {
   }
 
   public ThemisScan(byte[] startRow, byte[] stopRow) {
-    this.scan = new Scan().withStartRow(startRow).withStopRow(stopRow);
+    if (ClientUtil.areScanStartRowAndStopRowEqual(startRow, stopRow)) {
+      // for keeping the old behavior that a scan with the same start and stop row is a get scan.
+      this.scan = new Scan().withStartRow(startRow).withStopRow(stopRow, true);
+    } else {
+      this.scan = new Scan().withStartRow(startRow).withStopRow(stopRow);
+    }
   }
 
   public ThemisScan(byte[] startRow) {
@@ -62,7 +68,12 @@ public class ThemisScan extends ThemisRead {
   }
 
   public ThemisScan setStopRow(byte[] stopRow) {
-    scan.withStopRow(stopRow);
+    if (ClientUtil.areScanStartRowAndStopRowEqual(scan.getStartRow(), stopRow)) {
+      // for keeping the old behavior that a scan with the same start and stop row is a get scan.
+      scan.withStopRow(stopRow, true);
+    } else {
+      scan.withStopRow(stopRow);
+    }
     return this;
   }
 
