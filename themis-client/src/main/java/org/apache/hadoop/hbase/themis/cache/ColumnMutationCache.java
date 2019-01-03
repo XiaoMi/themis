@@ -1,5 +1,6 @@
 package org.apache.hadoop.hbase.themis.cache;
 
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -8,7 +9,9 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.Cell.Type;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
+import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -16,8 +19,14 @@ import org.apache.hadoop.hbase.util.Pair;
 
 // local cache themis transaction
 public class ColumnMutationCache {
+
+  /**
+   * TODO: {@link Transaction#selectPrimaryAndSecondaries()} will select the first Table and Row as the primary.
+   * And libsds use the same rule to add stream cell to primary row mutation. This should be fixed by setPrimary directly.
+   */
   // index mutations by table and row
-  private Map<TableName, Map<byte[], RowMutation>> mutations = new TreeMap<>();
+  private Map<TableName, Map<byte[], RowMutation>> mutations =
+      new TreeMap<>((t1, t2) -> Bytes.BYTES_COMPARATOR.compare(t1.toBytes(), t2.toBytes()));
 
   public boolean addMutation(TableName tableName, Cell kv) {
     Map<byte[], RowMutation> rowMutations = mutations.get(tableName);
