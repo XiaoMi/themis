@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
@@ -283,7 +284,17 @@ public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
               new Column(CellUtil.cloneFamily(cell), CellUtil.cloneQualifier(cell)));
             lock.setColumn(new ColumnCoordinate(tableName, CellUtil.cloneRow(cell),
               dataColumn.getFamily(), dataColumn.getQualifier()));
-            lockCleaner.cleanLock(lock);
+            try {
+              lockCleaner.cleanLock(lock);
+            } catch (IOException e) {
+              if (e instanceof TableNotFoundException || (e.getCause() != null && e
+                  .getCause() instanceof TableNotFoundException)) {
+                LOG.warn("Clean expired lock failed by TableNotFoundException, so just log it and "
+                    + "continue", e);
+                continue;
+              }
+              throw e;
+            }
             ++cleanedLockCount;
             LOG.info("themis clean expired lock, lockTs=" + cell.getTimestamp() + ", expiredTs=" +
               ts + ", lock=" + lock);
