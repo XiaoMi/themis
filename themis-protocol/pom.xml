@@ -4,7 +4,7 @@
   <parent>
       <artifactId>themis</artifactId>
       <groupId>com.xiaomi.infra</groupId>
-      <version>3.0.1-SNAPSHOT</version>
+      <version>3.0.1</version>
       <relativePath>../</relativePath>
   </parent>
 
