@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.TableNotEnabledException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
@@ -299,6 +300,13 @@ public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
             LOG.info("themis clean expired lock, lockTs=" + cell.getTimestamp() + ", expiredTs=" +
               ts + ", lock=" + lock);
           }
+        }
+      }catch (IOException e){
+        if (e instanceof TableNotEnabledException || (e.getCause() != null && e
+            .getCause() instanceof TableNotEnabledException)) {
+          LOG.warn("Clean expired lock failed by TableNotEnabledException, so just log it and "
+              + "continue", e);
+          continue;
         }
       }
       LOG.info("finish clean expired lock for themis table:" + tableName + ", cleanedLockCount=" +
