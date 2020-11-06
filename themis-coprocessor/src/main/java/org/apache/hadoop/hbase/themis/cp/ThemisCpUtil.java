@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -13,6 +14,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
@@ -208,10 +210,10 @@ public class ThemisCpUtil {
     if (!result.isEmpty()) {
       List<Cell> kvs = new ArrayList<>();
       for (Cell kv : result.listCells()) {
-        if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamilyArray())
-            || ColumnUtil.isCommitFamily(kv.getFamilyArray())) {
-          Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(new Column(kv.getFamilyArray(), kv
-              .getQualifierArray()));
+        if (Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, CellUtil.cloneFamily(kv))
+            || ColumnUtil.isCommitFamily(CellUtil.cloneFamily(kv))) {
+          Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(
+                  new Column(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv)));
           if (familyMap.containsKey(dataColumn.getFamily())) {
             Set<byte[]> qualifiers= familyMap.get(dataColumn.getFamily());
             // for scan, after serialization, the null qualifiers will be set to empty set
@@ -323,16 +325,16 @@ public class ThemisCpUtil {
 
   public static Get constructDataGetByPutKvs(List<Cell> putKvs, Filter filter)
       throws IOException {
-    Get get = new Get(putKvs.get(0).getRowArray());
+    Get get = new Get(CellUtil.cloneRow(putKvs.get(0)));
     long minTs = Long.MAX_VALUE;
     long maxTs = 0;
     ColumnTimestampFilter timestampFilter = new ColumnTimestampFilter();
     for (int i = 0; i < putKvs.size(); ++i) {
       Cell putKv = putKvs.get(i);
-      Column putColumn = new Column(putKv.getFamilyArray(), putKv.getQualifierArray());
+      Column putColumn = new Column(CellUtil.cloneFamily(putKv), CellUtil.cloneQualifier(putKv));
       Column dataColumn = ColumnUtil.getDataColumn(putColumn);
       get.addColumn(dataColumn.getFamily(), dataColumn.getQualifier());
-      long prewriteTs = Bytes.toLong(putKv.getValueArray());
+      long prewriteTs = Bytes.toLong(CellUtil.cloneValue(putKv));
       timestampFilter.addColumnTimestamp(dataColumn, prewriteTs);
       if (minTs > prewriteTs) {
         minTs = prewriteTs;
@@ -361,14 +363,14 @@ public class ThemisCpUtil {
       Column lastDataColumn = null;
       Cell lastKv = null;
       for (Cell kv : writeKvs) {
-        Column column = new Column(kv.getFamilyArray(), kv.getQualifierArray());
+        Column column = new Column(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv));
         Column dataColumn = ColumnUtil.getDataColumn(column);
         if (lastDataColumn != null && lastDataColumn.equals(dataColumn)) {
           if (lastKv.getTimestamp() < kv.getTimestamp()) {
             lastKv = kv;
           }
         } else {
-          if (lastKv != null && ColumnUtil.isPutColumn(lastKv.getFamilyArray(), lastKv.getQualifierArray())) {
+          if (lastKv != null && ColumnUtil.isPutColumn(CellUtil.cloneFamily(lastKv), CellUtil.cloneQualifier(lastKv))) {
             result.add(lastKv);
           }
           lastDataColumn = dataColumn;
@@ -376,7 +378,7 @@ public class ThemisCpUtil {
         }
       }
 
-      if (lastKv != null && ColumnUtil.isPutColumn(lastKv.getFamilyArray(), lastKv.getQualifierArray())) {
+      if (lastKv != null && ColumnUtil.isPutColumn(CellUtil.cloneFamily(lastKv), CellUtil.cloneQualifier(lastKv))) {
         result.add(lastKv);
       }
       return result;
@@ -386,19 +388,20 @@ public class ThemisCpUtil {
   }
   
   protected static List<Cell> getPutKvsForCommitDifferentFamily(List<Cell> writeKvs) {
-    Map<Column, Cell> map = new HashMap<>();
+    Map<Column, Cell> map = new LinkedHashMap<>();
     for (Cell kv : writeKvs) {
-      Column column = new Column(kv.getFamilyArray(), kv.getQualifierArray());
+      Column column = new Column(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv));
       Column dataColumn = ColumnUtil.getDataColumn(column);
       Cell existKv = map.get(dataColumn);
       if (existKv == null || kv.getTimestamp() > existKv.getTimestamp()) {
         map.put(dataColumn, kv);
       }
     }
-    List<Cell> result = new ArrayList<Cell>();
+
+    List<Cell> result = new ArrayList<>();
     for (Entry<Column, Cell> entry : map.entrySet()) {
       Cell kv = entry.getValue();
-      if (ColumnUtil.isPutColumn(kv.getFamilyArray(), kv.getQualifierArray())) {
+      if (ColumnUtil.isPutColumn(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))) {
         result.add(kv);
       }
     }
@@ -426,7 +429,7 @@ public class ThemisCpUtil {
       return false;
     }
     Cell firstKv = result.listCells().get(0);
-    return ColumnUtil.isLockColumn(firstKv.getFamilyArray(), firstKv.getQualifierArray());
+    return ColumnUtil.isLockColumn(CellUtil.cloneFamily(firstKv), CellUtil.cloneQualifier(firstKv));
   }
 
   public static Pair<List<Cell>, List<Cell>> seperateLockAndWriteKvs(List<Cell> kvs) {
@@ -434,9 +437,9 @@ public class ThemisCpUtil {
     List<Cell> writeKvs = new ArrayList<>();
     if (kvs != null) {
       for (Cell kv : kvs) {
-        if (ColumnUtil.isLockColumn(kv.getFamilyArray(), kv.getQualifierArray())) {
+        if (ColumnUtil.isLockColumn(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))) {
           lockKvs.add(kv);
-        } else if (ColumnUtil.isWriteColumn(kv.getFamilyArray(), kv.getQualifierArray())) {
+        } else if (ColumnUtil.isWriteColumn(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))) {
           writeKvs.add(kv);
         }
       }

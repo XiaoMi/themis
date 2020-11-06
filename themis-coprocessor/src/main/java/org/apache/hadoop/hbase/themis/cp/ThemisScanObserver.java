@@ -7,6 +7,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
@@ -34,7 +35,7 @@ public class ThemisScanObserver implements RegionObserver, Coprocessor {
   }
   
   protected static byte[] currentRow(List<Cell> values) {
-    return values.size() > 0 ? values.get(0).getRowArray() : PRE_SCANNER_NEXT_FEEK_ROW;
+    return values.size() > 0 ? CellUtil.cloneRow(values.get(0)) : PRE_SCANNER_NEXT_FEEK_ROW;
   }
   
   protected static boolean next(Region region, final ThemisServerScanner s,
@@ -99,6 +100,8 @@ public class ThemisScanObserver implements RegionObserver, Coprocessor {
       throw new DoNotRetryIOException("themis exception in preScannerNext", ex);
     }
   }
+
+
 
   // will create ThemisScanner when '_themisTransationStartTs_' is set in the attributes of scan;
   // otherwise, follow the origin read path to do hbase scan

@@ -40,6 +40,22 @@
       <type>test-jar</type>
     </dependency>
 
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-hadoop-compat</artifactId>
+          <version>${hbase.version}</version>
+          <scope>test</scope>
+          <type>test-jar</type>
+      </dependency>
+
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-hadoop2-compat</artifactId>
+          <version>${hbase.version}</version>
+          <scope>test</scope>
+          <type>test-jar</type>
+      </dependency>
+
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>

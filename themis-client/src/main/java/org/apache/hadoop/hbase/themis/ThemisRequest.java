@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 
@@ -48,7 +48,7 @@ abstract class ThemisMutation extends ThemisRequest {
       throws IOException {
     for (Entry<byte[], List<Cell>> entry : mutations.entrySet()) {
       for (Cell kv : entry.getValue()) {
-        checkContainingPreservedColumn(kv.getFamilyArray(), kv.getQualifierArray());
+        checkContainingPreservedColumn(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv));
       }
     }
   }

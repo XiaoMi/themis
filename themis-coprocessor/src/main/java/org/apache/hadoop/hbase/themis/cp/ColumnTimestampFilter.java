@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.filter.FilterBase;
@@ -41,7 +42,7 @@ public class ColumnTimestampFilter extends FilterBase {
       return ReturnCode.NEXT_ROW;
     }
     
-    Column column = new Column(v.getFamilyArray(), v.getQualifierArray());
+    Column column = new Column(CellUtil.cloneFamily(v), CellUtil.cloneQualifier(v));
     Column curColumn;
     Long curTs;
     int cmpRet;
@@ -78,7 +79,7 @@ public class ColumnTimestampFilter extends FilterBase {
     }
 
     Column column = columnsTs.get(curColumnIdx).getFirst();
-    return KeyValueUtil.createFirstOnRow(kv.getRowArray(), column.getFamily(), column.getQualifier());
+    return KeyValueUtil.createFirstOnRow(CellUtil.cloneRow(kv), column.getFamily(), column.getQualifier());
   }
   
   public void readFields(DataInput arg0) throws IOException {

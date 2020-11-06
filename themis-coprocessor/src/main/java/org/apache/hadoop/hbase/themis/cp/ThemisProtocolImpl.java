@@ -8,6 +8,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.client.Delete;
@@ -288,7 +289,7 @@ public class ThemisProtocolImpl implements RegionCoprocessor, ThemisProtocol {
     Get get = new Get(row).addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
     Result result = getFromRegion(region, get,
       ThemisCpStatistics.getThemisCpStatistics().prewriteReadLockLatency);
-    byte[] existLockBytes = result.isEmpty() ? null : result.listCells().get(0).getValueArray();
+    byte[] existLockBytes = result.isEmpty() ? null : CellUtil.cloneValue(result.listCells().get(0));
     boolean lockExpired = existLockBytes != null && isLockExpired(result.listCells().get(0)
             .getTimestamp());
     // check no newer write exist
@@ -414,7 +415,7 @@ public class ThemisProtocolImpl implements RegionCoprocessor, ThemisProtocol {
     Get get = new Get(row).addColumn(lockColumn.getFamily(), lockColumn.getQualifier());
     get.setTimeStamp(prewriteTs);
     Result result = getFromRegion(region, get, latency);
-    return result.isEmpty() ? null : result.listCells().get(0).getValueArray();
+    return result.isEmpty() ? null : CellUtil.cloneValue(result.listCells().get(0));
   }
 
   @Override

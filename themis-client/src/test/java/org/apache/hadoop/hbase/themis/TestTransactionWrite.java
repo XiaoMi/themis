@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
@@ -281,7 +282,7 @@ public class TestTransactionWrite extends ClientTestBase {
     Assert.assertEquals(1, result.size());
     Column expect = ColumnUtil.getDeleteColumn(COLUMN);
     Cell kv = result.listCells().get(0);
-    Column actual = new Column(kv.getFamilyArray(), kv.getQualifierArray());
+    Column actual = new Column(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv));
     Assert.assertTrue(expect.equals(actual));
   }
 }

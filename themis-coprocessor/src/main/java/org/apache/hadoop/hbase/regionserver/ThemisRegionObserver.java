@@ -6,6 +6,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Durability;
@@ -67,7 +68,7 @@ public class ThemisRegionObserver implements RegionObserver, RegionCoprocessor {
         // we must write lock for primary firstly
         int primaryIndex = -1;
         for (int i = 0; i < kvs.size(); ++i) {
-          if (Bytes.equals(primaryQualifier, kvs.get(i).getQualifierArray())) {
+          if (Bytes.equals(primaryQualifier, CellUtil.cloneQualifier(kvs.get(i)))) {
             primaryIndex = i;
           }
         }

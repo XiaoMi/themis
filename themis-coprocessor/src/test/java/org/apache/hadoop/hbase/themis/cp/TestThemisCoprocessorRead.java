@@ -5,6 +5,7 @@ import java.util.Collections;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparatorImpl;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue.KVComparator;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.TableName;
@@ -54,10 +55,10 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     if (getColumnType(columnCoordinate).equals(Type.Put)) {
       Assert.assertEquals(1, internalResult.size());
       Cell kv = internalResult.listCells().get(0);
-      Assert.assertEquals(columnCoordinate, new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRowArray(),
-                kv.getFamilyArray(), kv.getQualifierArray()));
+      Assert.assertEquals(columnCoordinate, new ColumnCoordinate(columnCoordinate.getTableName(), CellUtil.cloneRow(kv),
+                CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv)));
       Assert.assertEquals(prewriteTs, kv.getTimestamp());
-      Assert.assertArrayEquals(VALUE, kv.getValueArray());
+      Assert.assertArrayEquals(VALUE, CellUtil.cloneValue(kv));
     } else {
       Assert.assertEquals(0, internalResult.size());
     }
@@ -154,9 +155,9 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     Assert.assertEquals(1, internalResult.listCells().size());
     Cell kv = internalResult.listCells().get(0);
     Assert.assertTrue(ColumnUtil.getLockColumn(columnCoordinate).equals(
-      new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRowArray(), kv.getFamilyArray(), kv.getQualifierArray())));
+      new ColumnCoordinate(columnCoordinate.getTableName(), CellUtil.cloneRow(kv), CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))));
     Assert.assertEquals(prewriteTs, kv.getTimestamp());
-    Assert.assertArrayEquals(ThemisLock.toByte(getLock(columnCoordinate, prewriteTs)), kv.getValueArray());
+    Assert.assertArrayEquals(ThemisLock.toByte(getLock(columnCoordinate, prewriteTs)), CellUtil.cloneValue(kv));
 
   }
   

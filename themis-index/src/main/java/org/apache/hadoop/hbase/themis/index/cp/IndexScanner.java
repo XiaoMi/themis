@@ -7,6 +7,7 @@ import java.util.NavigableSet;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.ThemisGet;
@@ -48,7 +49,7 @@ public class IndexScanner extends ThemisScanner {
       }
 
       Cell indexKv = indexResult.listCells().get(kvIndex);
-      ThemisGet dataRowGet = constructDataRowGet(indexKv.getQualifierArray(), indexRead.dataGet);
+      ThemisGet dataRowGet = constructDataRowGet(CellUtil.cloneQualifier(indexKv), indexRead.dataGet);
       Result dataResult = transaction.get(indexColumn.getTableName(), dataRowGet);
       Cell indexColumnKv = dataResult.getColumnLatestCell(indexColumn.getFamily(), indexColumn.getQualifier());
       if (indexColumnKv == null || indexColumnKv.getTimestamp() != indexKv.getTimestamp()) {

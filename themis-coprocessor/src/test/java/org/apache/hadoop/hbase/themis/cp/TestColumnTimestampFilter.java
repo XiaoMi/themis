@@ -1,11 +1,11 @@
 package org.apache.hadoop.hbase.themis.cp;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.filter.Filter.ReturnCode;
 import org.apache.hadoop.hbase.themis.TestBase;
-import org.apache.hadoop.hbase.themis.cp.ColumnTimestampFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
 import org.junit.Test;
@@ -23,15 +23,15 @@ public class TestColumnTimestampFilter extends TestBase {
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
     kv = new KeyValue(ROW, ANOTHER_FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
     Assert.assertEquals(ReturnCode.SEEK_NEXT_USING_HINT, filter.filterKeyValue(kv));
-    Assert.assertArrayEquals(filter.getNextCellHint(kv).getFamilyArray(), FAMILY);
-    Assert.assertArrayEquals(filter.getNextCellHint(kv).getQualifierArray(), QUALIFIER);
+    Assert.assertArrayEquals(CellUtil.cloneFamily(filter.getNextCellHint(kv)), FAMILY);
+    Assert.assertArrayEquals(CellUtil.cloneQualifier(filter.getNextCellHint(kv)), QUALIFIER);
     
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
     kv = new KeyValue(ROW, FAMILY, ANOTHER_QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
     Assert.assertEquals(ReturnCode.SEEK_NEXT_USING_HINT, filter.filterKeyValue(kv));
-    Assert.assertArrayEquals(filter.getNextCellHint(kv).getFamilyArray(), FAMILY);
-    Assert.assertArrayEquals(filter.getNextCellHint(kv).getQualifierArray(), QUALIFIER);
+    Assert.assertArrayEquals(CellUtil.cloneFamily(filter.getNextCellHint(kv)), FAMILY);
+    Assert.assertArrayEquals(CellUtil.cloneQualifier(filter.getNextCellHint(kv)), QUALIFIER);
     
     filter = new ColumnTimestampFilter();
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
@@ -58,8 +58,8 @@ public class TestColumnTimestampFilter extends TestBase {
     filter.addColumnTimestamp(COLUMN, PREWRITE_TS);
     kv = new KeyValue(ROW, FAMILY, ANOTHER_QUALIFIER, PREWRITE_TS, Type.Put, VALUE);
     Assert.assertEquals(ReturnCode.SEEK_NEXT_USING_HINT, filter.filterKeyValue(kv));
-    Assert.assertArrayEquals(filter.getNextCellHint(kv).getFamilyArray(), FAMILY);
-    Assert.assertArrayEquals(filter.getNextCellHint(kv).getQualifierArray(), QUALIFIER);
+    Assert.assertArrayEquals(CellUtil.cloneFamily(filter.getNextCellHint(kv)), FAMILY);
+    Assert.assertArrayEquals(CellUtil.cloneQualifier(filter.getNextCellHint(kv)), QUALIFIER);
     kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS + 1, Type.Put, VALUE);
     Assert.assertEquals(ReturnCode.SKIP, filter.filterKeyValue(kv));
     kv = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS, Type.Put, VALUE);

@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.NavigableSet;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparatorImpl;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CompareOperator;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.KVComparator;
@@ -118,7 +120,7 @@ public class TestThemisCpUtil extends TestBase {
     }
 
     public ReturnCode filterKeyValue(Cell kv) {
-      if (Bytes.equals(qualifier, kv.getQualifierArray())) {
+      if (Bytes.equals(qualifier, CellUtil.cloneQualifier(kv))) {
         return ReturnCode.INCLUDE;
       }
       return ReturnCode.SKIP;
@@ -223,7 +225,7 @@ public class TestThemisCpUtil extends TestBase {
     Assert.assertEquals(putKvs.size(), get.getFamilyMap().size());
     for (Cell kv : putKvs) {
       if (ColumnUtil.isCommitToSameFamily()) {
-        Assert.assertTrue(get.getFamilyMap().containsKey(kv.getFamilyArray()));
+        Assert.assertTrue(get.getFamilyMap().containsKey(CellUtil.cloneFamily(kv)));
       }
       get.getTimeRange().withinTimeRange(kv.getTimestamp());
     }
@@ -261,10 +263,10 @@ public class TestThemisCpUtil extends TestBase {
     writeKvs.add(getDeleteKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS));
     writeKvs.add(getDeleteKv(new ColumnCoordinate(ROW, ANOTHER_FAMILY, ANOTHER_QUALIFIER), PREWRITE_TS));
     writeKvs.add(getPutKv(COLUMN_WITH_ANOTHER_QUALIFIER, PREWRITE_TS));
-    Collections.sort(writeKvs, KeyValue.COMPARATOR);
+    Collections.sort(writeKvs, CellComparatorImpl.COMPARATOR);
     List<Cell> putKvs = ThemisCpUtil.getPutKvs(writeKvs);
     Assert.assertEquals(2, putKvs.size());
-    Collections.sort(putKvs, new KVComparator());
+    Collections.sort(putKvs, CellComparatorImpl.COMPARATOR);
     Assert.assertTrue(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS + 1).equals(putKvs.get(0)));
     Assert.assertTrue(getPutKv(COLUMN_WITH_ANOTHER_QUALIFIER, PREWRITE_TS).equals(putKvs.get(1)));
     
@@ -272,7 +274,7 @@ public class TestThemisCpUtil extends TestBase {
     writeKvs.clear();
     writeKvs.add(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS));
     writeKvs.add(getPutKv(COLUMN, PREWRITE_TS));
-    Collections.sort(writeKvs, new KVComparator());
+    Collections.sort(writeKvs, CellComparatorImpl.COMPARATOR);
     putKvs = ThemisCpUtil.getPutKvs(writeKvs);
     Assert.assertTrue(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS).equals(putKvs.get(0)));
     Assert.assertTrue(getPutKv(COLUMN, PREWRITE_TS).equals(putKvs.get(1)));

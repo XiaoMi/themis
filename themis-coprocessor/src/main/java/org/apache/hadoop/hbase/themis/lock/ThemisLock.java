@@ -14,7 +14,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 public abstract class ThemisLock implements Writable {
-  protected Cell.Type type ; // illegal type should be Type.Put or Type.DeleteColumn
+  protected Cell.Type type = Cell.Type.DeleteFamilyVersion ; // illegal type should be Type.Put or Type.DeleteColumn
   protected long timestamp;
   protected String clientAddress;
   protected long wallTime; // TODO : remove this field

@@ -14,6 +14,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellBuilderFactory;
 import org.apache.hadoop.hbase.CellBuilderType;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
@@ -163,14 +164,14 @@ public class TestBase {
   }
   
   protected static Cell getLockKv(Cell dataKv, byte[] lockBytes) {
-    Column lockColumn = ColumnUtil.getLockColumn(new Column(dataKv.getFamilyArray(), dataKv
-      .getQualifierArray()));
+    Column lockColumn = ColumnUtil.getLockColumn(new Column(CellUtil.cloneFamily(dataKv),
+            CellUtil.cloneQualifier(dataKv)));
 
     return CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
           .setType(Cell.Type.Put)
-          .setRow(dataKv.getRowArray())
+          .setRow(CellUtil.cloneRow(dataKv))
           .setFamily(lockColumn.getFamily())
-          .setQualifier(lockColumn.getFamily())
+          .setQualifier(lockColumn.getQualifier())
           .setTimestamp(PREWRITE_TS)
           .setValue(lockBytes)
           .build();
@@ -179,7 +180,7 @@ public class TestBase {
 
   protected static Cell getPutKv(Cell dataKv) {
     Column putColumn = ColumnUtil
-        .getPutColumn(new Column(dataKv.getFamilyArray(), dataKv.getQualifierArray()));
+        .getPutColumn(new Column(CellUtil.cloneFamily(dataKv), CellUtil.cloneQualifier(dataKv)));
     return getKeyValue(new ColumnCoordinate(ROW, putColumn.getFamily(), putColumn.getQualifier()),
       PREWRITE_TS);
   }
@@ -196,7 +197,7 @@ public class TestBase {
             .setType(Cell.Type.Put)
             .setRow(column.getRow())
             .setFamily(wc.getFamily())
-            .setQualifier(wc.getFamily())
+            .setQualifier(wc.getQualifier())
             .setTimestamp(commitTs)
             .setValue(Bytes.toBytes(prewriteTs))
             .build();
@@ -217,7 +218,7 @@ public class TestBase {
               .setType(Cell.Type.Put)
               .setRow(c.getRow())
               .setFamily(c.getFamily())
-              .setQualifier(c.getFamily())
+              .setQualifier(c.getQualifier())
               .setTimestamp(ts)
               .setValue(VALUE)
               .build();

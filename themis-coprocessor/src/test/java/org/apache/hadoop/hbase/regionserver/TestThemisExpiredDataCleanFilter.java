@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
@@ -79,8 +80,8 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
       ColumnCoordinate column = columns[i];
       Cell kv = result.listCells().get(i);
       Assert.assertEquals(prewriteTs + 1, kv.getTimestamp());
-      Assert.assertArrayEquals(column.getFamily(), kv.getFamilyArray());
-      Assert.assertArrayEquals(column.getQualifier(), kv.getFamilyArray());
+      Assert.assertArrayEquals(column.getFamily(), CellUtil.cloneFamily(kv));
+      Assert.assertArrayEquals(column.getQualifier(), CellUtil.cloneQualifier(kv));
     }
     
     // two row / multi-columns
@@ -96,8 +97,8 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
       ColumnCoordinate column = columns[i];
       Cell kv = result.listCells().get(i);
       Assert.assertEquals(prewriteTs + 1, kv.getTimestamp());
-      Assert.assertArrayEquals(column.getFamily(), kv.getFamilyArray());
-      Assert.assertArrayEquals(column.getQualifier(), kv.getFamilyArray());
+      Assert.assertArrayEquals(column.getFamily(), CellUtil.cloneFamily(kv));
+      Assert.assertArrayEquals(column.getQualifier(), CellUtil.cloneQualifier(kv));
     }
     scanner.close();
   }

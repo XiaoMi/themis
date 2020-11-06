@@ -54,7 +54,7 @@ public class PrimaryLock extends ThemisLock {
     out.writeInt(secondaryColumns.size());
     for (Entry<ColumnCoordinate, Cell.Type> columnAndType : secondaryColumns.entrySet()) {
       columnAndType.getKey().write(out);
-      out.writeByte(columnAndType.getValue().getCode());
+      out.writeUTF(columnAndType.getValue().name());
     }
   }
 

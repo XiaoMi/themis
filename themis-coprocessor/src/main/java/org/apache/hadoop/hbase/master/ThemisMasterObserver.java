@@ -8,6 +8,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HConstants;
@@ -298,15 +299,15 @@ public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
         Result result;
         while ((result = scanner.next()) != null) {
           for (Cell kv : result.listCells()) {
-            ThemisLock lock = ThemisLock.parseFromByte(kv.getValueArray());
-            Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(new Column(kv.getFamilyArray(),
-                kv.getQualifierArray()));
-            lock.setColumn(new ColumnCoordinate(tableNameBytes, kv.getRowArray(),
+            ThemisLock lock = ThemisLock.parseFromByte(CellUtil.cloneValue(kv));
+            Column dataColumn = ColumnUtil.getDataColumnFromConstructedQualifier(new Column(CellUtil.cloneFamily(kv),
+                CellUtil.cloneQualifier(kv)));
+            lock.setColumn(new ColumnCoordinate(tableNameBytes, CellUtil.cloneRow(kv),
                 dataColumn.getFamily(), dataColumn.getQualifier()));
             lockCleaner.cleanLock(lock);
             ++cleanedLockCount;
             LOG.info("themis clean expired lock, lockTs=" + kv.getTimestamp() + ", expiredTs=" + ts
-                + ", lock=" + ThemisLock.parseFromByte(kv.getValueArray()));
+                + ", lock=" + ThemisLock.parseFromByte(CellUtil.cloneValue(kv)));
           }
         }
         scanner.close();

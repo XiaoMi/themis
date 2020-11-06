@@ -8,6 +8,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
@@ -77,12 +78,12 @@ public class LockCleaner extends ServerLockCleaner {
     List<ThemisLock> locks = new ArrayList<>();
     if (lockKvs != null) {
       for (Cell kv : lockKvs) {
-        ColumnCoordinate lockColumn = new ColumnCoordinate(tableName, kv.getRowArray(),
-            kv.getFamilyArray(), kv.getQualifierArray());
+        ColumnCoordinate lockColumn = new ColumnCoordinate(tableName, CellUtil.cloneRow(kv),
+            CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv));
         if (!ColumnUtil.isLockColumn(lockColumn)) {
           throw new ThemisFatalException("get no-lock column when constructLocks, kv=" + kv);
         }
-        ThemisLock lock = ThemisLock.parseFromByte(kv.getValueArray());
+        ThemisLock lock = ThemisLock.parseFromByte(CellUtil.cloneValue(kv));
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);

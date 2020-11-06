@@ -9,6 +9,7 @@ import java.util.List;
 import junit.framework.Assert;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -49,7 +50,7 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
       int totalValue = 0;
       for (Result result : values) {
         for (Cell kv : result.listCells()) {
-          totalValue += Bytes.toInt(kv.getValueArray());
+          totalValue += Bytes.toInt(CellUtil.cloneValue(kv));
         }
       }
       byte[] newKey = getReduceRow(key.copyBytes());
@@ -74,7 +75,7 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
       byte[] reduceKey = getRowKeyWithPrefix(row.copyBytes());
       Put put = new Put(reduceKey);
       for (Cell kv : values.listCells()) {
-        put.addColumn(kv.getFamilyArray(), kv.getFamilyArray(), kv.getFamilyArray());
+        put.addColumn(CellUtil.cloneFamily(kv), CellUtil.cloneFamily(kv), CellUtil.cloneFamily(kv));
       }
       TableMutations tableMuation = new TableMutations(tableName);
       tableMuation.add(put);

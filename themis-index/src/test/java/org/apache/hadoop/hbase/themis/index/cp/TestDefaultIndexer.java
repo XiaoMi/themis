@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
@@ -103,7 +104,8 @@ public class TestDefaultIndexer extends IndexTestBase {
     result = transaction.get(INDEX_TABLE, new ThemisGet(VALUE).addColumn(
       IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW));
     Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.listCells().get(0).getValueArray());
+    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY,
+            CellUtil.cloneValue(result.listCells().get(0)));
     
     nextTsAndCreateTransaction();
     ThemisDelete delete = new ThemisDelete(ROW);
@@ -119,7 +121,8 @@ public class TestDefaultIndexer extends IndexTestBase {
     result = transaction.get(INDEX_TABLE, new ThemisGet(VALUE).addColumn(
       IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW));
     Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.listCells().get(0).getValueArray());
+    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY,
+            CellUtil.cloneValue(result.listCells().get(0)));
   }
   
   @Test

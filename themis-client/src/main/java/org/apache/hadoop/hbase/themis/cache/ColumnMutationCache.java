@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
@@ -23,13 +24,13 @@ public class ColumnMutationCache {
             k -> new TreeMap<>(Bytes.BYTES_COMPARATOR));
 
 
-    final byte[] rowKey = kv.getRowArray();
+    final byte[] rowKey = CellUtil.cloneRow(kv);
     RowMutation rowMutation = rowMutations.get(rowKey);
     if (rowMutation == null) {
       rowMutation = new RowMutation(rowKey);
       rowMutations.put(rowKey, rowMutation);
     }
-    return rowMutation.addMutation(kv.getFamilyArray(), kv.getQualifierArray(), kv.getType(), kv.getValueArray());
+    return rowMutation.addMutation(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv), kv.getType(), CellUtil.cloneValue(kv));
   }
   
   public Set<Entry<byte[], Map<byte[], RowMutation>>> getMutations() {

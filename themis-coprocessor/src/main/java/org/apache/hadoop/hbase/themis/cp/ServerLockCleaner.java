@@ -6,6 +6,7 @@ import java.util.Map.Entry;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Delete;
@@ -104,7 +105,7 @@ public class ServerLockCleaner {
       Result result = conn.getTable(tableName).get(get);
       if (CollectionUtils.isNotEmpty(result.listCells())) {
         for (Cell kv : result.listCells()) {
-          long prewriteTs = Bytes.toLong(kv.getValueArray());
+          long prewriteTs = Bytes.toLong(CellUtil.cloneValue(kv));
           if (prewriteTs == timestamp) {
             return kv.getTimestamp();
           }

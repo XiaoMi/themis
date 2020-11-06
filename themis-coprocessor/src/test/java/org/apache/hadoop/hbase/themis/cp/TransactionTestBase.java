@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -344,7 +345,7 @@ public class TransactionTestBase extends TestBase {
     if (result.listCells() == null || result.listCells().size() == 0) {
       return null;
     }
-    return result.listCells().get(0).getValueArray();
+    return CellUtil.cloneValue(result.listCells().get(0));
   }
   
   protected Result readData(ColumnCoordinate c, long ts) throws IOException {
@@ -553,6 +554,6 @@ public class TransactionTestBase extends TestBase {
     if (expect instanceof ColumnCoordinate) {
       column = getColumn((ColumnCoordinate)expect);
     }
-    Assert.assertEquals(column, new Column(kv.getFamilyArray(), kv.getQualifierArray()));
+    Assert.assertEquals(column, new Column(CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv)));
   }
 }

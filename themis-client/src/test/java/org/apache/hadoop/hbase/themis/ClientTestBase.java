@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
@@ -57,11 +58,11 @@ public class ClientTestBase extends TransactionTestBase {
   protected void checkReadColumnResultWithTs(Result result, ColumnCoordinate columnCoordinate, long ts) {
     Assert.assertEquals(1, result.size());
     Cell kv = result.listCells().get(0);
-    Assert.assertArrayEquals(columnCoordinate.getRow(), kv.getRowArray());
-    Assert.assertArrayEquals(columnCoordinate.getFamily(), kv.getFamilyArray());
-    Assert.assertArrayEquals(columnCoordinate.getQualifier(), kv.getQualifierArray());
+    Assert.assertArrayEquals(columnCoordinate.getRow(), CellUtil.cloneRow(kv));
+    Assert.assertArrayEquals(columnCoordinate.getFamily(), CellUtil.cloneFamily(kv));
+    Assert.assertArrayEquals(columnCoordinate.getQualifier(), CellUtil.cloneQualifier(kv));
     Assert.assertEquals(ts, kv.getTimestamp());
-    Assert.assertArrayEquals(VALUE, kv.getValueArray());
+    Assert.assertArrayEquals(VALUE, CellUtil.cloneValue(kv));
   }
   
   protected ThemisPut getThemisPut(ColumnCoordinate columnCoordinate) throws IOException {
