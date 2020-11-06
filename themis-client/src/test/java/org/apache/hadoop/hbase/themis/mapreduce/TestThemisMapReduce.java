@@ -8,7 +8,7 @@ import java.util.List;
 
 import junit.framework.Assert;
 
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -25,7 +25,6 @@ import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.mapreduce.Job;
 import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 public class TestThemisMapReduce extends TestThemisMapReduceBase {
   protected void writeTestData() throws IOException {
@@ -49,12 +48,12 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
         throws IOException, InterruptedException {
       int totalValue = 0;
       for (Result result : values) {
-        for (KeyValue kv : result.list()) {
-          totalValue += Bytes.toInt(kv.getValue());
+        for (Cell kv : result.listCells()) {
+          totalValue += Bytes.toInt(kv.getValueArray());
         }
       }
       byte[] newKey = getReduceRow(key.copyBytes());
-      context.write(key, new Put(newKey).add(FAMILY, QUALIFIER, Bytes.toBytes(totalValue)));
+      context.write(key, new Put(newKey).addColumn(FAMILY, QUALIFIER, Bytes.toBytes(totalValue)));
     }
   }
   
@@ -74,8 +73,8 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
         InterruptedException {
       byte[] reduceKey = getRowKeyWithPrefix(row.copyBytes());
       Put put = new Put(reduceKey);
-      for (KeyValue kv : values.list()) {
-        put.add(kv.getFamily(), kv.getQualifier(), kv.getValue());
+      for (Cell kv : values.listCells()) {
+        put.addColumn(kv.getFamilyArray(), kv.getFamilyArray(), kv.getFamilyArray());
       }
       TableMutations tableMuation = new TableMutations(tableName);
       tableMuation.add(put);
@@ -143,7 +142,7 @@ public class TestThemisMapReduce extends TestThemisMapReduceBase {
           new ThemisGet(PrefixCopyMapper.getRowKeyWithPrefix(row)).addColumn(FAMILY, QUALIFIER));
         Assert.assertEquals(1, resultA.size());
         Assert.assertEquals(1, resultB.size());
-        Assert.assertEquals(resultA.list().get(0).getTimestamp(), resultB.list().get(0)
+        Assert.assertEquals(resultA.listCells().get(0).getTimestamp(), resultB.listCells().get(0)
             .getTimestamp());
       }
     }

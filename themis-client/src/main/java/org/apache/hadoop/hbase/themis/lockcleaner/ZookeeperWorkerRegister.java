@@ -12,9 +12,9 @@ import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.themis.lockcleaner.ClientName.ClientNameWithProcessId;
 import org.apache.hadoop.hbase.themis.lockcleaner.ClientName.ClientNameWithThreadId;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.zookeeper.ZKListener;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperListener;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.apache.zookeeper.KeeperException;
 
 public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable {
@@ -22,8 +22,8 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
   public static final String THEMIS_ROOT_NODE = "/themis";
   public static final String ALIVE_CLIENT_NODE = "aliveclient";
       
-  class ClientTracker extends ZooKeeperListener {
-    public ClientTracker(ZooKeeperWatcher watcher) {
+  class ClientTracker extends ZKListener  {
+    public ClientTracker(ZKWatcher watcher) {
       super(watcher);
     }
     
@@ -86,7 +86,7 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
   private final String clientNameStr;
   private final String aliveClientParentPath;
   private final String aliveClientPath;
-  private final ZooKeeperWatcher watcher;
+  private final ZKWatcher watcher;
   private Throwable exception = null;
   private final String clusterName;
   
@@ -97,7 +97,7 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
       clusterName = conf.get("hbase.cluster.name");
       aliveClientParentPath = getAliveClientParentPath();
       aliveClientPath = getAliveClientPath();
-      watcher = new ZooKeeperWatcher(conf, clientNameStr, new TimeoutOrDeletedHandler(),
+      watcher = new ZKWatcher(conf, clientNameStr, new TimeoutOrDeletedHandler(),
           false);
       clientTracker = new ClientTracker(watcher);
       LOG.info("create ZookeeperWorkerRegister, clientPath=" + aliveClientParentPath);
@@ -106,7 +106,7 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
       throw new IOException(e);
     }
   }
-  
+
   protected String constructClientName() throws IOException {
     return new ClientNameWithProcessId().toString();
   }
@@ -188,6 +188,7 @@ public class ZookeeperWorkerRegister extends WorkerRegister implements Closeable
       super(conf);
     }
     
+    @Override
     protected String constructClientName() throws IOException {
       return new ClientNameWithThreadId().toString();
     }

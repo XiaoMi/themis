@@ -1,6 +1,6 @@
 package org.apache.hadoop.hbase.themis.lock;
 
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Writable;
@@ -14,7 +14,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 public abstract class ThemisLock implements Writable {
-  protected Type type = Type.Minimum; // illegal type should be Type.Put or Type.DeleteColumn
+  protected Cell.Type type ; // illegal type should be Type.Put or Type.DeleteColumn
   protected long timestamp;
   protected String clientAddress;
   protected long wallTime; // TODO : remove this field
@@ -39,7 +39,7 @@ public abstract class ThemisLock implements Writable {
 
   protected ThemisLock() {}
   
-  public ThemisLock(Type type) {
+  public ThemisLock(Cell.Type type) {
     this.type = type;
   }
   
@@ -68,23 +68,25 @@ public abstract class ThemisLock implements Writable {
     throw new IOException("not supportted");
   }
   
-  public Type getType() {
+  public Cell.Type getType() {
     return this.type;
   }
   
-  public void setType(Type type) {
+  public void setType(Cell.Type type) {
     this.type = type;
   }
-  
+
+  @Override
   public void write(DataOutput out) throws IOException {
-    out.writeByte(type.getCode());
+    out.writeUTF(type.name());
     out.writeLong(timestamp);
     Bytes.writeByteArray(out, Bytes.toBytes(clientAddress));
     out.writeLong(wallTime);
   }
 
+  @Override
   public void readFields(DataInput in) throws IOException {
-    this.type = Type.codeToType(in.readByte());
+    this.type = Cell.Type.valueOf(in.readUTF());
     this.timestamp = in.readLong();
     this.clientAddress = Bytes.toString(Bytes.readByteArray(in));
     this.wallTime = in.readLong();
@@ -117,7 +119,7 @@ public abstract class ThemisLock implements Writable {
   public static ThemisLock parseFromByte(byte[] data) throws IOException {
     DataInputStream in = new DataInputStream(new ByteArrayInputStream(data));
     boolean isPrimary = in.readBoolean();
-    ThemisLock lock = null;
+    ThemisLock lock;
     if (isPrimary) {
       lock = new PrimaryLock();
       lock.readFields(in);

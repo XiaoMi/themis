@@ -6,9 +6,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.io.Writable;
 
-public class MultiTableMutations implements Writable {
+public class MultiTableMutations extends Mutation implements Writable {
   
   public List<TableMutations> mutations = new ArrayList<TableMutations>();
 
@@ -37,7 +38,8 @@ public class MultiTableMutations implements Writable {
       mutations.add(tableMutations);
     }
   }
-  
+
+  @Override
   public String toString() {
     String result = "table mutation size=" + mutations.size() + "\n";
     for (TableMutations mutation : mutations) {

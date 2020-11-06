@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
@@ -12,9 +13,9 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class ExcludeDataColumnFilter extends FilterBase {
 
   @Override
-  public ReturnCode filterKeyValue(KeyValue kv) {
-    if (!Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamily())
-        && !ColumnUtil.isWriteColumn(kv.getFamily(), kv.getQualifier())) {
+  public ReturnCode filterKeyValue(Cell kv) {
+    if (!Bytes.equals(ColumnUtil.LOCK_FAMILY_NAME, kv.getFamilyArray())
+        && !ColumnUtil.isWriteColumn(kv.getFamilyArray(), kv.getQualifierArray())) {
       return ReturnCode.NEXT_COL;
     }
     return ReturnCode.INCLUDE_AND_NEXT_COL;

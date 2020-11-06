@@ -12,13 +12,13 @@ import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
 
 public abstract class Indexer extends Configured {
   private static Indexer indexer = null;
-  private static Object lock = new Object();
+  private static final Object LOCK = new Object();
   
   public static Indexer getIndexer(Configuration conf) throws IOException {
     if (indexer == null) {
       String indexerCls = conf.get(TransactionConstant.INDEXER_CLASS_KEY,
         TransactionConstant.DEFAULT_INDEXER_CLASS);
-      synchronized (lock) {
+      synchronized (LOCK) {
         if (indexer == null) {
           try {
             indexer = (Indexer) Class.forName(indexerCls).getConstructor(Configuration.class)

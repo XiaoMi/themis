@@ -5,10 +5,13 @@ import java.util.List;
 
 import junit.framework.Assert;
 
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue.Type;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
@@ -99,7 +102,7 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
     for (ColumnCoordinate columnCoordinate : new ColumnCoordinate[] { COLUMN,
         COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER }) {
       Assert.assertNull(readWrite(columnCoordinate));
-      if (getColumnType(columnCoordinate) == Type.Put) {
+      if (getColumnType(columnCoordinate) == Cell.Type.Put) {
         Assert.assertNotNull(readDataValue(columnCoordinate, prewriteTs));
       }
     }
@@ -214,19 +217,20 @@ public class TestThemisCoprocessorWrite extends TransactionTestBase {
   
   @Test
   public void testWriteNonThemisFamily() throws IOException {
-    HBaseAdmin admin = new HBaseAdmin(conf);
+    Admin admin = connection.getAdmin();
     byte[] testTable = Bytes.toBytes("test_table");
     byte[] testFamily = Bytes.toBytes("test_family");
 
     // create table without setting THEMIS_ENABLE
     deleteTable(admin, testTable);
-    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
-    tableDesc.addFamily(columnDesc);
-    admin.createTable(tableDesc);
+
+    TableDescriptorBuilder tableDescriptor = TableDescriptorBuilder.newBuilder(TableName.valueOf(testTable));
+    ColumnFamilyDescriptor columnFamilyDescriptor = ColumnFamilyDescriptorBuilder.of(testFamily);
+    tableDescriptor.setColumnFamily(columnFamilyDescriptor);
+    admin.createTable(tableDescriptor.build());
     try {
       ColumnMutation mutation = new ColumnMutation(new Column(testFamily, COLUMN.getQualifier()),
-          Type.Put, VALUE);
+          Cell.Type.Put, VALUE);
       cpClient.prewriteRow(testTable, PRIMARY_ROW.getRow(), Lists.newArrayList(mutation), prewriteTs,
         ThemisLock.toByte(getLock(COLUMN)), getSecondaryLockBytes(), 2);
     } catch (IOException e) {

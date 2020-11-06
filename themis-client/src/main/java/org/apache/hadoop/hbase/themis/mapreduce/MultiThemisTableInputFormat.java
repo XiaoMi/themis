@@ -20,6 +20,7 @@ public class MultiThemisTableInputFormat extends MultiTableInputFormat {
       throws IOException, InterruptedException {
     TableSplit tSplit = (TableSplit) split;
 
+    //ClientScanner
     if (tSplit.getTableName() == null) {
       throw new IOException("Cannot create a record reader because of a"
           + " previous error. Please look at the previous logs lines from"

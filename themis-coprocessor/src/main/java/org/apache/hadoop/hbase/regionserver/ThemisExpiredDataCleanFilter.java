@@ -6,7 +6,7 @@ import java.io.IOException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.themis.columns.Column;
@@ -35,31 +35,32 @@ public class ThemisExpiredDataCleanFilter extends FilterBase {
   }
   
   @Override
-  public ReturnCode filterKeyValue(KeyValue kv) {
+  public ReturnCode filterKeyValue(Cell kv) {
     if (kv.getTimestamp() < cleanTs) {
-      if (Bytes.equals(lastRow, kv.getRow()) && Bytes.equals(lastFamily, kv.getFamily())
-          && Bytes.equals(lastQualifer, kv.getQualifier())) {
+      if (Bytes.equals(lastRow, kv.getRowArray()) && Bytes.equals(lastFamily, kv.getFamilyArray())
+          && Bytes.equals(lastQualifer, kv.getQualifierArray())) {
         LOG.debug("ExpiredDataCleanFilter, skipColumn kv=" + kv + ", cleanTs=" + cleanTs);
         return ReturnCode.NEXT_COL;
       } else if (this.region != null
-          && ColumnUtil.isDeleteColumn(kv.getFamily(), kv.getQualifier())) {
+          && ColumnUtil.isDeleteColumn(kv.getFamilyArray(), kv.getQualifierArray())) {
         LOG.debug("ExpiredDataCleanFilter, fist expired kv, kv=" + kv + ", cleanTs=" + cleanTs);
 
-        Delete delete = new Delete(kv.getRow());
-        delete.deleteColumns(kv.getFamily(), kv.getQualifier(), kv.getTimestamp());
-        Column dataColumn = ColumnUtil.getDataColumn(new Column(kv.getFamily(), kv.getQualifier()));
-        delete.deleteColumns(dataColumn.getFamily(), dataColumn.getQualifier(), kv.getTimestamp());
+        Delete delete = new Delete(kv.getRowArray());
+        delete.addColumns(kv.getFamilyArray(), kv.getQualifierArray(), kv.getTimestamp());
+
+        Column dataColumn = ColumnUtil.getDataColumn(new Column(kv.getFamilyArray(), kv.getQualifierArray()));
+        delete.addColumns(dataColumn.getFamily(), dataColumn.getQualifier(), kv.getTimestamp());
         Column putColumn = ColumnUtil.getPutColumn(dataColumn);
-        delete.deleteColumns(putColumn.getFamily(), putColumn.getQualifier(), kv.getTimestamp());
+        delete.addColumns(putColumn.getFamily(), putColumn.getQualifier(), kv.getTimestamp());
         try {
-          region.delete(delete, false);
+          region.delete(delete);
         } catch (IOException e) {
           LOG.error("ExpiredDataCleanFilter delete expired data fail", e);
         }
       }
-      lastRow = kv.getRow();
-      lastFamily = kv.getFamily();
-      lastQualifer = kv.getQualifier();
+      lastRow = kv.getRowArray();
+      lastFamily = kv.getFamilyArray();
+      lastQualifer = kv.getQualifierArray();
     }
     return ReturnCode.INCLUDE;
   }

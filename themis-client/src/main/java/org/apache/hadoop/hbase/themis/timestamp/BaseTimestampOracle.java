@@ -71,6 +71,7 @@ public abstract class BaseTimestampOracle {
   public abstract long getTimestamps(int n) throws IOException;
 
   class TimestampRequest implements Callable<Pair<Long, Long>> {
+    @Override
     public Pair<Long, Long> call() throws Exception {
       // only one worker to response to the request queue, so that do not need synchronized. should
       // issue a batch timestamp request for the current queue if no cached timestamps available.
@@ -89,6 +90,7 @@ public abstract class BaseTimestampOracle {
   }
   
   class RequestRejectedHandler implements RejectedExecutionHandler {
+    @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
       throw new RejectedExecutionException(
           "get timestamp request is rejected, queued request count : " + requestQueue.size());

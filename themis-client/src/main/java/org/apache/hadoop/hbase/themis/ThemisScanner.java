@@ -4,12 +4,16 @@ import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
 
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.AbstractClientScanner;
 import org.apache.hadoop.hbase.client.ClientScanner;
+import org.apache.hadoop.hbase.client.ClientSimpleScanner;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -32,8 +36,10 @@ public class ThemisScanner extends AbstractClientScanner {
       // themis coprocessor could recognize this scanner from hbase scanners and do themis logics.
       // TODO(cuijianwei): how to avoid no-themis users set this attribute when doing hbase scan?
       setStartTsToScan(scan, transaction.startTs);
-      this.scanner = new ClientScanner(transaction.getConf(), scan, tableName,
-          transaction.getHConnection());
+
+      final TableName tn = TableName.valueOf(tableName);
+      Table table = transaction.getHConnection().getTable(tn);
+      scanner = table.getScanner(scan);
     } finally {
       ThemisStatistics.updateLatency(ThemisStatistics.getStatistics().getScannerLatency, beginTs);
     }
@@ -56,7 +62,8 @@ public class ThemisScanner extends AbstractClientScanner {
     }
     return get;
   }
-  
+
+  @Override
   public Result next() throws IOException {
     long beginTs = System.nanoTime();
     Result pResult = null;
@@ -71,7 +78,7 @@ public class ThemisScanner extends AbstractClientScanner {
       if (ThemisCpUtil.isLockResult(pResult)) {
         lockClean = true;
         Get rowGet = createGetFromScan(scan, pResult.getRow());
-        pResult = transaction.tryToCleanLockAndGetAgain(tableName, rowGet, pResult.list());
+        pResult = transaction.tryToCleanLockAndGetAgain(tableName, rowGet, pResult.listCells());
         // empty result indicates the current row has been erased, we should get next row
         if (pResult.isEmpty()) {
           return next();
@@ -86,13 +93,19 @@ public class ThemisScanner extends AbstractClientScanner {
     }
   }
 
+  @Override
   public void close() {
     if (scanner != null) {
       this.scanner.close();
     }
   }
-  
-  protected Scan getScan() {
+
+  @Override
+  public boolean renewLease() {
+    return scanner.renewLease();
+  }
+
+    protected Scan getScan() {
     return this.scan;
   }
 

@@ -8,14 +8,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat;
 import org.apache.hadoop.hbase.themis.ThemisDelete;
 import org.apache.hadoop.hbase.themis.ThemisPut;
 import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.zookeeper.ZKUtil;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 
@@ -25,7 +24,7 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
   private byte[] tableName;
   
   protected static class ThemisTableRecordWriter<KEY> extends
-      ThemisTableRecordWriterBase<KEY, Writable> {
+      ThemisTableRecordWriterBase<KEY, Mutation> {
     private byte[] tableName;
     
     public ThemisTableRecordWriter(byte[] tableName, Configuration conf) throws IOException {
@@ -34,7 +33,7 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
     }
 
     @Override
-    public void doWrite(KEY key, Writable value, Transaction transaction) throws IOException,
+    public void doWrite(KEY key, Mutation value, Transaction transaction) throws IOException,
         InterruptedException {
       if (value instanceof Put) {
         transaction.put(tableName, new ThemisPut((Put)value));
@@ -45,9 +44,9 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
       }
     }
   }
-  
+
   @Override
-  public RecordWriter<KEY, Writable> getRecordWriter(TaskAttemptContext context)
+  public RecordWriter<KEY, Mutation> getRecordWriter(TaskAttemptContext context)
       throws IOException, InterruptedException {
     return new ThemisTableRecordWriter<KEY>(tableName, conf);
   }
@@ -65,10 +64,11 @@ public class ThemisTableOutputFormat<KEY> extends TableOutputFormat<KEY> {
     String serverImpl = this.conf.get(REGION_SERVER_IMPL);
     try {
       if (address != null) {
-        ZKUtil.applyClusterKeyToConf(this.conf, address);
+        HBaseConfiguration.createClusterConf(this.conf, address, null);
       }
       if (serverClass != null) {
-        this.conf.set(HConstants.REGION_SERVER_CLASS, serverClass);
+
+        //todo by yuqi5
         this.conf.set(HConstants.REGION_SERVER_IMPL, serverImpl);
       }
       if (zkClientPort != 0) {

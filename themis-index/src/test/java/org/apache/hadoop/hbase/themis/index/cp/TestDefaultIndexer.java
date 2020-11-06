@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.themis.ThemisDelete;
@@ -25,7 +27,8 @@ public class TestDefaultIndexer extends IndexTestBase {
   public void testLoadSecondaryIndexesForTable() throws IOException {
     Map<IndexColumn, String> columnIndexes = new HashMap<IndexColumn, String>();
     DefaultIndexer indexer = new DefaultIndexer(conf);
-    indexer.loadSecondaryIndexesForTable(admin.getTableDescriptor(MAIN_TABLE),
+
+    indexer.loadSecondaryIndexesForTable(admin.getDescriptor(TableName.valueOf(MAIN_TABLE)),
       columnIndexes);
     Assert.assertEquals(1, columnIndexes.size());
     IndexColumn indexColumn = new IndexColumn(MAIN_TABLE,
@@ -56,7 +59,7 @@ public class TestDefaultIndexer extends IndexTestBase {
     Assert.assertEquals(5, mutationCache.size());
     ColumnCoordinate columnCoordinate = new ColumnCoordinate(INDEX_TABLE, VALUE,
         IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW);
-    Pair<Type, byte[]> typeAndValue = mutationCache.getMutation(columnCoordinate);
+    Pair<Cell.Type, byte[]> typeAndValue = mutationCache.getMutation(columnCoordinate);
     Assert.assertNotNull(typeAndValue);
     Assert.assertEquals(Type.Put, typeAndValue.getFirst());
     Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, typeAndValue.getSecond());
@@ -100,7 +103,7 @@ public class TestDefaultIndexer extends IndexTestBase {
     result = transaction.get(INDEX_TABLE, new ThemisGet(VALUE).addColumn(
       IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW));
     Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.list().get(0).getValue());
+    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.listCells().get(0).getValueArray());
     
     nextTsAndCreateTransaction();
     ThemisDelete delete = new ThemisDelete(ROW);
@@ -116,7 +119,7 @@ public class TestDefaultIndexer extends IndexTestBase {
     result = transaction.get(INDEX_TABLE, new ThemisGet(VALUE).addColumn(
       IndexMasterObserver.THEMIS_SECONDARY_INDEX_TABLE_FAMILY_BYTES, ROW));
     Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.list().get(0).getValue());
+    Assert.assertArrayEquals(HConstants.EMPTY_BYTE_ARRAY, result.listCells().get(0).getValueArray());
   }
   
   @Test

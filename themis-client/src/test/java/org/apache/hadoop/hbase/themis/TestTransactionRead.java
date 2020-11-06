@@ -43,8 +43,8 @@ public class TestTransactionRead extends ClientTestBase {
     createTransactionWithMock();
     Result result = transaction.get(TABLENAME, new ThemisGet(ROW));
     Assert.assertEquals(2, result.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, result.list().get(0));
-    checkResultKvColumn(COLUMN, result.list().get(1));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, result.listCells().get(0));
+    checkResultKvColumn(COLUMN, result.listCells().get(1));
   }
 
   @Test

@@ -11,13 +11,13 @@ import org.apache.hadoop.hbase.themis.lockcleaner.ClientName.ClientNameWithProce
 import org.apache.hadoop.hbase.themis.lockcleaner.ZookeeperWorkerRegister.ZookeeperWorkerRegisterByThread;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestZookeeperWorkerRegister extends ClientTestBase {
-  private ZooKeeperWatcher zkw;
+  private ZKWatcher zkw;
   protected ThemisCoprocessorClient cpClient;
   protected LockCleaner lockCleaner;
   
@@ -27,7 +27,7 @@ public class TestZookeeperWorkerRegister extends ClientTestBase {
     TestLockCleaner.setConfigForLockCleaner(conf);
     cpClient = new ThemisCoprocessorClient(connection);
     lockCleaner = new LockCleaner(conf, connection, mockRegister, cpClient);
-    zkw = new ZooKeeperWatcher(conf, "deleteNode", null);
+    zkw = new ZKWatcher(conf, "deleteNode", null);
   }
   
   @After

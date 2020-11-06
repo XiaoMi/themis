@@ -11,9 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
@@ -42,8 +43,14 @@ public class TestBase {
   protected static final byte[] ANOTHER_VALUE = Bytes.toBytes("AnotherValue");
   protected static final long PREWRITE_TS = System.currentTimeMillis();
   protected static final long COMMIT_TS = PREWRITE_TS + 10;
-  protected static final KeyValue KEYVALUE = new KeyValue(ROW, FAMILY, QUALIFIER, PREWRITE_TS,
-      Type.Put, VALUE);
+  protected static final Cell KEYVALUE = CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
+          .setType(Cell.Type.Put)
+          .setRow(ROW)
+          .setFamily(FAMILY)
+          .setQualifier(QUALIFIER)
+          .setTimestamp(PREWRITE_TS)
+          .setValue(VALUE)
+          .build();
 
   // define transaction columns used by unit test
   protected static final ColumnCoordinate COLUMN = new ColumnCoordinate(TABLENAME, ROW, FAMILY,
@@ -65,22 +72,22 @@ public class TestBase {
       COLUMN_WITH_ANOTHER_QUALIFIER };
   // transaction by column
   protected static final ColumnCoordinate[] TRANSACTION_COLUMNS = new ColumnCoordinate[SECONDARY_COLUMNS.length + 1];
-  private static final Map<ColumnCoordinate, Type> COLUMN_TYPES = new HashMap<ColumnCoordinate, Type>();
+  private static final Map<ColumnCoordinate, Cell.Type> COLUMN_TYPES = new HashMap<>();
   static {
     TRANSACTION_COLUMNS[0] = COLUMN;
     for (int i = 0; i < SECONDARY_COLUMNS.length; ++i) {
       TRANSACTION_COLUMNS[i + 1] = SECONDARY_COLUMNS[i];
     }
-    COLUMN_TYPES.put(COLUMN, Type.Put);
-    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_TABLE, Type.Put);
-    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_ROW, Type.DeleteColumn);
-    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_FAMILY, Type.Put);
-    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_QUALIFIER, Type.DeleteColumn);
+    COLUMN_TYPES.put(COLUMN, Cell.Type.Put);
+    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_TABLE, Cell.Type.Put);
+    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_ROW, Cell.Type.DeleteColumn);
+    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_FAMILY, Cell.Type.Put);
+    COLUMN_TYPES.put(COLUMN_WITH_ANOTHER_QUALIFIER, Cell.Type.DeleteColumn);
   }
 
-  protected static Type getColumnType(ColumnCoordinate columnCoordinate) {
-    Type type = COLUMN_TYPES.get(columnCoordinate);
-    return type == null ? Type.Put : type;
+  protected static Cell.Type getColumnType(ColumnCoordinate columnCoordinate) {
+    Cell.Type type = COLUMN_TYPES.get(columnCoordinate);
+    return type == null ? Cell.Type.Put : type;
   }
 
   // transaction by row
@@ -106,7 +113,7 @@ public class TestBase {
   }
   
   public static void addToRowMutation(RowMutation rowMutation, ColumnCoordinate column) {
-    Type type = getColumnType(column);
+    Cell.Type type = getColumnType(column);
     rowMutation.addMutation(column, type, VALUE);
   }
   
@@ -138,7 +145,7 @@ public class TestBase {
     return getSecondaryLock(getColumnType(columnCoordinate), prewriteTs);
   }
 
-  public static SecondaryLock getSecondaryLock(Type type, long prewriteTs) {
+  public static SecondaryLock getSecondaryLock(Cell.Type type, long prewriteTs) {
     SecondaryLock lock = new SecondaryLock(type);
     setThemisLock(lock, prewriteTs);
     lock.setPrimaryColumn(COLUMN);
@@ -151,37 +158,51 @@ public class TestBase {
   }
 
   // construct lock / put / delete columns
-  protected static KeyValue getLockKv(KeyValue dataKv) {
+  protected static Cell getLockKv(Cell dataKv) {
     return getLockKv(dataKv, VALUE);
   }
   
-  protected static KeyValue getLockKv(KeyValue dataKv, byte[] lockBytes) {
-    Column lockColumn = ColumnUtil.getLockColumn(new Column(dataKv.getFamily(), dataKv
-      .getQualifier()));
-    return new KeyValue(dataKv.getRow(), lockColumn.getFamily(), lockColumn.getQualifier(),
-        PREWRITE_TS, Type.Put, lockBytes);
+  protected static Cell getLockKv(Cell dataKv, byte[] lockBytes) {
+    Column lockColumn = ColumnUtil.getLockColumn(new Column(dataKv.getFamilyArray(), dataKv
+      .getQualifierArray()));
+
+    return CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
+          .setType(Cell.Type.Put)
+          .setRow(dataKv.getRowArray())
+          .setFamily(lockColumn.getFamily())
+          .setQualifier(lockColumn.getFamily())
+          .setTimestamp(PREWRITE_TS)
+          .setValue(lockBytes)
+          .build();
+
   }
 
-  protected static KeyValue getPutKv(KeyValue dataKv) {
+  protected static Cell getPutKv(Cell dataKv) {
     Column putColumn = ColumnUtil
-        .getPutColumn(new Column(dataKv.getFamily(), dataKv.getQualifier()));
+        .getPutColumn(new Column(dataKv.getFamilyArray(), dataKv.getQualifierArray()));
     return getKeyValue(new ColumnCoordinate(ROW, putColumn.getFamily(), putColumn.getQualifier()),
       PREWRITE_TS);
   }
 
-  public static KeyValue getPutKv(ColumnCoordinate column, long ts) {
+  public static Cell getPutKv(ColumnCoordinate column, long ts) {
     Column putColumn = ColumnUtil.getPutColumn(column);
     ColumnCoordinate wc = new ColumnCoordinate(column.getTableName(), column.getRow(), putColumn);
     return getKeyValue(wc, ts);
   }
 
-  public static KeyValue getPutKv(ColumnCoordinate column, long prewriteTs, long commitTs) {
+  public static Cell getPutKv(ColumnCoordinate column, long prewriteTs, long commitTs) {
     Column wc = ColumnUtil.getPutColumn(column);
-    return new KeyValue(column.getRow(), wc.getFamily(), wc.getQualifier(), commitTs, Type.Put,
-        Bytes.toBytes(prewriteTs));
+    return CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
+            .setType(Cell.Type.Put)
+            .setRow(column.getRow())
+            .setFamily(wc.getFamily())
+            .setQualifier(wc.getFamily())
+            .setTimestamp(commitTs)
+            .setValue(Bytes.toBytes(prewriteTs))
+            .build();
   }
 
-  public static KeyValue getDeleteKv(ColumnCoordinate column, long ts) {
+  public static Cell getDeleteKv(ColumnCoordinate column, long ts) {
     Column deleteColumn = new Column(column.getFamily(), column.getQualifier());
     ColumnCoordinate dc = new ColumnCoordinate(column.getTableName(), column.getRow(), deleteColumn);
     return getKeyValue(dc, ts);
@@ -191,8 +212,15 @@ public class TestBase {
     return new ColumnCoordinate(column.getTableName(), column.getRow(), ColumnUtil.getDeleteColumn(column));
   }
 
-  public static KeyValue getKeyValue(ColumnCoordinate c, long ts) {
-    return new KeyValue(c.getRow(), c.getFamily(), c.getQualifier(), ts, Type.Put, VALUE);
+  public static Cell getKeyValue(ColumnCoordinate c, long ts) {
+    return CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
+              .setType(Cell.Type.Put)
+              .setRow(c.getRow())
+              .setFamily(c.getFamily())
+              .setQualifier(c.getFamily())
+              .setTimestamp(ts)
+              .setValue(VALUE)
+              .build();
   }
 
   // test Writable implementation

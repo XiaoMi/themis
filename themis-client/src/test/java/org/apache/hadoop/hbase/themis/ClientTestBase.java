@@ -2,6 +2,7 @@ package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
@@ -55,12 +56,12 @@ public class ClientTestBase extends TransactionTestBase {
   
   protected void checkReadColumnResultWithTs(Result result, ColumnCoordinate columnCoordinate, long ts) {
     Assert.assertEquals(1, result.size());
-    KeyValue kv = result.list().get(0);
-    Assert.assertArrayEquals(columnCoordinate.getRow(), kv.getRow());
-    Assert.assertArrayEquals(columnCoordinate.getFamily(), kv.getFamily());
-    Assert.assertArrayEquals(columnCoordinate.getQualifier(), kv.getQualifier());
+    Cell kv = result.listCells().get(0);
+    Assert.assertArrayEquals(columnCoordinate.getRow(), kv.getRowArray());
+    Assert.assertArrayEquals(columnCoordinate.getFamily(), kv.getFamilyArray());
+    Assert.assertArrayEquals(columnCoordinate.getQualifier(), kv.getQualifierArray());
     Assert.assertEquals(ts, kv.getTimestamp());
-    Assert.assertArrayEquals(VALUE, kv.getValue());
+    Assert.assertArrayEquals(VALUE, kv.getValueArray());
   }
   
   protected ThemisPut getThemisPut(ColumnCoordinate columnCoordinate) throws IOException {

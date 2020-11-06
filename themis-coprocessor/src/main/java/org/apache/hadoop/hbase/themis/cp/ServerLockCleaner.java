@@ -4,13 +4,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map.Entry;
 
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
@@ -26,9 +27,9 @@ import com.google.common.collect.Lists;
 
 public class ServerLockCleaner {
   protected final ThemisCoprocessorClient cpClient;
-  protected final HConnection conn;
+  protected final Connection conn;
  
-  public ServerLockCleaner(HConnection conn, ThemisCoprocessorClient cpClient) throws IOException {
+  public ServerLockCleaner(Connection conn, ThemisCoprocessorClient cpClient) throws IOException {
     this.conn = conn;
     this.cpClient = cpClient;
   }
@@ -95,14 +96,15 @@ public class ServerLockCleaner {
   // get the timestamp of write-column kv which has value equal to 'timestamp'
   public Long getTimestampOfWriteIndexingPrewriteTs(ColumnCoordinate columnCoordinate, long timestamp)
       throws IOException {
-    HTableInterface table = null;
+    Table table = null;
     try {
-      table = conn.getTable(columnCoordinate.getTableName());
+      final TableName tableName = TableName.valueOf(columnCoordinate.getTableName());
+      table = conn.getTable(tableName);
       Get get = createGetOfWriteColumnsIndexingPrewriteTs(columnCoordinate, timestamp);
-      Result result = conn.getTable(columnCoordinate.getTableName()).get(get);
-      if (result.list() != null) {
-        for (KeyValue kv : result.list()) {
-          long prewriteTs = Bytes.toLong(kv.getValue());
+      Result result = conn.getTable(tableName).get(get);
+      if (CollectionUtils.isNotEmpty(result.listCells())) {
+        for (Cell kv : result.listCells()) {
+          long prewriteTs = Bytes.toLong(kv.getValueArray());
           if (prewriteTs == timestamp) {
             return kv.getTimestamp();
           }
@@ -126,7 +128,7 @@ public class ServerLockCleaner {
   // erase lock and data if commitTs is null; otherwise, commit it.
   public void cleanSecondaryLocks(PrimaryLock primaryLock, Long commitTs)
       throws IOException {
-    for (Entry<ColumnCoordinate, Type> secondary : primaryLock.getSecondaryColumns().entrySet()) {
+    for (Entry<ColumnCoordinate, Cell.Type> secondary : primaryLock.getSecondaryColumns().entrySet()) {
       if (commitTs == null) {
         eraseLockAndData(secondary.getKey(), primaryLock.getTimestamp());
       } else {
@@ -145,15 +147,15 @@ public class ServerLockCleaner {
   // erase the lock and data with given timestamp
   public void eraseLockAndData(byte[] tableName, byte[] row, Collection<Column> columns, long timestamp)
       throws IOException {
-    HTableInterface table = null;
+    Table table = null;
     try {
-      table = conn.getTable(tableName);
+      table = conn.getTable(TableName.valueOf(tableName));
       Delete delete = new Delete(row);
       for (Column column : columns) {
         Column lockColumn = ColumnUtil.getLockColumn(column);
         // delete data and lock column
-        delete.deleteColumn(column.getFamily(), column.getQualifier(), timestamp);
-        delete.deleteColumn(lockColumn.getFamily(), lockColumn.getQualifier(), timestamp);
+        delete.addColumn(column.getFamily(), column.getQualifier(), timestamp);
+        delete.addColumn(lockColumn.getFamily(), lockColumn.getQualifier(), timestamp);
       }
       table.delete(delete);
     } finally {
@@ -161,7 +163,7 @@ public class ServerLockCleaner {
     }
   }
   
-  protected void closeTable(HTableInterface table) throws IOException {
+  protected void closeTable(Table table) throws IOException {
     if (table != null) {
       table.close();
     }

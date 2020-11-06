@@ -3,17 +3,21 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.Collections;
 
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparatorImpl;
 import org.apache.hadoop.hbase.KeyValue.KVComparator;
 import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.FilterList;
@@ -49,11 +53,11 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     Assert.assertFalse(ThemisCpUtil.isLockResult(internalResult));
     if (getColumnType(columnCoordinate).equals(Type.Put)) {
       Assert.assertEquals(1, internalResult.size());
-      KeyValue kv = internalResult.list().get(0);
-      Assert.assertTrue(columnCoordinate.equals(new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRow(),
-        kv.getFamily(), kv.getQualifier())));
+      Cell kv = internalResult.listCells().get(0);
+      Assert.assertEquals(columnCoordinate, new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRowArray(),
+                kv.getFamilyArray(), kv.getQualifierArray()));
       Assert.assertEquals(prewriteTs, kv.getTimestamp());
-      Assert.assertArrayEquals(VALUE, kv.getValue());
+      Assert.assertArrayEquals(VALUE, kv.getValueArray());
     } else {
       Assert.assertEquals(0, internalResult.size());
     }
@@ -77,7 +81,7 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     Result iResult = cpClient.themisGet(TABLENAME, get, commitTs + 1);
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
     Assert.assertEquals(2, iResult.size());
-    for (KeyValue kv : iResult.list()) {
+    for (Cell kv : iResult.listCells()) {
       Assert.assertEquals(prewriteTs, kv.getTimestamp());
     }
   }
@@ -102,7 +106,7 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     Result iResult = cpClient.themisGet(TABLENAME, get, commitTs + 1);
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
     Assert.assertEquals(1, iResult.size());
-    Assert.assertEquals(prewriteTs, iResult.list().get(0).getTimestamp());
+    Assert.assertEquals(prewriteTs, iResult.listCells().get(0).getTimestamp());
   }
  
   protected void commitColumnsWithDifferentTs() throws IOException {
@@ -116,16 +120,16 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
   
   protected void checkGetResultForDifferentTs(Result iResult) throws IOException {
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
-    Assert.assertEquals(3, iResult.list().size());
-    Collections.sort(iResult.list(), new KVComparator());
-    Result result = new Result(iResult.list());
-    Assert.assertEquals(1, result.getColumn(COLUMN.getFamily(), COLUMN.getQualifier()).size());
+    Assert.assertEquals(3, iResult.listCells().size());
+    Collections.sort(iResult.listCells(), CellComparatorImpl.COMPARATOR);
+    Result result = Result.create(iResult.listCells());
+    Assert.assertEquals(1, result.getColumnCells(COLUMN.getFamily(), COLUMN.getQualifier()).size());
     Assert.assertEquals(prewriteTs - 200,
-      result.getColumn(COLUMN.getFamily(), COLUMN.getQualifier()).get(0).getTimestamp());
+      result.getColumnCells(COLUMN.getFamily(), COLUMN.getQualifier()).get(0).getTimestamp());
     for (ColumnCoordinate columnCoordinate : new ColumnCoordinate[] {COLUMN_WITH_ANOTHER_FAMILY, COLUMN_WITH_ANOTHER_QUALIFIER}) {
-      Assert.assertEquals(1, result.getColumn(columnCoordinate.getFamily(), columnCoordinate.getQualifier()).size());
+      Assert.assertEquals(1, result.getColumnCells(columnCoordinate.getFamily(), columnCoordinate.getQualifier()).size());
       Assert.assertEquals(prewriteTs - 100,
-        result.getColumn(columnCoordinate.getFamily(), columnCoordinate.getQualifier()).get(0).getTimestamp());
+        result.getColumnCells(columnCoordinate.getFamily(), columnCoordinate.getQualifier()).get(0).getTimestamp());
     }    
   }
   
@@ -147,12 +151,12 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
   protected void checkGetOneColumnConflictResult(ColumnCoordinate columnCoordinate,
       Result internalResult, long prewriteTs) throws IOException {
     Assert.assertTrue(ThemisCpUtil.isLockResult(internalResult));
-    Assert.assertEquals(1, internalResult.list().size());
-    KeyValue kv = internalResult.list().get(0);
+    Assert.assertEquals(1, internalResult.listCells().size());
+    Cell kv = internalResult.listCells().get(0);
     Assert.assertTrue(ColumnUtil.getLockColumn(columnCoordinate).equals(
-      new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRow(), kv.getFamily(), kv.getQualifier())));
+      new ColumnCoordinate(columnCoordinate.getTableName(), kv.getRowArray(), kv.getFamilyArray(), kv.getQualifierArray())));
     Assert.assertEquals(prewriteTs, kv.getTimestamp());
-    Assert.assertArrayEquals(ThemisLock.toByte(getLock(columnCoordinate, prewriteTs)), kv.getValue());
+    Assert.assertArrayEquals(ThemisLock.toByte(getLock(columnCoordinate, prewriteTs)), kv.getValueArray());
 
   }
   
@@ -195,11 +199,11 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     // a column with conflict lock but will ignore lock
     iResult = cpClient.themisGet(TABLENAME, get, commitTs, true);
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
-    Assert.assertEquals(2, iResult.list().size());
+    Assert.assertEquals(2, iResult.listCells().size());
     // a column with newer lock, won't cause lock conflict
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs);
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
-    Assert.assertEquals(2, iResult.list().size());
+    Assert.assertEquals(2, iResult.listCells().size());
   }
 
   @Test
@@ -213,17 +217,17 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addColumn(COLUMN_WITH_ANOTHER_QUALIFIER.getFamily(),
       COLUMN_WITH_ANOTHER_QUALIFIER.getQualifier());
     Result result = cpClient.themisGet(TABLENAME, get, prewriteTs);
-    Assert.assertEquals(1, result.list().size());
+    Assert.assertEquals(1, result.listCells().size());
     get = new Get(ROW);
     get.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
     result = cpClient.themisGet(TABLENAME, get, prewriteTs);
-    Assert.assertEquals(1, result.list().size());
+    Assert.assertEquals(1, result.listCells().size());
     get = new Get(ROW);
     get.addColumn(COLUMN.getFamily(), COLUMN.getQualifier());
     get.addColumn(COLUMN_WITH_ANOTHER_QUALIFIER.getFamily(),
       COLUMN_WITH_ANOTHER_QUALIFIER.getQualifier());
     result = cpClient.themisGet(TABLENAME, get, prewriteTs);
-    Assert.assertEquals(2, result.list().size());
+    Assert.assertEquals(2, result.listCells().size());
   }
   
   @Test
@@ -237,13 +241,13 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addColumn(COLUMN_WITH_ANOTHER_FAMILY.getFamily(), COLUMN_WITH_ANOTHER_FAMILY.getQualifier());
     Result iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
-    Assert.assertEquals(2, iResult.list().size());
-    Collections.sort(iResult.list(), new KVComparator());
-    Result result = new Result(iResult.list());
+    Assert.assertEquals(2, iResult.listCells().size());
+    Collections.sort(iResult.listCells(), new KVComparator());
+    Result result = Result.create(iResult.listCells());
     Assert.assertEquals(prewriteTs,
-      result.getColumnLatest(COLUMN.getFamily(), COLUMN.getQualifier()).getTimestamp());
+      result.getColumnLatestCell(COLUMN.getFamily(), COLUMN.getQualifier()).getTimestamp());
     Assert.assertEquals(prewriteTs + 30,
-      result.getColumnLatest(COLUMN_WITH_ANOTHER_FAMILY.getFamily(),
+      result.getColumnLatestCell(COLUMN_WITH_ANOTHER_FAMILY.getFamily(),
         COLUMN_WITH_ANOTHER_FAMILY.getQualifier()).getTimestamp());
   }
   
@@ -255,8 +259,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     Result iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     Assert.assertFalse(ThemisCpUtil.isLockResult(iResult));
     Assert.assertEquals(2, iResult.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, iResult.list().get(0));
-    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, iResult.listCells().get(0));
+    checkResultKvColumn(COLUMN, iResult.listCells().get(1));
     
     // get entire family
     commitOneColumn(COLUMN_WITH_ANOTHER_QUALIFIER, Type.Put, prewriteTs + 10, commitTs + 10);
@@ -264,8 +268,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addFamily(FAMILY);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     Assert.assertEquals(2, iResult.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(0));
-    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.listCells().get(0));
+    checkResultKvColumn(COLUMN, iResult.listCells().get(1));
     
     // get entire family together with another family's column
     get = new Get(ROW);
@@ -273,9 +277,9 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addColumn(ANOTHER_FAMILY, QUALIFIER);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     Assert.assertEquals(3, iResult.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, iResult.list().get(0));
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(1));
-    checkResultKvColumn(COLUMN, iResult.list().get(2));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_FAMILY, iResult.listCells().get(0));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.listCells().get(1));
+    checkResultKvColumn(COLUMN, iResult.listCells().get(2));
     
     // get entire family with lock in another family
     writeLockAndData(COLUMN_WITH_ANOTHER_FAMILY, prewriteTs + 20);
@@ -283,8 +287,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addFamily(FAMILY);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     Assert.assertEquals(2, iResult.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(0));
-    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.listCells().get(0));
+    checkResultKvColumn(COLUMN, iResult.listCells().get(1));
     
     // get entire family with lock conflict
     get = new Get(ROW);
@@ -299,8 +303,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.addColumn(ANOTHER_FAMILY, ANOTHER_QUALIFIER);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs + 50);
     Assert.assertEquals(2, iResult.size());
-    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.list().get(0));
-    checkResultKvColumn(COLUMN, iResult.list().get(1));
+    checkResultKvColumn(COLUMN_WITH_ANOTHER_QUALIFIER, iResult.listCells().get(0));
+    checkResultKvColumn(COLUMN, iResult.listCells().get(1));
   }
   
   @Test
@@ -344,8 +348,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     writePutColumn(COLUMN, prewriteTs - 200, commitTs - 200);
     get.setFilter(new ValueFilter(CompareOp.EQUAL, new BinaryComparator(ANOTHER_VALUE)));
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs);
-    Assert.assertTrue(iResult.list().size() == 1 && !ThemisCpUtil.isLockResult(iResult));
-    Assert.assertEquals(prewriteTs - 200, iResult.list().get(0).getTimestamp());
+    Assert.assertTrue(iResult.listCells().size() == 1 && !ThemisCpUtil.isLockResult(iResult));
+    Assert.assertEquals(prewriteTs - 200, iResult.listCells().get(0).getTimestamp());
     
     get.setFilter(new SingleColumnValueFilter(FAMILY, QUALIFIER, CompareOp.EQUAL, ANOTHER_VALUE));
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs);
@@ -357,8 +361,8 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     filterList.addFilter(new SingleColumnValueFilter(FAMILY, QUALIFIER, CompareOp.EQUAL, ANOTHER_VALUE));
     get.setFilter(filterList);
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs);
-    Assert.assertTrue(iResult.list().size() == 1 && !ThemisCpUtil.isLockResult(iResult));
-    Assert.assertEquals(prewriteTs - 200, iResult.list().get(0).getTimestamp());
+    Assert.assertTrue(iResult.listCells().size() == 1 && !ThemisCpUtil.isLockResult(iResult));
+    Assert.assertEquals(prewriteTs - 200, iResult.listCells().get(0).getTimestamp());
     
     // test FilterList with MUST_PASS_ONE
     filterList = new FilterList(Operator.MUST_PASS_ONE);
@@ -372,7 +376,7 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
     get.setFilter(new KeyOnlyFilter());
     iResult = cpClient.themisGet(TABLENAME, get, prewriteTs);
     checkGetResultForDifferentTs(iResult);
-    for (KeyValue kv : iResult.list()) {
+    for (Cell kv : iResult.listCells()) {
       Assert.assertEquals(0, kv.getValueLength());
     }
   }
@@ -426,15 +430,18 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
   
   @Test
   public void testWriteNonThemisFamily() throws IOException {
-    HBaseAdmin admin = new HBaseAdmin(conf);
+    Admin admin = connection.getAdmin();
     byte[] testTable = Bytes.toBytes("test_table");
     byte[] testFamily = Bytes.toBytes("test_family");
 
     // create table without setting THEMIS_ENABLE
     deleteTable(admin, testTable);
-    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
-    HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
-    tableDesc.addFamily(columnDesc);
+
+    ColumnFamilyDescriptor columnDesc = ColumnFamilyDescriptorBuilder.of(testFamily);
+    TableDescriptor tableDesc = TableDescriptorBuilder.newBuilder(TableName.valueOf(testTable))
+        .setColumnFamily(columnDesc)
+        .build();
+
     admin.createTable(tableDesc);
     try {
       Get get = new Get(ROW);
@@ -444,12 +451,12 @@ public class TestThemisCoprocessorRead extends TransactionTestBase {
       Assert.assertTrue(e.getMessage().indexOf("can not access family") >= 0);
     }
     
-    HTableInterface table = null;
+    Table table = null;
     try {
       Scan scan = new Scan();
       scan.addColumn(testFamily, COLUMN.getQualifier());
       scan.setAttribute(ThemisScanObserver.TRANSACTION_START_TS, Bytes.toBytes(prewriteTs));
-      table = connection.getTable(testTable);
+      table = connection.getTable(TableName.valueOf(testTable));
       table.getScanner(scan);
     } catch (IOException e) {
       Assert.assertTrue(e.getMessage().indexOf("can not access family") >= 0);

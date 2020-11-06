@@ -4,20 +4,18 @@ import java.io.IOException;
 
 import junit.framework.Assert;
 
-import org.apache.hadoop.hbase.KeyValue.Type;
-import org.apache.hadoop.hbase.themis.lock.ThemisLock;
-import org.apache.hadoop.hbase.themis.lock.PrimaryLock;
+import org.apache.hadoop.hbase.Cell;
 import org.junit.Test;
 
 public class TestPrimaryLock extends TestThemisLock {
   @Test
   public void testAddSecondaryColumn() throws IOException {
     PrimaryLock lock = new PrimaryLock();
-    lock.addSecondaryColumn(COLUMN, Type.Put);
-    Assert.assertEquals(Type.Put, lock.getSecondaryColumn(COLUMN));
-    lock.addSecondaryColumn(COLUMN, Type.DeleteColumn);
-    Assert.assertEquals(Type.DeleteColumn, lock.getSecondaryColumn(COLUMN));
-    lock.addSecondaryColumn(COLUMN_WITH_ANOTHER_TABLE, Type.Put);
+    lock.addSecondaryColumn(COLUMN, Cell.Type.Put);
+    Assert.assertEquals(Cell.Type.Put, lock.getSecondaryColumn(COLUMN));
+    lock.addSecondaryColumn(COLUMN, Cell.Type.DeleteColumn);
+    Assert.assertEquals(Cell.Type.DeleteColumn, lock.getSecondaryColumn(COLUMN));
+    lock.addSecondaryColumn(COLUMN_WITH_ANOTHER_TABLE, Cell.Type.Put);
     Assert.assertEquals(2, lock.getSecondaryColumns().size());
   }
   

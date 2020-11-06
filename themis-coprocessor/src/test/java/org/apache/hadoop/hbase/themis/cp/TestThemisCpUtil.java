@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CompareOperator;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.KVComparator;
 import org.apache.hadoop.hbase.KeyValue.Type;
@@ -44,12 +46,14 @@ public class TestThemisCpUtil extends TestBase {
 
   static class FiltersCounter extends FilterCallable {
     int concreteFilterCount = 0;
+    @Override
     public void processConcreteFilter(Filter filter) throws IOException {
       ++concreteFilterCount;
     }
   }
   
   static class ConcreteFiltersCounter extends FiltersCounter {
+    @Override
     public boolean processFilterListOperator(Operator op) {
       return false;
     }
@@ -61,17 +65,17 @@ public class TestThemisCpUtil extends TestBase {
     ThemisCpUtil.processFilters(null, counter);
     Assert.assertEquals(0, counter.concreteFilterCount);
     counter = new FiltersCounter();
-    ThemisCpUtil.processFilters(new ColumnRangeFilter(), counter);
+    ThemisCpUtil.processFilters(new ColumnRangeFilter(null, true, null, false), counter);
     Assert.assertEquals(1, counter.concreteFilterCount);
     counter = new FiltersCounter();
     FilterList filterList = new FilterList();
-    filterList.addFilter(new ColumnRangeFilter());
-    filterList.addFilter(new ColumnCountGetFilter());
+    filterList.addFilter(new ColumnRangeFilter(null, true, null, false));
+    filterList.addFilter(new ColumnCountGetFilter(0));
     ThemisCpUtil.processFilters(filterList, counter);
     Assert.assertEquals(2, counter.concreteFilterCount);
     // test process filterlist operator
     counter = new ConcreteFiltersCounter();
-    ThemisCpUtil.processFilters(new ColumnRangeFilter(), counter);
+    ThemisCpUtil.processFilters(new ColumnRangeFilter(null, true, null, false), counter);
     Assert.assertEquals(1, counter.concreteFilterCount);
     counter = new ConcreteFiltersCounter();
     ThemisCpUtil.processFilters(filterList, counter);
@@ -113,8 +117,8 @@ public class TestThemisCpUtil extends TestBase {
       this.qualifier = qualifier;
     }
 
-    public ReturnCode filterKeyValue(KeyValue kv) {
-      if (Bytes.equals(qualifier, kv.getQualifier())) {
+    public ReturnCode filterKeyValue(Cell kv) {
+      if (Bytes.equals(qualifier, kv.getQualifierArray())) {
         return ReturnCode.INCLUDE;
       }
       return ReturnCode.SKIP;
@@ -142,7 +146,7 @@ public class TestThemisCpUtil extends TestBase {
     Assert.assertNull(dstGet.getFilter());
     dstGet.setFilter(null);
     // can not move filter, no rowkey filter
-    Filter expected = new SingleColumnValueFilter();
+    Filter expected = new SingleColumnValueFilter(null, null, CompareOperator.EQUAL, (byte[]) null);
     sourceGet.setFilter(expected);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     Assert.assertEquals(expected, sourceGet.getFilter());
@@ -150,15 +154,15 @@ public class TestThemisCpUtil extends TestBase {
     dstGet.setFilter(null);
     // can not move filter, has operation=MUST_PASS_ONE
     FilterList filters = new FilterList(Operator.MUST_PASS_ONE);
-    filters.addFilter(new SingleColumnValueFilter());
-    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new SingleColumnValueFilter(null, null, CompareOperator.EQUAL, (byte[]) null ));
+    filters.addFilter(new PrefixFilter(null));
     sourceGet.setFilter(filters);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     Assert.assertEquals(filters, sourceGet.getFilter());
     Assert.assertNull(dstGet.getFilter());
     dstGet.setFilter(null);
     // move filter, concrete rowkey filter
-    expected = new PrefixFilter();
+    expected = new PrefixFilter(null);
     sourceGet.setFilter(expected);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     Assert.assertEquals(0, ((FilterList)sourceGet.getFilter()).getFilters().size());
@@ -167,8 +171,8 @@ public class TestThemisCpUtil extends TestBase {
     dstGet.setFilter(null);
     // move filter, filterlist with MUST_PASS_ALL
     filters = new FilterList();
-    filters.addFilter(new SingleColumnValueFilter());
-    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new SingleColumnValueFilter(null, null, CompareOperator.EQUAL, (byte[])null));
+    filters.addFilter(new PrefixFilter(null));
     sourceGet.setFilter(filters);
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
     FilterList sourceFilter = (FilterList)sourceGet.getFilter();
@@ -180,8 +184,8 @@ public class TestThemisCpUtil extends TestBase {
     dstGet.setFilter(null);
     // test customer filters
     filters = new FilterList();
-    filters.addFilter(new SingleColumnValueFilter());
-    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new SingleColumnValueFilter(null, null, CompareOperator.EQUAL, (byte[]) null));
+    filters.addFilter(new PrefixFilter(null));
     filters.addFilter(new CustomerRowkeyFilter(ROW));
     filters.addFilter(new CustomerColumnFilter(QUALIFIER));
     sourceGet.setFilter(filters);
@@ -202,8 +206,8 @@ public class TestThemisCpUtil extends TestBase {
     
     // test destGet with exist Filters
     filters = new FilterList();
-    filters.addFilter(new SingleColumnValueFilter());
-    filters.addFilter(new PrefixFilter());
+    filters.addFilter(new SingleColumnValueFilter(null, null, CompareOperator.EQUAL, (byte[]) null));
+    filters.addFilter(new PrefixFilter(null));
     sourceGet.setFilter(filters);
     dstGet.setFilter(new ExcludeDataColumnFilter());
     ThemisCpUtil.moveRowkeyFiltersForWriteGet(sourceGet, dstGet);
@@ -215,11 +219,11 @@ public class TestThemisCpUtil extends TestBase {
     dstGet.setFilter(null);
   }
   
-  protected void checkConstructedDataGet(List<KeyValue> putKvs, Filter filter, Get get) {
+  protected void checkConstructedDataGet(List<Cell> putKvs, Filter filter, Get get) {
     Assert.assertEquals(putKvs.size(), get.getFamilyMap().size());
-    for (KeyValue kv : putKvs) {
+    for (Cell kv : putKvs) {
       if (ColumnUtil.isCommitToSameFamily()) {
-        Assert.assertTrue(get.getFamilyMap().containsKey(kv.getFamily()));
+        Assert.assertTrue(get.getFamilyMap().containsKey(kv.getFamilyArray()));
       }
       get.getTimeRange().withinTimeRange(kv.getTimestamp());
     }
@@ -236,19 +240,21 @@ public class TestThemisCpUtil extends TestBase {
   
   @Test
   public void testConstructDataGetByWriteColumnKvs() throws IOException {
-    List<KeyValue> putKvs = new ArrayList<KeyValue>();
+    List<Cell> putKvs = new ArrayList<>();
     putKvs.add(getPutKv(COLUMN, PREWRITE_TS, COMMIT_TS));
     putKvs.add(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS + 10 , COMMIT_TS + 10));
     Get get = ThemisCpUtil.constructDataGetByPutKvs(putKvs, null);
     checkConstructedDataGet(putKvs, null, get);
-    Filter filter = new SingleColumnValueFilter();
+
+    //
+    Filter filter = new SingleColumnValueFilter(null, null, CompareOperator.EQUAL, (byte[]) null);
     get = ThemisCpUtil.constructDataGetByPutKvs(putKvs, filter);
     checkConstructedDataGet(putKvs, filter, get);
   }
   
   @Test
   public void testGetPutKvs() {
-    List<KeyValue> writeKvs = new ArrayList<KeyValue>();
+    List<Cell> writeKvs = new ArrayList<>();
     writeKvs.add(getPutKv(COLUMN, PREWRITE_TS));
     writeKvs.add(getDeleteKv(COLUMN, PREWRITE_TS + 1));
     writeKvs.add(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS + 1));
@@ -256,7 +262,7 @@ public class TestThemisCpUtil extends TestBase {
     writeKvs.add(getDeleteKv(new ColumnCoordinate(ROW, ANOTHER_FAMILY, ANOTHER_QUALIFIER), PREWRITE_TS));
     writeKvs.add(getPutKv(COLUMN_WITH_ANOTHER_QUALIFIER, PREWRITE_TS));
     Collections.sort(writeKvs, KeyValue.COMPARATOR);
-    List<KeyValue> putKvs = ThemisCpUtil.getPutKvs(writeKvs);
+    List<Cell> putKvs = ThemisCpUtil.getPutKvs(writeKvs);
     Assert.assertEquals(2, putKvs.size());
     Collections.sort(putKvs, new KVComparator());
     Assert.assertTrue(getPutKv(COLUMN_WITH_ANOTHER_FAMILY, PREWRITE_TS + 1).equals(putKvs.get(0)));
@@ -370,7 +376,7 @@ public class TestThemisCpUtil extends TestBase {
     Get get = new Get(ROW);
     get.addFamily(FAMILY);
     get.addColumn(ANOTHER_FAMILY, ANOTHER_QUALIFIER);
-    List<KeyValue> sourceKvs = new ArrayList<KeyValue>();
+    List<Cell> sourceKvs = new ArrayList<>();
     sourceKvs.add(KEYVALUE);
     Column lockColumn = ColumnUtil.getLockColumn(FAMILY, QUALIFIER);
     KeyValue lockKv = new KeyValue(ROW, lockColumn.getFamily(), lockColumn.getQualifier(), PREWRITE_TS,
@@ -379,11 +385,11 @@ public class TestThemisCpUtil extends TestBase {
     lockColumn = ColumnUtil.getLockColumn(ANOTHER_FAMILY, QUALIFIER);
     sourceKvs.add(new KeyValue(ROW, lockColumn.getFamily(), lockColumn.getQualifier(), PREWRITE_TS,
         Type.Put, VALUE));
-    Result result = ThemisCpUtil.removeNotRequiredLockColumns(get.getFamilyMap(), new Result(
+    Result result = ThemisCpUtil.removeNotRequiredLockColumns(get.getFamilyMap(), Result.create(
         sourceKvs));
     Assert.assertEquals(2, result.size());
-    Assert.assertTrue(KEYVALUE.equals(result.list().get(0)));
-    Assert.assertTrue(lockKv.equals(result.list().get(1)));
+    Assert.assertTrue(KEYVALUE.equals(result.listCells().get(0)));
+    Assert.assertTrue(lockKv.equals(result.listCells().get(1)));
   }
   
   protected static void checkAddLockAndDataFamily(Get internalGet, byte[]... families) {
@@ -434,28 +440,28 @@ public class TestThemisCpUtil extends TestBase {
   
   @Test
   public void testIsLockResult() {
-    List<KeyValue> kvs = new ArrayList<KeyValue>();
+    List<Cell> kvs = new ArrayList<>();
     kvs.add(KEYVALUE);
-    Assert.assertFalse(ThemisCpUtil.isLockResult(new Result(kvs)));
+    Assert.assertFalse(ThemisCpUtil.isLockResult(Result.create(kvs)));
     kvs.add(getLockKv(KEYVALUE));
-    Assert.assertFalse(ThemisCpUtil.isLockResult(new Result(kvs)));
+    Assert.assertFalse(ThemisCpUtil.isLockResult(Result.create(kvs)));
     kvs.clear();
     kvs.add(getLockKv(KEYVALUE));
-    Assert.assertTrue(ThemisCpUtil.isLockResult(new Result(kvs)));
+    Assert.assertTrue(ThemisCpUtil.isLockResult(Result.create(kvs)));
     kvs.add(KEYVALUE);
-    Assert.assertTrue(ThemisCpUtil.isLockResult(new Result(kvs)));
+    Assert.assertTrue(ThemisCpUtil.isLockResult(Result.create(kvs)));
   }
   
   @Test
   public void testSeperateLockAndWriteKvs() {
-    List<KeyValue> kvs = new ArrayList<KeyValue>();
+    List<Cell> kvs = new ArrayList<>();
     kvs.add(KEYVALUE);
     kvs.add(getLockKv(KEYVALUE));
     kvs.add(getPutKv(KEYVALUE));
     Column column = ColumnUtil.getDeleteColumn(new Column(FAMILY, QUALIFIER));
     KeyValue deleteKv = new KeyValue(ROW, column.getFamily(), column.getQualifier(), PREWRITE_TS, Type.Put, VALUE);
     kvs.add(deleteKv);
-    Pair<List<KeyValue>, List<KeyValue>> result = ThemisCpUtil.seperateLockAndWriteKvs(kvs);
+    Pair<List<Cell>, List<Cell>> result = ThemisCpUtil.seperateLockAndWriteKvs(kvs);
     Assert.assertEquals(1, result.getFirst().size());
     Assert.assertTrue(getLockKv(KEYVALUE).equals(result.getFirst().get(0)));
     Assert.assertEquals(2, result.getSecond().size());

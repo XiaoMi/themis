@@ -2,10 +2,14 @@ package org.apache.hadoop.hbase.themis.index.cp;
 
 import java.io.IOException;
 
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ClientTestBase;
@@ -25,8 +29,8 @@ public class IndexTestBase extends ClientTestBase {
   public static final byte[] IDNEX_NAME = Bytes.toBytes("test_index:Qualifier");
   public static final IndexColumn INDEX_COLUMN = new IndexColumn(MAIN_TABLE, FAMILY, QUALIFIER);
   
-  protected HTableInterface mainTable = null;
-  protected HBaseAdmin admin = null;
+  protected Table mainTable = null;
+  protected Admin admin = null;
   
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
@@ -43,9 +47,9 @@ public class IndexTestBase extends ClientTestBase {
   @Before
   public void initEnv() throws IOException {
     super.initEnv();
-    mainTable = connection.getTable(MAIN_TABLE);
+    mainTable = connection.getTable(TableName.valueOf(MAIN_TABLE));
     deleteOldDataAndUpdateTs(mainTable);
-    admin = new HBaseAdmin(connection);
+    admin = connection.getAdmin();
   }
   
   @After
@@ -64,22 +68,29 @@ public class IndexTestBase extends ClientTestBase {
   }
   
   protected static void createTableForIndexTest(byte[] tableName) throws IOException {
-    HBaseAdmin admin = null;
+    Admin admin = null;
+    TableName tn = TableName.valueOf(tableName);
     try {
-      admin = new HBaseAdmin(conf);
-      if (admin.tableExists(tableName)) {
+      admin = ConnectionFactory.createConnection(conf).getAdmin();
+      if (admin.tableExists(tn)) {
         return;
       }
-      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
-      HColumnDescriptor columnDesc = new HColumnDescriptor(INDEX_FAMILY);
-      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
-      columnDesc.setValue(
-        Bytes.toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY), IDNEX_NAME);
-      tableDesc.addFamily(columnDesc);
-      columnDesc = new HColumnDescriptor(ANOTHER_FAMILY);
-      columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString());
-      tableDesc.addFamily(columnDesc);
-      admin.createTable(tableDesc);
+
+      ColumnFamilyDescriptor columnDesc = ColumnFamilyDescriptorBuilder
+              .newBuilder(INDEX_FAMILY)
+              .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString())
+              .setValue(Bytes.toBytes(IndexMasterObserver.THEMIS_SECONDARY_INDEX_FAMILY_ATTRIBUTE_KEY), IDNEX_NAME)
+              .build();
+
+      ColumnFamilyDescriptor anotherColumnDesc = ColumnFamilyDescriptorBuilder
+              .newBuilder(ANOTHER_FAMILY)
+              .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, Boolean.TRUE.toString())
+              .build();
+      TableDescriptor tableDescriptor = TableDescriptorBuilder.newBuilder(tn)
+              .setColumnFamily(columnDesc)
+              .setColumnFamily(anotherColumnDesc)
+              .build();
+      admin.createTable(tableDescriptor);
     } finally {
       if (admin != null) {
         admin.close();
@@ -88,11 +99,12 @@ public class IndexTestBase extends ClientTestBase {
   }
   
   protected static void deleteTableForIndexTest(byte[] tableName) throws IOException {
-    HBaseAdmin admin = null;
+    Admin admin = null;
+    TableName tn = TableName.valueOf(tableName);
     try {
-      admin = new HBaseAdmin(conf);
-      admin.disableTable(tableName);
-      admin.deleteTable(tableName);
+      admin = ConnectionFactory.createConnection(conf).getAdmin();
+      admin.disableTable(tn);
+      admin.deleteTable(tn);
     } finally {
       if (admin != null) {
         admin.close();

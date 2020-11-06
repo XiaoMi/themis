@@ -25,31 +25,51 @@
       <artifactId>themis-coprocessor</artifactId>
       <version>${project.version}</version>
     </dependency>
+
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-client</artifactId>
+          <version>${hbase.version}</version>
+      </dependency>
+
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-mapreduce</artifactId>
+          <version>${hbase.version}</version>
+      </dependency>
+
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-server</artifactId>
+          <version>${hbase.version}</version>
+          <scope>test</scope>
+          <type>test-jar</type>
+      </dependency>
+
+
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-zookeeper</artifactId>
+          <version>${hbase.version}</version>
+          <scope>test</scope>
+          <type>test-jar</type>
+      </dependency>
+
+      <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-common</artifactId>
+          <version>${hbase.version}</version>
+          <scope>test</scope>
+          <type>test-jar</type>
+      </dependency>
+
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>themis-coprocessor</artifactId>
       <version>${project.version}</version>
       <classifier>tests</classifier>
     </dependency>
-    <dependency>
-      <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase</artifactId>
-      <version>${hbase.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.thrift</groupId>
-          <artifactId>libthrift</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>com.xiaomi.infra</groupId>
-          <artifactId>scribe-log4j</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>com.xiaomi.infra</groupId>
-          <artifactId>themis-coprocessor</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
@@ -60,13 +80,7 @@
       <artifactId>hadoop-hdfs</artifactId>
       <version>${hadoop.version}</version>
     </dependency>
-    <dependency>
-      <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase</artifactId>
-      <version>${hbase.version}</version>
-      <classifier>tests</classifier>
-      <scope>test</scope>
-    </dependency>
+
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-minicluster</artifactId>
@@ -119,8 +133,8 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.1</version>
           <configuration>
-            <source>1.6</source>
-            <target>1.6</target>
+            <source>8</source>
+            <target>8</target>
             <fork>true</fork>
             <verbose>true</verbose>
             <encoding>UTF-8</encoding>

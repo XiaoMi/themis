@@ -1,7 +1,5 @@
 package org.apache.hadoop.hbase.themis.mapreduce;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,21 +8,24 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.HRegionPartitioner;
 import org.apache.hadoop.hbase.mapreduce.MultiTableInputFormat;
-import org.apache.hadoop.hbase.mapreduce.MultiTableOutputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableReducer;
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
-import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.zookeeper.ZKUtil;
+import org.apache.hadoop.hbase.zookeeper.ZKConfig;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -37,7 +38,7 @@ public class ThemisTableMapReduceUtil {
   public static void initTableMapperJob(String table, Scan scan,
       Class<? extends TableMapper> mapper,
       Class<? extends WritableComparable> outputKeyClass,
-      Class<? extends Writable> outputValueClass, Job job)
+      Class<?> outputValueClass, Job job)
   throws IOException {
     initTableMapperJob(table, scan, mapper, outputKeyClass, outputValueClass,
         job, true);
@@ -47,7 +48,7 @@ public class ThemisTableMapReduceUtil {
    public static void initTableMapperJob(byte[] table, Scan scan,
       Class<? extends TableMapper> mapper,
       Class<? extends WritableComparable> outputKeyClass,
-      Class<? extends Writable> outputValueClass, Job job)
+      Class<?> outputValueClass, Job job)
   throws IOException {
       initTableMapperJob(Bytes.toString(table), scan, mapper, outputKeyClass, outputValueClass,
               job, true);
@@ -55,7 +56,7 @@ public class ThemisTableMapReduceUtil {
 
   public static void initTableMapperJob(String table, Scan scan,
       Class<? extends TableMapper> mapper, Class<? extends WritableComparable> outputKeyClass,
-      Class<? extends Writable> outputValueClass, Job job, boolean addDependencyJars)
+      Class<?> outputValueClass, Job job, boolean addDependencyJars)
       throws IOException {
     initTableMapperJob(table, scan, mapper, outputKeyClass, outputValueClass, job,
       addDependencyJars, ThemisTableInputFormat.class);
@@ -64,12 +65,18 @@ public class ThemisTableMapReduceUtil {
   public static void initTableMapperJob(String table, Scan scan,
       Class<? extends TableMapper> mapper,
       Class<? extends WritableComparable> outputKeyClass,
-      Class<? extends Writable> outputValueClass, Job job,
+      Class<?> outputValueClass, Job job,
       boolean addDependencyJars, Class<? extends InputFormat> inputFormatClass)
   throws IOException {
     job.setInputFormatClass(inputFormatClass);
-    if (outputValueClass != null) job.setMapOutputValueClass(outputValueClass);
-    if (outputKeyClass != null) job.setMapOutputKeyClass(outputKeyClass);
+    if (outputValueClass != null) {
+      job.setMapOutputValueClass(outputValueClass);
+    }
+
+    if (outputKeyClass != null) {
+      job.setMapOutputKeyClass(outputKeyClass);
+    }
+
     job.setMapperClass(mapper);
     Configuration conf = job.getConfiguration();
     HBaseConfiguration.merge(conf, HBaseConfiguration.create(conf));
@@ -83,10 +90,8 @@ public class ThemisTableMapReduceUtil {
   
   // this method is coped from TableMapReduceUtil.java because it is protected
   static String convertScanToString(Scan scan) throws IOException {
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    DataOutputStream dos = new DataOutputStream(out);
-    scan.write(dos);
-    return Base64.encodeBytes(out.toByteArray());
+    ClientProtos.Scan proto = ProtobufUtil.toScan(scan);
+    return Bytes.toString(java.util.Base64.getEncoder().encode(proto.toByteArray()));
   }
   
   public static void addDependencyJars(Job job) throws IOException {
@@ -97,7 +102,7 @@ public class ThemisTableMapReduceUtil {
   public static void initTableMapperJob(List<Scan> scans,
       Class<? extends TableMapper> mapper,
       Class<? extends WritableComparable> outputKeyClass,
-      Class<? extends Writable> outputValueClass, Job job) throws IOException {
+      Class<?> outputValueClass, Job job) throws IOException {
     initTableMapperJob(scans, mapper, outputKeyClass, outputValueClass, job,
         true);
   }
@@ -106,7 +111,7 @@ public class ThemisTableMapReduceUtil {
   public static void initTableMapperJob(List<Scan> scans,
       Class<? extends TableMapper> mapper,
       Class<? extends WritableComparable> outputKeyClass,
-      Class<? extends Writable> outputValueClass, Job job,
+      Class<?> outputValueClass, Job job,
       boolean addDependencyJars) throws IOException {
     job.setInputFormatClass(MultiThemisTableInputFormat.class);
     if (outputValueClass != null) {
@@ -162,12 +167,15 @@ public class ThemisTableMapReduceUtil {
     Configuration conf = job.getConfiguration();
     HBaseConfiguration.merge(conf, HBaseConfiguration.create(conf));
     job.setOutputFormatClass(outputFormatClass);
-    if (reducer != null) job.setReducerClass(reducer);
+    if (reducer != null) {
+        job.setReducerClass(reducer);
+    }
+
     conf.set(TableOutputFormat.OUTPUT_TABLE, table);
     // If passed a quorum/ensemble address, pass it on to TableOutputFormat.
     if (quorumAddress != null) {
       // Calling this will validate the format
-      ZKUtil.transformClusterKey(quorumAddress);
+      ZKConfig.transformClusterKey(quorumAddress);
       conf.set(TableOutputFormat.QUORUM_ADDRESS, quorumAddress);
     }
     if (serverClass != null && serverImpl != null) {
@@ -178,10 +186,12 @@ public class ThemisTableMapReduceUtil {
     job.setOutputValueClass(Writable.class);
     if (partitioner == HRegionPartitioner.class) {
       job.setPartitionerClass(HRegionPartitioner.class);
-      HTable outputTable = new HTable(conf, table);
-      int regions = outputTable.getRegionsInfo().size();
-      if (job.getNumReduceTasks() > regions) {
-        job.setNumReduceTasks(outputTable.getRegionsInfo().size());
+      try (Connection connection = ConnectionFactory.createConnection(conf)) {
+        Table outputTable = connection.getTable(TableName.valueOf(table));
+        int regions = outputTable.getRegionLocator().getAllRegionLocations().size();
+        if (job.getNumReduceTasks() > regions) {
+          job.setNumReduceTasks(regions);
+        }
       }
     } else if (partitioner != null) {
       job.setPartitionerClass(partitioner);

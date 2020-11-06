@@ -2,7 +2,8 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
 
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -15,7 +16,7 @@ import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,13 +44,13 @@ public class TestThemisRegionObserver extends TransactionTestBase {
   public void testPreFlushScannerOpen() throws Exception {
     // only test in MiniCluster
     if (TEST_UTIL != null) {
-      ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
-      HBaseAdmin admin = new HBaseAdmin(connection);
+      ZKWatcher zk = new ZKWatcher(conf, "test", null, true);
+      Admin admin = connection.getAdmin();
 
       prewriteTestDataForPreFlushAndPreCompact();
       // no zk path
       ZKUtil.deleteNodeFailSilent(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk));
-      admin.flush(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
       Assert.assertEquals(6, getRowByScan().size());
       deleteOldDataAndUpdateTs();
 
@@ -57,7 +58,7 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-      admin.flush(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
       Assert.assertEquals(6, getRowByScan().size());
       deleteOldDataAndUpdateTs();
 
@@ -65,7 +66,7 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 1)));
-      admin.flush(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
       Assert.assertEquals(6, getRowByScan().size());
       deleteOldDataAndUpdateTs();
 
@@ -73,7 +74,7 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 5)));
-      admin.flush(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
       Result result = getRowByScan();
       Assert.assertEquals(3, result.size());
       Assert.assertNotNull(result.getValue(FAMILY, QUALIFIER));
@@ -92,14 +93,13 @@ public class TestThemisRegionObserver extends TransactionTestBase {
   public void testPreCompactScannerOpen() throws Exception {
     // only test in MiniCluster
     if (TEST_UTIL != null) {
-      ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
-      HBaseAdmin admin = new HBaseAdmin(connection);
-
+      ZKWatcher zk = new ZKWatcher(conf, "test", null, true);
+      Admin admin = connection.getAdmin();
       prewriteTestDataForPreFlushAndPreCompact();
       // no zk path
       ZKUtil.deleteNodeFailSilent(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk));
-      admin.flush(TABLENAME);
-      admin.compact(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
+      admin.compact(TableName.valueOf(TABLENAME));
       Threads.sleep(5000); // wait compaction complete
       Assert.assertEquals(6, getRowByScan().size());
       deleteOldDataAndUpdateTs();
@@ -108,8 +108,8 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-      admin.flush(TABLENAME);
-      admin.compact(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
+      admin.compact(TableName.valueOf(TABLENAME));
       Threads.sleep(5000); // wait compaction complete
       Assert.assertEquals(6, getRowByScan().size());
       deleteOldDataAndUpdateTs();
@@ -118,8 +118,8 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 1)));
-      admin.flush(TABLENAME);
-      admin.compact(TABLENAME);
+      admin.flush(TableName.valueOf(TABLENAME));
+      admin.compact(TableName.valueOf(TABLENAME));
       Threads.sleep(5000); // wait compaction complete
       Assert.assertEquals(6, getRowByScan().size());
       deleteOldDataAndUpdateTs();
@@ -128,10 +128,10 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-      admin.flush(TABLENAME); // cleanTs is invalid when flush
+      admin.flush(TableName.valueOf(TABLENAME)); // cleanTs is invalid when flush
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 5)));
-      admin.majorCompact(TABLENAME); // cleanTs is valid when compact
+      admin.majorCompact(TableName.valueOf(TABLENAME)); // cleanTs is valid when compact
       Threads.sleep(5000); // wait compaction complete
       Result result = getRowByScan();
       Assert.assertEquals(3, result.size());
@@ -159,17 +159,17 @@ public class TestThemisRegionObserver extends TransactionTestBase {
       TransactionTTL.timestampType = TimestampType.MS;
       TransactionTestBase.startMiniCluster(conf);
       initEnv();
-      
-      ZooKeeperWatcher zk = new ZooKeeperWatcher(conf, "test", null, true);
-      HBaseAdmin admin = new HBaseAdmin(connection);
+
+      ZKWatcher zk = new ZKWatcher(conf, "test", null, true);
+      Admin admin = connection.getAdmin();
 
       prewriteTestDataForPreFlushAndPreCompact();
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(Long.MIN_VALUE)));
-      admin.flush(TABLENAME); // cleanTs is invalid when flush
+      admin.flush(TableName.valueOf(TABLENAME)); // cleanTs is invalid when flush
       ZKUtil.createSetData(zk, ThemisMasterObserver.getThemisExpiredTsZNodePath(zk),
         Bytes.toBytes(String.valueOf(prewriteTs + 5)));
-      admin.majorCompact(TABLENAME); // cleanTs is valid when compact
+      admin.majorCompact(TableName.valueOf(TABLENAME)); // cleanTs is valid when compact
       Threads.sleep(5000); // wait compaction complete
       Result result = getRowByScan();
       Assert.assertNull(result);

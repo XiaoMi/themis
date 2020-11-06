@@ -2,12 +2,13 @@ package org.apache.hadoop.hbase.themis.mapreduce;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.ScannerCallable;
@@ -17,11 +18,8 @@ import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.ThemisScanner;
 import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.io.DataInputBuffer;
-import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.metrics.util.MetricsTimeVaryingLong;
 import org.apache.hadoop.util.StringUtils;
 
 // TableRecordReaderImpl is not easy to inherit, so that we copy its code and make change when necessary.
@@ -33,7 +31,7 @@ public class ThemisTableRecordReaderImpl {
 
   // HBASE_COUNTER_GROUP_NAME is the name of mapreduce counter group for HBase
   private static final String HBASE_COUNTER_GROUP_NAME = "Themis Counters";
-  private HConnection connection = null;
+  private Connection connection = null;
   private Transaction transaction = null;
   private ThemisScanner scanner = null;
   private byte[] tableName;
@@ -54,7 +52,7 @@ public class ThemisTableRecordReaderImpl {
 
   public void restart(byte[] firstRow) throws IOException {
     if (connection == null) {
-      connection = HConnectionManager.createConnection(conf);
+      connection = ConnectionFactory.createConnection(conf);
     }
     
     currentScan = new Scan(scan);
@@ -137,8 +135,14 @@ public class ThemisTableRecordReaderImpl {
   }
 
   public boolean nextKeyValue() throws IOException, InterruptedException {
-    if (key == null) key = new ImmutableBytesWritable();
-    if (value == null) value = new Result();
+    if (key == null) {
+      key = new ImmutableBytesWritable();
+    }
+
+    if (value == null) {
+      value = new Result();
+    }
+
     try {
       try {
         value = this.scanner.next();
@@ -205,20 +209,18 @@ public class ThemisTableRecordReaderImpl {
       return;
     }
 
-    DataInputBuffer in = new DataInputBuffer();
-    in.reset(serializedMetrics, 0, serializedMetrics.length);
-    ScanMetrics scanMetrics = new ScanMetrics();
-    scanMetrics.readFields(in);
-    MetricsTimeVaryingLong[] mlvs = scanMetrics.getMetricsTimeVaryingLongArray();
-
+    ScanMetrics scanMetrics = scan.getScanMetrics();
     try {
-      for (MetricsTimeVaryingLong mlv : mlvs) {
-        Counter ct = (Counter) this.getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME,
-          mlv.getName());
-        ct.increment(mlv.getCurrentIntervalValue());
-      }
-      ((Counter) this.getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME, "NUM_SCANNER_RESTARTS"))
-          .increment(numRestarts);
+     Set<String> counterKeys = scanMetrics.getMetricsMap().keySet();
+     for (String conterKey : counterKeys) {
+         scanMetrics.getCounter(conterKey).getAndIncrement();
+     }
+
+//     ((Counter) this.getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME, "NUM_SCANNER_RESTARTS"))
+//          .increment(numRestarts);
+
+     //TODO need to be done by yuqi5
+     // Can not serialize back to scan
     } catch (Exception e) {
       LOG.debug("can't update counter." + StringUtils.stringifyException(e));
     }

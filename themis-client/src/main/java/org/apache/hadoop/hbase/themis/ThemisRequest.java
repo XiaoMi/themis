@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.themis.columns.Column;
@@ -27,22 +28,27 @@ abstract class ThemisRequest {
           + request.getClass());
     }
   }
-  
+
+  /**
+   *
+   * @return
+   */
   protected abstract boolean hasColumn();
 }
 
 abstract class ThemisMutation extends ThemisRequest {
-  public abstract Map<byte [], List<KeyValue>> getFamilyMap();
-  
+  public abstract Map<byte [], List<Cell>> getFamilyMap();
+
+  @Override
   protected boolean hasColumn() {
     return getFamilyMap() != null && getFamilyMap().size() != 0;
   }
   
-  public static void checkContainingPreservedColumns(Map<byte[], List<KeyValue>> mutations)
+  public static void checkContainingPreservedColumns(Map<byte[], List<Cell>> mutations)
       throws IOException {
-    for (Entry<byte[], List<KeyValue>> entry : mutations.entrySet()) {
-      for (KeyValue kv : entry.getValue()) {
-        checkContainingPreservedColumn(kv.getFamily(), kv.getQualifier());
+    for (Entry<byte[], List<Cell>> entry : mutations.entrySet()) {
+      for (Cell kv : entry.getValue()) {
+        checkContainingPreservedColumn(kv.getFamilyArray(), kv.getQualifierArray());
       }
     }
   }

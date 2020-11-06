@@ -4,7 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 
 public class SecondaryLock extends ThemisLock {
@@ -12,7 +12,7 @@ public class SecondaryLock extends ThemisLock {
   
   public SecondaryLock() {}
   
-  public SecondaryLock(Type type) {
+  public SecondaryLock(Cell.Type type) {
     super(type);
   }
   

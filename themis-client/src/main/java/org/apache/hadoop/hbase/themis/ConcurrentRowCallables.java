@@ -73,7 +73,7 @@ public class ConcurrentRowCallables<R> {
       return Bytes.equals(this.getTableName(), tableAndRow.getTableName())
           && Bytes.equals(this.getRowkey(), tableAndRow.getRowkey());
     }
-    
+
     public String toString() {
       return "tableName=" + Bytes.toString(tableName) + "/rowkey=" + Bytes.toString(row);
     }

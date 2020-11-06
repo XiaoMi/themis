@@ -6,6 +6,7 @@ import java.util.NavigableSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.ThemisGet;
@@ -29,7 +30,8 @@ public class IndexScanner extends ThemisScanner {
     this.indexRead = indexRead;
     this.indexColumn = indexRead.getIndexColumn();
   }
-  
+
+  @Override
   public Result next() throws IOException {
     if (done) {
       return null;
@@ -44,12 +46,11 @@ public class IndexScanner extends ThemisScanner {
         }
         kvIndex = 0;
       }
-      
-      KeyValue indexKv = indexResult.list().get(kvIndex);
-      ThemisGet dataRowGet = constructDataRowGet(indexKv.getQualifier(), indexRead.dataGet);
+
+      Cell indexKv = indexResult.listCells().get(kvIndex);
+      ThemisGet dataRowGet = constructDataRowGet(indexKv.getQualifierArray(), indexRead.dataGet);
       Result dataResult = transaction.get(indexColumn.getTableName(), dataRowGet);
-      KeyValue indexColumnKv = dataResult.getColumnLatest(indexColumn.getFamily(),
-        indexColumn.getQualifier());
+      Cell indexColumnKv = dataResult.getColumnLatestCell(indexColumn.getFamily(), indexColumn.getQualifier());
       if (indexColumnKv == null || indexColumnKv.getTimestamp() != indexKv.getTimestamp()) {
         LOG.info("find unmatch index, indexKv=" + indexKv + ", indexColumnKv=" + indexColumnKv
             + ", totalUnMatchIndexCount=" + (++unmatchIndexCount));

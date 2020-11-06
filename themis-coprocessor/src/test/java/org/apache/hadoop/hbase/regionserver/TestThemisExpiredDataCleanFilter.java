@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -29,8 +30,12 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
   }
   
   public HRegion getRegion() throws IOException {
-    return TEST_UTIL.getRSForFirstRegionInTable(TABLENAME).getOnlineRegions(
-      TABLENAME).get(0);
+    try {
+      return TEST_UTIL.getRSForFirstRegionInTable(TableName.valueOf(TABLENAME))
+              .getOnlineRegions().get(0);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
   
   @Test
@@ -42,21 +47,21 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
     ResultScanner scanner = getResultScanner(TABLENAME, prewriteTs);
     Result result = scanner.next();
     Assert.assertEquals(2, result.size());
-    Assert.assertEquals(prewriteTs + 1, result.list().get(0).getTimestamp());
-    Assert.assertEquals(prewriteTs, result.list().get(1).getTimestamp());
+    Assert.assertEquals(prewriteTs + 1, result.listCells().get(0).getTimestamp());
+    Assert.assertEquals(prewriteTs, result.listCells().get(1).getTimestamp());
     scanner.close();
     // won't clean
     scanner = getResultScanner(TABLENAME, prewriteTs + 1);
     result = scanner.next();
     Assert.assertEquals(2, result.size());
-    Assert.assertEquals(prewriteTs + 1, result.list().get(0).getTimestamp());
-    Assert.assertEquals(prewriteTs, result.list().get(1).getTimestamp());
+    Assert.assertEquals(prewriteTs + 1, result.listCells().get(0).getTimestamp());
+    Assert.assertEquals(prewriteTs, result.listCells().get(1).getTimestamp());
     scanner.close();
     // will clean one version
     scanner = getResultScanner(TABLENAME, prewriteTs + 2);
     result = scanner.next();
     Assert.assertEquals(1, result.size());
-    Assert.assertEquals(prewriteTs + 1, result.list().get(0).getTimestamp());
+    Assert.assertEquals(prewriteTs + 1, result.listCells().get(0).getTimestamp());
     scanner.close();
     
     // one row / multi-columns
@@ -72,10 +77,10 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
         COLUMN_WITH_ANOTHER_QUALIFIER, COLUMN };
     for (int i = 0; i < columns.length; ++i) {
       ColumnCoordinate column = columns[i];
-      KeyValue kv = result.list().get(i);
+      Cell kv = result.listCells().get(i);
       Assert.assertEquals(prewriteTs + 1, kv.getTimestamp());
-      Assert.assertArrayEquals(column.getFamily(), kv.getFamily());
-      Assert.assertArrayEquals(column.getQualifier(), kv.getQualifier());
+      Assert.assertArrayEquals(column.getFamily(), kv.getFamilyArray());
+      Assert.assertArrayEquals(column.getQualifier(), kv.getFamilyArray());
     }
     
     // two row / multi-columns
@@ -84,15 +89,15 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
     scanner = getResultScanner(TABLENAME, prewriteTs + 2);
     result = scanner.next();
     Assert.assertEquals(1, result.size());
-    Assert.assertEquals(prewriteTs + 1, result.list().get(0).getTimestamp());
+    Assert.assertEquals(prewriteTs + 1, result.listCells().get(0).getTimestamp());
     result = scanner.next();
     Assert.assertEquals(3, result.size());
     for (int i = 0; i < columns.length; ++i) {
       ColumnCoordinate column = columns[i];
-      KeyValue kv = result.list().get(i);
+      Cell kv = result.listCells().get(i);
       Assert.assertEquals(prewriteTs + 1, kv.getTimestamp());
-      Assert.assertArrayEquals(column.getFamily(), kv.getFamily());
-      Assert.assertArrayEquals(column.getQualifier(), kv.getQualifier());
+      Assert.assertArrayEquals(column.getFamily(), kv.getFamilyArray());
+      Assert.assertArrayEquals(column.getQualifier(), kv.getFamilyArray());
     }
     scanner.close();
   }
@@ -104,7 +109,7 @@ public class TestThemisExpiredDataCleanFilter extends TransactionTestBase {
     writeData(getDeleteColumnCoordinate(COLUMN), prewriteTs + 1);
     // won't clean
     RegionScanner scanner = getRegion().getScanner(getScan(prewriteTs, true));
-    List<KeyValue> result = new ArrayList<KeyValue>();
+    List<Cell> result = new ArrayList<>();
     scanner.next(result);
     Assert.assertEquals(2, result.size());
     Assert.assertEquals(prewriteTs + 1, result.get(0).getTimestamp());

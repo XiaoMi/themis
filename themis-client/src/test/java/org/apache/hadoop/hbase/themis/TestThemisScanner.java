@@ -80,8 +80,8 @@ public class TestThemisScanner extends ClientTestBase {
     for (ColumnCoordinate columnCoordinate : columns) {
       Assert.assertArrayEquals(VALUE, result.getValue(columnCoordinate.getFamily(), columnCoordinate.getQualifier()));
     }
-    for (int i = 0; i < result.list().size(); ++i) {
-      Assert.assertEquals(lastTs(prewriteTs), result.list().get(i).getTimestamp());
+    for (int i = 0; i < result.listCells().size(); ++i) {
+      Assert.assertEquals(lastTs(prewriteTs), result.listCells().get(i).getTimestamp());
     }
     Assert.assertArrayEquals(columns[0].getRow(), result.getRow());
   }

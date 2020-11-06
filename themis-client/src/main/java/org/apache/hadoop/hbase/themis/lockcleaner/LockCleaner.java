@@ -7,10 +7,11 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.TransactionConstant;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
@@ -21,21 +22,22 @@ import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.exception.LockConflictException;
 import org.apache.hadoop.hbase.themis.exception.ThemisFatalException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
 
 public class LockCleaner extends ServerLockCleaner {
   private static final Log LOG = LogFactory.getLog(LockCleaner.class);
-  private static Object cleanerLock = new Object();
+  private static final Object CLEANER_LOCK = new Object();
   private static LockCleaner lockCleaner;
   private WorkerRegister register;
   private final int retry;
   private final int pause;
   private final int clientLockTTl;
   
-  public static LockCleaner getLockCleaner(Configuration conf, HConnection conn,
+  public static LockCleaner getLockCleaner(Configuration conf, Connection conn,
       WorkerRegister register, ThemisCoprocessorClient cpClient) throws IOException {
     if (lockCleaner == null) {
-      synchronized (cleanerLock) {
+      synchronized (CLEANER_LOCK) {
         if (lockCleaner == null) {
           try {
             lockCleaner = new LockCleaner(conf, conn, register, cpClient);
@@ -49,8 +51,8 @@ public class LockCleaner extends ServerLockCleaner {
     return lockCleaner;
   }
   
-  public LockCleaner(Configuration conf, HConnection conn, WorkerRegister register,
-      ThemisCoprocessorClient cpClient) throws IOException {
+  public LockCleaner(Configuration conf, Connection conn, WorkerRegister register,
+                     ThemisCoprocessorClient cpClient) throws IOException {
     super(conn, cpClient);
     this.register = register;
     retry = conf.getInt(TransactionConstant.THEMIS_RETRY_COUNT,
@@ -70,17 +72,17 @@ public class LockCleaner extends ServerLockCleaner {
     return lock.isLockExpired();
   }
 
-  public static List<ThemisLock> constructLocks(byte[] tableName, List<KeyValue> lockKvs,
+  public static List<ThemisLock> constructLocks(byte[] tableName, List<Cell> lockKvs,
       ThemisCoprocessorClient cpClient, int clientLockTTL) throws IOException {
-    List<ThemisLock> locks = new ArrayList<ThemisLock>();
+    List<ThemisLock> locks = new ArrayList<>();
     if (lockKvs != null) {
-      for (KeyValue kv : lockKvs) {
-        ColumnCoordinate lockColumn = new ColumnCoordinate(tableName, kv.getRow(),
-            kv.getFamily(), kv.getQualifier());
+      for (Cell kv : lockKvs) {
+        ColumnCoordinate lockColumn = new ColumnCoordinate(tableName, kv.getRowArray(),
+            kv.getFamilyArray(), kv.getQualifierArray());
         if (!ColumnUtil.isLockColumn(lockColumn)) {
           throw new ThemisFatalException("get no-lock column when constructLocks, kv=" + kv);
         }
-        ThemisLock lock = ThemisLock.parseFromByte(kv.getValue());
+        ThemisLock lock = ThemisLock.parseFromByte(kv.getValueArray());
         ColumnCoordinate dataColumn = new ColumnCoordinate(tableName, lockColumn.getRow(),
             ColumnUtil.getDataColumn(lockColumn));
         lock.setColumn(dataColumn);
@@ -104,7 +106,7 @@ public class LockCleaner extends ServerLockCleaner {
     }
   }
   
-  public void tryToCleanLocks(byte[] tableName, List<KeyValue> lockColumns) throws IOException {
+  public void tryToCleanLocks(byte[] tableName, List<Cell> lockColumns) throws IOException {
     List<ThemisLock> locks = constructLocks(tableName, lockColumns, cpClient, clientLockTTl);
     long startTs = lockColumns.get(0).getTimestamp();
     for (ThemisLock lock : locks) {
@@ -152,9 +154,9 @@ public class LockCleaner extends ServerLockCleaner {
   protected boolean hasLock(ThemisLock lock) throws IOException {
     ColumnCoordinate columnCoordinate = lock.getColumn();
     Column lc = ColumnUtil.getLockColumn(columnCoordinate);
-    HTableInterface table = null;
+    Table table = null;
     try {
-      table = conn.getTable(columnCoordinate.getTableName());
+      table = conn.getTable(TableName.valueOf(Bytes.toString(columnCoordinate.getTableName())));
       Get get = new Get(columnCoordinate.getRow()).addColumn(lc.getFamily(), lc.getQualifier());
       get.setTimeStamp(lock.getTimestamp());
       return !table.get(get).isEmpty();

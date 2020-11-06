@@ -1,0 +1,75 @@
+option java_package = "org.apache.hadoop.hbase.themis.cp.generated";
+option java_outer_classname = "ThemisProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "Client.proto";
+import "Cell.proto";
+
+message ThemisGetRequest {
+  required Get get = 1;
+  required uint64 startTs = 2;
+  required bool ignoreLock = 3;
+}
+
+message ThemisPrewriteRequest {
+  required bytes row = 1;
+  repeated Cell  mutations = 2;
+  required uint64 prewriteTs = 3;
+  required bytes secondaryLock = 4;
+  required bytes primaryLock = 5;
+  required int32 primaryIndex = 6;
+}
+
+message ThemisPrewriteResponse {
+  repeated bytes result = 1;
+}
+
+message ThemisCommitRequest {
+  required bytes row = 1;
+  repeated Cell  mutations = 2;
+  required uint64 prewriteTs = 3;
+  required uint64 commitTs = 4;
+  required int32 primaryIndex = 5;
+}
+
+message ThemisCommitResponse {
+  required bool result = 1;
+}
+
+message EraseLockRequest {
+  required bytes row = 1;
+  required bytes family = 2;
+  required bytes qualifier = 3;
+  required uint64 prewriteTs = 4;
+}
+
+message EraseLockResponse {
+  optional bytes lock = 1;
+}
+
+message LockExpiredRequest {
+  required uint64 timestamp = 1;
+}
+
+message LockExpiredResponse {
+  required bool expired = 1;
+}
+
+service ThemisService {
+  rpc themisGet(ThemisGetRequest)
+    returns (Result);
+  rpc prewriteRow(ThemisPrewriteRequest)
+    returns (ThemisPrewriteResponse);
+  rpc prewriteSingleRow(ThemisPrewriteRequest)
+    returns (ThemisPrewriteResponse);
+  rpc commitRow(ThemisCommitRequest)
+    returns (ThemisCommitResponse);
+  rpc commitSingleRow(ThemisCommitRequest)
+    returns (ThemisCommitResponse);
+  rpc getLockAndErase(EraseLockRequest)
+    returns (EraseLockResponse);
+  rpc isLockExpired(LockExpiredRequest)
+    returns (LockExpiredResponse);
+}

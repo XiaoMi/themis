@@ -8,7 +8,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
@@ -131,10 +132,11 @@ public class TestTransactionWithConcurrentCallable extends ClientTestBase {
     // commit one secondary lock fail
     deleteOldDataAndUpdateTs();
     prepareCommit();
-    HBaseAdmin admin = new HBaseAdmin(connection.getConfiguration());
-    admin.disableTable(ANOTHER_TABLENAME);
+    Admin admin = connection.getAdmin();
+    TableName tn = TableName.valueOf(ANOTHER_TABLENAME);
+    admin.disableTable(tn);
     transaction.commitSecondaries();
-    admin.enableTable(ANOTHER_TABLENAME);
+    admin.enableTable(tn);
     for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
       RowMutation rowMutation = secondaryRow.getSecond();
       for (Column column : rowMutation.getColumns()) {

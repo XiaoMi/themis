@@ -45,12 +45,14 @@ public class ColumnCoordinate extends Column {
     return this.row;
   }
 
+  @Override
   public void write(DataOutput out) throws IOException {
     Bytes.writeByteArray(out, tableName);
     Bytes.writeByteArray(out, row);
     super.write(out);
   }
 
+  @Override
   public void readFields(DataInput in) throws IOException {
     tableName = Bytes.readByteArray(in);
     row = Bytes.readByteArray(in);

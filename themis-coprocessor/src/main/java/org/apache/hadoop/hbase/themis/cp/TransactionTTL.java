@@ -19,7 +19,7 @@ public class TransactionTTL {
   public static TimestampType timestampType = TimestampType.CHRONOS;
   public static boolean transactionTTLEnable;
   
-  public static enum TimestampType {
+  public enum TimestampType {
     CHRONOS,
     MS
   }

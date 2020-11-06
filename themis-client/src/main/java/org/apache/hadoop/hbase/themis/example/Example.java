@@ -6,9 +6,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.themis.ThemisGet;
 import org.apache.hadoop.hbase.themis.ThemisPut;
@@ -23,33 +24,28 @@ public class Example {
   private static final byte[] CASHTABLE = Bytes.toBytes("CashTable"); // cash table
   private static final byte[] JOE = Bytes.toBytes("Joe"); // row for Joe
   private static final byte[] BOB = Bytes.toBytes("Bob"); // row for Bob
-  private static final byte[][] splits = new byte[][]{Bytes.toBytes("C")};
+  private static final byte[][] SPLITS = new byte[][]{Bytes.toBytes("C")};
   private static final byte[] FAMILY = Bytes.toBytes("Account");
   private static final byte[] CASH = Bytes.toBytes("cash");
   private static Configuration conf;
   
-  protected static void createTable(HConnection connection) throws IOException {
-    HBaseAdmin admin = null;
-    try {
-      admin = new HBaseAdmin(connection);
-      if (!admin.tableExists(CASHTABLE)) {
-        HTableDescriptor tableDesc = new HTableDescriptor(CASHTABLE);
+  protected static void createTable(Connection connection) throws IOException {
+    final TableName table = TableName.valueOf(CASHTABLE);
+    try (Admin admin = connection.getAdmin()) {
+      if (!admin.tableExists(table)) {
+        HTableDescriptor tableDesc = new HTableDescriptor(table);
         HColumnDescriptor themisCF = new HColumnDescriptor(FAMILY);
         // set THEMIS_ENABLE to allow Themis transaction on this family
         themisCF.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
         tableDesc.addFamily(themisCF);
         // the splits makes rows of Joe and Bob located in different regions
-        admin.createTable(tableDesc, splits);
+        admin.createTable(tableDesc, SPLITS);
       } else {
         System.out.println(Bytes.toString(CASHTABLE)
-            + " exist, won't create, please check the schema of the table");
-        if (!admin.isTableEnabled(CASHTABLE)) {
-          admin.enableTable(CASHTABLE);
+                + " exist, won't create, please check the schema of the table");
+        if (!admin.isTableEnabled(table)) {
+          admin.enableTable(table);
         }
-      }
-    } finally {
-      if (admin != null) {
-        admin.close();
       }
     }
   }
@@ -57,7 +53,7 @@ public class Example {
   public static void main(String args[]) throws IOException {
     System.out.println("\n############################The Themis Example###########################\n");
     conf = HBaseConfiguration.create();
-    HConnection connection = HConnectionManager.createConnection(conf);
+    Connection connection = ConnectionFactory.createConnection(conf);
     // will create 'CashTable' for test, the corresponding shell command is:
     // create 'CashTable', {NAME=>'ThemisCF', CONFIG => {'THEMIS_ENABLE', 'true'}}
     createTable(connection);

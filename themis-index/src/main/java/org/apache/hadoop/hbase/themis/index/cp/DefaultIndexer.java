@@ -7,12 +7,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.themis.ThemisScan;
 import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.cache.ColumnMutationCache;
@@ -37,30 +39,28 @@ public class DefaultIndexer extends Indexer {
   }
   
   protected void loadSecondaryIndexes() throws IOException {
-    HBaseAdmin admin = new HBaseAdmin(getConf());
-    try {
-      HTableDescriptor[] descs = admin.listTables();
-      for (HTableDescriptor desc : descs) {
+    Connection connection = ConnectionFactory.createConnection(getConf());
+    try (Admin admin = connection.getAdmin()) {
+      List<TableDescriptor> descs = admin.listTableDescriptors();
+      for (TableDescriptor desc : descs) {
         loadSecondaryIndexesForTable(desc, columnIndexes);
       }
-    } finally {
-      admin.close();
     }
   }
   
-  protected void loadSecondaryIndexesForTable(HTableDescriptor desc,
+  protected void loadSecondaryIndexesForTable(TableDescriptor desc,
       Map<IndexColumn, String> columnIndexes) throws IOException {
-    for (HColumnDescriptor family : desc.getFamilies()) {
+    for (ColumnFamilyDescriptor family : desc.getColumnFamilies()) {
       if (IndexMasterObserver.isSecondaryIndexEnableFamily(family)) {
         List<Pair<String, String>> indexNameAndColumns = IndexMasterObserver
-            .getIndexNameAndColumns(desc.getNameAsString(), family);
+            .getIndexNameAndColumns(desc.getTableName().getNameAsString(), family);
         for (Pair<String, String> indexNameAndColumn : indexNameAndColumns) {
           String indexName = indexNameAndColumn.getFirst();
           String column = indexNameAndColumn.getSecond();
-          IndexColumn indexColumn = new IndexColumn(desc.getName(), family.getName(),
+          IndexColumn indexColumn = new IndexColumn(desc.getTableName().getName(), family.getName(),
               Bytes.toBytes(column));
           String indexTableName = IndexMasterObserver.constructSecondaryIndexTableName(
-            desc.getNameAsString(), family.getNameAsString(), column, indexName);
+            desc.getTableName().getNameAsString(), family.getNameAsString(), column, indexName);
           if (!columnIndexes.containsKey(indexColumn)) {
             columnIndexes.put(indexColumn, indexTableName);
           } else {

@@ -8,12 +8,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.util.Bytes;
 
 public class PrimaryLock extends ThemisLock {
   static class ColumnCoordinateComparator implements Comparator<ColumnCoordinate> {
+    @Override
     public int compare(ColumnCoordinate o1, ColumnCoordinate o2) {
       int ret = Bytes.compareTo(o1.getTableName(), o2.getTableName());
       if (ret == 0) {
@@ -27,24 +28,23 @@ public class PrimaryLock extends ThemisLock {
     }
   }
   private static final ColumnCoordinateComparator COLUMN_COORDINATE_COMPARATOR = new ColumnCoordinateComparator();
-  protected Map<ColumnCoordinate, Type> secondaryColumns = new TreeMap<ColumnCoordinate, Type>(
-      COLUMN_COORDINATE_COMPARATOR);
+  protected Map<ColumnCoordinate, Cell.Type> secondaryColumns = new TreeMap<>(COLUMN_COORDINATE_COMPARATOR);
 
   public PrimaryLock() {}
   
-  public PrimaryLock(Type type) {
+  public PrimaryLock(Cell.Type type) {
     super(type);
   }
   
-  public Type getSecondaryColumn(ColumnCoordinate columnCoordinate) {
+  public Cell.Type getSecondaryColumn(ColumnCoordinate columnCoordinate) {
     return secondaryColumns.get(columnCoordinate);
   }
   
-  public Map<ColumnCoordinate, Type> getSecondaryColumns() {
+  public Map<ColumnCoordinate, Cell.Type> getSecondaryColumns() {
     return secondaryColumns;
   }
   
-  public void addSecondaryColumn(ColumnCoordinate columnCoordinate, Type put) {
+  public void addSecondaryColumn(ColumnCoordinate columnCoordinate, Cell.Type put) {
     this.secondaryColumns.put(columnCoordinate, put);
   }
   
@@ -52,7 +52,7 @@ public class PrimaryLock extends ThemisLock {
   public void write(DataOutput out) throws IOException {
     super.write(out);
     out.writeInt(secondaryColumns.size());
-    for (Entry<ColumnCoordinate, Type> columnAndType : secondaryColumns.entrySet()) {
+    for (Entry<ColumnCoordinate, Cell.Type> columnAndType : secondaryColumns.entrySet()) {
       columnAndType.getKey().write(out);
       out.writeByte(columnAndType.getValue().getCode());
     }
@@ -62,11 +62,11 @@ public class PrimaryLock extends ThemisLock {
   public void readFields(DataInput in) throws IOException {
     super.readFields(in);
     int secondarySize = in.readInt();
-    secondaryColumns = new TreeMap<ColumnCoordinate, Type>(COLUMN_COORDINATE_COMPARATOR);
+    secondaryColumns = new TreeMap<>(COLUMN_COORDINATE_COMPARATOR);
     for (int i = 0; i < secondarySize; ++i) {
       ColumnCoordinate columnCoordinate = new ColumnCoordinate();
       columnCoordinate.readFields(in);
-      Type type = Type.codeToType(in.readByte());
+      Cell.Type type = Cell.Type.valueOf(in.readUTF());
       secondaryColumns.put(columnCoordinate, type);
     }
   }
@@ -77,7 +77,7 @@ public class PrimaryLock extends ThemisLock {
       return false;
     }
     PrimaryLock lock = (PrimaryLock)object;
-    if (!super.equals((ThemisLock)lock)) {
+    if (!super.equals(lock)) {
       return false;
     }
     if (!lock.isPrimary()) {
@@ -86,9 +86,9 @@ public class PrimaryLock extends ThemisLock {
     if (this.secondaryColumns.size() != lock.secondaryColumns.size()) {
       return false;
     }
-    for (Entry<ColumnCoordinate, Type> columnAndType : secondaryColumns.entrySet()) {
-      Type type = lock.secondaryColumns.get(columnAndType.getKey());
-      if (type == null || !columnAndType.getValue().equals(type)) {
+    for (Entry<ColumnCoordinate, Cell.Type> columnAndType : secondaryColumns.entrySet()) {
+      Cell.Type type = lock.secondaryColumns.get(columnAndType.getKey());
+      if (!columnAndType.getValue().equals(type)) {
         return false;
       }
     }
@@ -98,7 +98,7 @@ public class PrimaryLock extends ThemisLock {
   @Override
   public String toString() {
     String result = super.toString() + "/secondariesSize=" + secondaryColumns.size() + "\n";
-    for (Entry<ColumnCoordinate, Type> columnAndType : secondaryColumns.entrySet()) {
+    for (Entry<ColumnCoordinate, Cell.Type> columnAndType : secondaryColumns.entrySet()) {
       result += columnAndType.getKey() + " : " + columnAndType.getValue() + "\n";
     }
     return result;

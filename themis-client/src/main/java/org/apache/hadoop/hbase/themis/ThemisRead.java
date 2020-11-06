@@ -11,6 +11,7 @@ import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil.FilterCallable;
 
 // abstract class for ThemisGet/Scan
 public abstract class ThemisRead extends ThemisRequest {
+  @Override
   protected boolean hasColumn() {
     return getFamilyMap() != null && getFamilyMap().size() != 0;
   }
@@ -29,6 +30,7 @@ public abstract class ThemisRead extends ThemisRequest {
   // Filters in HBase which refer to timestamp or column match
   public ThemisRead setFilter(Filter filter) throws IOException {
     ThemisCpUtil.processFilters(filter, new FilterCallable() {
+      @Override
       public void processConcreteFilter(Filter filter) throws IOException {
         Class<? extends Filter> filterCls = filter.getClass();
         if (ThemisCpUtil.DISALLOWD_FILTERS.contains(filterCls)) {

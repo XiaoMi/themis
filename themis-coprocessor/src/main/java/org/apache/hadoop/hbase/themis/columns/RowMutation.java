@@ -3,34 +3,33 @@ package org.apache.hadoop.hbase.themis.columns;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 
 // index mutations of the same row by columns
 public class RowMutation {
   private byte[] row;
-  private Map<Column, Pair<Type, byte[]>> mutations = new TreeMap<Column, Pair<Type,byte[]>>();
+  private Map<Column, Pair<Cell.Type, byte[]>> mutations = new TreeMap<>();
 
   public RowMutation(byte[] row) {
     this.row = row;
   }
   
-  public boolean addMutation(byte[] family, byte[] qualifier, Type type, byte[] value) {
+  public boolean addMutation(byte[] family, byte[] qualifier, Cell.Type type, byte[] value) {
     return addMutation(new Column(family, qualifier), type, value);
   }
   
   public boolean addMutation(byte[] family, byte[] qualifier, byte type, byte[] value) {
-    return addMutation(family, qualifier, Type.codeToType(type), value);
+    return addMutation(family, qualifier, type, value);
   }
   
-  public boolean addMutation(Column column, Type type, byte[] value) {
+  public boolean addMutation(Column column, Cell.Type type, byte[] value) {
     boolean contained = mutations.containsKey(column);
-    mutations.put(column, new Pair<Type, byte[]>(type, value));
+    mutations.put(column, new Pair<>(type, value));
     return !contained;
   }
   
@@ -44,7 +43,7 @@ public class RowMutation {
   
   public List<ColumnMutation> mutationList(boolean withValue) {
     List<ColumnMutation> rowMutations = new ArrayList<ColumnMutation>();
-    for (Entry<Column, Pair<Type, byte[]>> entry : mutations.entrySet()) {
+    for (Map.Entry<Column, Pair<Cell.Type, byte[]>> entry : mutations.entrySet()) {
       ColumnMutation mutation = new ColumnMutation(entry.getKey(), entry.getValue().getFirst(),
           withValue ? entry.getValue().getSecond() : null);
       rowMutations.add(mutation);
@@ -73,15 +72,15 @@ public class RowMutation {
     return row;
   }
   
-  public Type getType(Column column) {
-    Pair<Type, byte[]> mutation = getMutation(column);
+  public Cell.Type getType(Column column) {
+    Pair<Cell.Type, byte[]> mutation = getMutation(column);
     if (mutation != null) {
       return mutation.getFirst();
     }
     return null;
   }
   
-  public Pair<Type, byte[]> getMutation(Column column) {
+  public Pair<Cell.Type, byte[]> getMutation(Column column) {
     return mutations.get(column);
   }
 

@@ -5,23 +5,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
@@ -31,7 +34,6 @@ import org.apache.hadoop.hbase.themis.columns.ColumnCoordinate;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.columns.RowMutation;
-import org.apache.hadoop.hbase.themis.columns.ColumnUtil.CommitFamily;
 import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -47,9 +49,9 @@ public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_PAUSE = 200;
   protected static HBaseTestingUtility TEST_UTIL;
   
-  protected HConnection connection;
-  protected HTableInterface table;
-  protected HTableInterface anotherTable;
+  protected Connection connection;
+  protected Table table;
+  protected Table anotherTable;
 
   protected static Configuration conf;
   // the following ts has effect across uts
@@ -112,15 +114,17 @@ public class TransactionTestBase extends TestBase {
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster();
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
-    HBaseAdmin admin = new HBaseAdmin(conf);
+    Admin admin = ConnectionFactory.createConnection(conf).getAdmin();
     for (byte[] tableName : new byte[][]{TABLENAME, ANOTHER_TABLENAME}) {
-      HTableDescriptor tableDesc = new HTableDescriptor(tableName);
+      TableDescriptorBuilder tableDescriptorBuilder = TableDescriptorBuilder
+              .newBuilder(TableName.valueOf(tableName));
       for (byte[] family : new byte[][]{FAMILY, ANOTHER_FAMILY}) {
-        HColumnDescriptor columnDesc = new HColumnDescriptor(family);
-        columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
-        tableDesc.addFamily(columnDesc);
+        ColumnFamilyDescriptor columnDesc = ColumnFamilyDescriptorBuilder.newBuilder(family)
+                .setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true")
+                .build();
+        tableDescriptorBuilder.setColumnFamily(columnDesc);
       }
-      admin.createTable(tableDesc);
+      admin.createTable(tableDescriptorBuilder.build());
     }
     admin.close();
     TransactionTTL.init(conf);
@@ -135,9 +139,9 @@ public class TransactionTestBase extends TestBase {
   
   @Before
   public void initEnv() throws IOException {
-    connection = HConnectionManager.createConnection(conf);
-    table = connection.getTable(TABLENAME);
-    anotherTable = connection.getTable(ANOTHER_TABLENAME);
+    connection = ConnectionFactory.createConnection(conf);
+    table = connection.getTable(TableName.valueOf(TABLENAME));
+    anotherTable = connection.getTable(TableName.valueOf(ANOTHER_TABLENAME));
     deleteOldDataAndUpdateTs();
     cpClient = new ThemisCoprocessorClient(connection);
   }
@@ -146,23 +150,23 @@ public class TransactionTestBase extends TestBase {
     deleteOldDataAndUpdateTs(table, anotherTable);
   }
   
-  protected void deleteOldDataAndUpdateTs(HTableInterface table) throws IOException {
-    deleteOldDataAndUpdateTs(new HTableInterface[]{table});
+  protected void deleteOldDataAndUpdateTs(Table table) throws IOException {
+    deleteOldDataAndUpdateTs(new Table[]{table});
   }
   
-  protected void deleteOldDataAndUpdateTs(HTableInterface... tables) throws IOException {
+  protected void deleteOldDataAndUpdateTs(Table... tables) throws IOException {
     boolean allDataCleaned = false;
     do {
       nextTransactionTs();
       allDataCleaned = true;
-      for (HTableInterface hTable : tables) {
+      for (Table hTable : tables) {
         for (byte[] row : new byte[][] { ROW, ANOTHER_ROW, ZZ_ROW }) {
-          hTable.delete(new Delete(row).deleteFamily(FAMILY, timestampBase)
-              .deleteFamily(ANOTHER_FAMILY, timestampBase)
-              .deleteFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
+          hTable.delete(new Delete(row).addFamily(FAMILY, timestampBase)
+              .addFamily(ANOTHER_FAMILY, timestampBase)
+              .addFamily(ColumnUtil.LOCK_FAMILY_NAME, timestampBase));
           if (!ColumnUtil.isCommitToSameFamily()) {
-            hTable.delete(new Delete(row).deleteFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES,
-              timestampBase).deleteFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES, timestampBase));
+            hTable.delete(new Delete(row).addFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES,
+              timestampBase).addFamily(ColumnUtil.DELETE_FAMILY_NAME_BYTES, timestampBase));
           }
         }
 
@@ -171,14 +175,14 @@ public class TransactionTestBase extends TestBase {
         while ((result = scanner.next()) != null) {
           allDataCleaned = false;
           System.out.println("###debug, result=" + result + ", table="
-              + Bytes.toString(hTable.getTableName()));
+              + Bytes.toString(hTable.getName().getName()));
         }
         scanner.close();
       }
     } while (!allDataCleaned);
   }
   
-  protected HTableInterface getTable(byte[] tableName) throws IOException {
+  protected Table getTable(byte[] tableName) throws IOException {
     if (Bytes.equals(TABLENAME, tableName)) {
       return table;
     } else if (Bytes.equals(ANOTHER_TABLENAME, tableName)) {
@@ -245,14 +249,14 @@ public class TransactionTestBase extends TestBase {
   }
   
   protected void writeLockAndData(ColumnCoordinate c, long prewriteTs) throws IOException {
-    Type type = getColumnType(c);
+    Cell.Type type = getColumnType(c);
     if (type.equals(Type.Put)) {
       writeData(c, prewriteTs);
     }
     Column lc = ColumnUtil.getLockColumn(c);
-    HTableInterface table = getTable(c.getTableName());
+    Table table = getTable(c.getTableName());
     byte[] lockBytes = ThemisLock.toByte(getLock(c, prewriteTs));
-    table.put(new Put(c.getRow()).add(lc.getFamily(), lc.getQualifier(), prewriteTs, lockBytes));        
+    table.put(new Put(c.getRow()).addColumn(lc.getFamily(), lc.getQualifier(), prewriteTs, lockBytes));
   }
   
   protected void writePutAndData(ColumnCoordinate c, long prewriteTs, long commitTs) throws IOException {
@@ -265,8 +269,8 @@ public class TransactionTestBase extends TestBase {
   }
   
   public void writeData(ColumnCoordinate c, long prewriteTs, byte[] value) throws IOException {
-    HTableInterface table = getTable(c.getTableName());
-    table.put(new Put(c.getRow()).add(c.getFamily(), c.getQualifier(), prewriteTs, value));
+    Table table = getTable(c.getTableName());
+    table.put(new Put(c.getRow()).addColumn(c.getFamily(), c.getQualifier(), prewriteTs, value));
   }
   
   protected void writePutColumn(ColumnCoordinate c, long prewriteTs, long commitTs) throws IOException {
@@ -300,7 +304,7 @@ public class TransactionTestBase extends TestBase {
   }
   
   private void writeWriteColumnInternal(ColumnCoordinate c, long prewriteTs, long commitTs) throws IOException {
-    Put put = new Put(c.getRow()).add(c.getFamily(), c.getQualifier(), commitTs,
+    Put put = new Put(c.getRow()).addColumn(c.getFamily(), c.getQualifier(), commitTs,
       Bytes.toBytes(prewriteTs));
     getTable(c.getTableName()).put(put);
   }
@@ -337,10 +341,10 @@ public class TransactionTestBase extends TestBase {
   
   protected byte[] readDataValue(ColumnCoordinate c, long ts) throws IOException {
     Result result = readData(c, ts);
-    if (result.list() == null || result.list().size() == 0) {
+    if (result.listCells() == null || result.listCells().size() == 0) {
       return null;
     }
-    return result.list().get(0).getValue();
+    return result.listCells().get(0).getValueArray();
   }
   
   protected Result readData(ColumnCoordinate c, long ts) throws IOException {
@@ -352,7 +356,7 @@ public class TransactionTestBase extends TestBase {
   
   protected void eraseLock(ColumnCoordinate c, long ts) throws IOException {
     Column lc = ColumnUtil.getLockColumn(c);
-    Delete delete = new Delete(c.getRow()).deleteColumn(lc.getFamily(), lc.getQualifier(), ts);
+    Delete delete = new Delete(c.getRow()).addColumn(lc.getFamily(), lc.getQualifier(), ts);
     getTable(c.getTableName()).delete(delete);
   }
   
@@ -522,30 +526,33 @@ public class TransactionTestBase extends TestBase {
     commitSecondaryRow();
   }
   
-  protected void deleteTable(HBaseAdmin admin, byte[] tableName) throws IOException {
-    if (admin.tableExists(tableName)) {
-      if (admin.isTableEnabled(tableName)) {
-        admin.disableTable(tableName);
+  protected void deleteTable(Admin admin, byte[] tableName) throws IOException {
+    TableName tn = TableName.valueOf(tableName);
+    if (admin.tableExists(tn)) {
+      if (admin.isTableEnabled(tn)) {
+        admin.disableTable(tn);
       }
-      admin.deleteTable(tableName);
+      admin.deleteTable(tn);
     }
   }
   
   protected void truncateTable(byte[] tableName) throws IOException {
-    HBaseAdmin admin = new HBaseAdmin(conf);
-    HTableDescriptor desc = admin.getTableDescriptor(tableName);
-    admin.disableTable(tableName);
-    admin.deleteTable(tableName);
+    Admin admin = connection.getAdmin();
+    final TableName tn = TableName.valueOf(tableName);
+    HTableDescriptor desc = admin.getTableDescriptor(tn);
+
+    admin.disableTable(tn);
+    admin.deleteTable(tn);
     admin.createTable(desc);
-    connection.clearRegionCache(tableName);
+    connection.clearRegionLocationCache();
     admin.close();
   }
   
-  protected void checkResultKvColumn(Column expect, KeyValue kv) {
+  protected void checkResultKvColumn(Column expect, Cell kv) {
     Column column = expect;
     if (expect instanceof ColumnCoordinate) {
       column = getColumn((ColumnCoordinate)expect);
     }
-    Assert.assertTrue(column.equals(new Column(kv.getFamily(), kv.getQualifier())));
+    Assert.assertEquals(column, new Column(kv.getFamilyArray(), kv.getQualifierArray()));
   }
 }

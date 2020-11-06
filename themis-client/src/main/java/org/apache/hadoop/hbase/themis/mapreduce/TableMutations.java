@@ -7,16 +7,17 @@ import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import org.apache.hadoop.hbase.client.Mutation;
-import org.apache.hadoop.hbase.io.HbaseObjectWritable;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Writable;
 
-public class TableMutations implements Writable {
+public class TableMutations extends Mutation implements Writable {
   private List<Mutation> mutations = new ArrayList<Mutation>();
   private byte [] tableName;
 
@@ -36,20 +37,69 @@ public class TableMutations implements Writable {
     this.tableName = Bytes.readByteArray(in);
     int numMutations = in.readInt();
     mutations.clear();
+
     for(int i = 0; i < numMutations; i++) {
-      mutations.add((Mutation) HbaseObjectWritable.readObject(in, null));
+      readMutation(in);
     }
   }
 
-  @Override
+  private void readMutation(DataInput in) throws IOException {
+    ByteArrayInputStream bin = null;
+    ObjectInputStream ois = null;
+    try {
+      int size = in.readInt();
+      byte[] data = new byte[size];
+      in.readFully(data);
+
+      bin = new ByteArrayInputStream(data);
+      ois = new ObjectInputStream(bin);
+
+      mutations.add((Mutation) ois.readObject());
+    } catch (ClassNotFoundException e) {
+      throw new IOException(e);
+    } finally {
+      if (bin != null) {
+        bin.close();
+      }
+
+      if (ois != null) {
+        ois.close();
+      }
+    }
+  }
+
+    @Override
   public void write(final DataOutput out) throws IOException {
     Bytes.writeByteArray(out, this.tableName);
     out.writeInt(mutations.size());
     for (Mutation m : mutations) {
-      HbaseObjectWritable.writeObject(out, m, m.getClass(), null);
+      writeMutation(out, m);
     }
   }
-  
+
+  private void writeMutation(DataOutput out, Mutation m) throws IOException {
+    ByteArrayOutputStream bos = null;
+    ObjectOutputStream oos = null;
+    try {
+      bos = new ByteArrayOutputStream();
+      oos = new ObjectOutputStream(bos);
+      oos.writeObject(m);
+
+      byte[] data = bos.toByteArray();
+      int size = data.length;
+      out.writeInt(size);
+      out.write(data);
+    } finally {
+     if(bos!=null) {
+       bos.close();
+     }
+
+     if(oos!=null) {
+       oos.close();
+     }
+    }
+  }
+
   public TableMutations cloneTableMuations() throws IOException {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     this.write(new DataOutputStream(os));
@@ -66,11 +116,12 @@ public class TableMutations implements Writable {
     return tableName;
   }
   
+  @Override
   public String toString() {
-    String result = "TableName=" + Bytes.toString(tableName) + "\n";
+    StringBuilder result = new StringBuilder("TableName=" + Bytes.toString(tableName) + "\n");
     for (Mutation mutation : mutations) {
-      result += (mutation.toString() + "\n");
+      result.append(mutation.toString()).append("\n");
     }
-    return result;
+    return result.toString();
   }
 }

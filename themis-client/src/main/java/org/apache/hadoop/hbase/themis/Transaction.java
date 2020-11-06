@@ -14,10 +14,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue.Type;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.ConcurrentRowCallables.TableAndRow;
@@ -47,7 +47,7 @@ import org.apache.hadoop.hbase.util.Threads;
 
 public class Transaction extends Configured implements TransactionInterface {
   private static final Log LOG = LogFactory.getLog(Transaction.class);
-  private HConnection connection;
+  private Connection connection;
   private ThemisTimestamp timestampOracle;
   protected LockCleaner lockCleaner;
   // wallClock will be include into lock to judge whether the transaction is expired
@@ -76,17 +76,17 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   // will use the connection.getConfiguation() to config the Transaction
-  public Transaction(HConnection connection) throws IOException {
+  public Transaction(Connection connection) throws IOException {
     this(connection.getConfiguration(), connection);
   }
   
-  public Transaction(Configuration conf, HConnection connection)
+  public Transaction(Configuration conf, Connection connection)
       throws IOException {
     this(conf, connection, TimestampOracleFactory.getTimestampOracle(conf), WorkerRegister
         .getWorkerRegister(conf));
   }
   
-  protected Transaction(Configuration conf, HConnection connection,
+  protected Transaction(Configuration conf, Connection connection,
       BaseTimestampOracle timestampOracle, WorkerRegister register) throws IOException {
     setConf(conf);
     this.connection = connection;
@@ -134,8 +134,8 @@ public class Transaction extends Configured implements TransactionInterface {
 
   // merge mutation with same column coordinate
   protected void mergeMutation(byte[] tableName, Mutation mutation) throws IOException {
-    for (Entry<byte[], List<KeyValue>> entry : mutation.getFamilyMap().entrySet()) {
-      for (KeyValue keyValue : entry.getValue()) {
+    for (Entry<byte[], List<Cell>> entry : mutation.getFamilyCellMap().entrySet()) {
+      for (Cell keyValue : entry.getValue()) {
         mutationCache.addMutation(tableName, keyValue);
       }
     }
@@ -150,7 +150,7 @@ public class Transaction extends Configured implements TransactionInterface {
       // locks and need to clean lock before retry
       if (ThemisCpUtil.isLockResult(pResult)) {
         lockClean = true;
-        return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.list());
+        return tryToCleanLockAndGetAgain(tableName, userGet.getHBaseGet(), pResult.listCells());
       }
       return pResult;
     } finally {
@@ -160,7 +160,7 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   protected Result tryToCleanLockAndGetAgain(byte[] tableName, Get get,
-      List<KeyValue> lockKvs) throws IOException {
+      List<Cell> lockKvs) throws IOException {
     if (disableLockClean) {
       throw new LockConflictException("lockClean disabled, can't be cleaned after lockResult="
           + lockKvs);
@@ -178,7 +178,7 @@ public class Transaction extends Configured implements TransactionInterface {
       // should not encounter lock conflict as we ignore conflict lock this time
       throw new ThemisFatalException(
           "encounter conflict lock after lock clean when read, conflict lock kv count="
-              + pResult.list().size() + ", lockKvs=" + pResult.list());
+              + pResult.listCells().size() + ", lockKvs=" + pResult.listCells());
     }
     return pResult;
   }
@@ -224,7 +224,7 @@ public class Transaction extends Configured implements TransactionInterface {
     }
   }
   
-  public HConnection getHConnection() {
+  public Connection getHConnection() {
     return this.connection;
   }
   
@@ -316,7 +316,7 @@ public class Transaction extends Configured implements TransactionInterface {
     if (secondaryRows.size() == 0) {
       singleRowTransaction = true;
     }
-    SecondaryLock secondaryLock = constructSecondaryLock(Type.Put);
+    SecondaryLock secondaryLock = constructSecondaryLock(Cell.Type.Put);
     secondaryLockBytesWithoutType = secondaryLock == null ? null : ThemisLock.toByte(secondaryLock);
   }
   
@@ -393,7 +393,7 @@ public class Transaction extends Configured implements TransactionInterface {
     return lock;
   }
   
-  protected SecondaryLock constructSecondaryLock(Type type) {
+  protected SecondaryLock constructSecondaryLock(Cell.Type type) {
     // indicates there are no secondaries, is single-column transactions
     if (primaryRow.size() <= 1 && secondaryRows.size() == 0) {
       return null;
@@ -447,14 +447,13 @@ public class Transaction extends Configured implements TransactionInterface {
 
   protected void concurrentCommitSecondaries() throws IOException {
     ConcurrentRowCallables<Void> calls = new ConcurrentRowCallables<Void>(getThreadPool());
-    for (int i = 0; i < secondaryRows.size(); ++i) {
-      final Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+    for (final Pair<byte[], RowMutation> secondaryRow : secondaryRows) {
       calls.addCallable(new RowCallable<Void>(secondaryRow.getFirst(),
-          secondaryRow.getSecond().getRow()) {
+              secondaryRow.getSecond().getRow()) {
         @Override
         public Void call() throws Exception {
           cpClient.commitSecondaryRow(secondaryRow.getFirst(), secondaryRow.getSecond().getRow(),
-            secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
+                secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
           return null;
         }
       });
@@ -471,16 +470,15 @@ public class Transaction extends Configured implements TransactionInterface {
   }
   
   public void commitSecondaries() throws IOException {
-    for (int i = 0; i < secondaryRows.size(); ++i) {
-      Pair<byte[], RowMutation> secondaryRow = secondaryRows.get(i);
+    for (Pair<byte[], RowMutation> secondaryRow : secondaryRows) {
       try {
         cpClient.commitSecondaryRow(secondaryRow.getFirst(), secondaryRow.getSecond().getRow(),
-          secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
+                secondaryRow.getSecond().mutationListWithoutValue(), startTs, commitTs);
       } catch (IOException e) {
-        // fail of secondary commit will not stop the commits of next seconderies
+          // fail of secondary commit will not stop the commits of next seconderies
         LOG.warn("commit secondary fail, table=" + Bytes.toString(secondaryRow.getFirst())
-            + ", put=" + secondaryRow.getSecond() + ", prewriteTs=" + startTs
-            + ", will continue committing next column", e);
+                + ", put=" + secondaryRow.getSecond() + ", prewriteTs=" + startTs
+                + ", will continue committing next column", e);
       }
     }
   }

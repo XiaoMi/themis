@@ -1,28 +1,29 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.coprocessor.RegionObserver;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
-import org.apache.hadoop.hbase.regionserver.Store.ScanInfo;
+import org.apache.hadoop.hbase.regionserver.compactions.CompactionLifeCycleTracker;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
-import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.wal.WALEdit;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 
-public class ThemisRegionObserver extends BaseRegionObserver {
+public class ThemisRegionObserver implements RegionObserver, RegionCoprocessor {
   private static final Log LOG = LogFactory.getLog(ThemisRegionObserver.class);
   
   public static final String THEMIS_DELETE_THEMIS_DELETED_DATA_WHEN_COMPACT = "themis.delete.themis.deleted.data.when.compact";
@@ -33,7 +34,6 @@ public class ThemisRegionObserver extends BaseRegionObserver {
 
   @Override
   public void start(CoprocessorEnvironment e) throws IOException {
-    super.start(e);
     ColumnUtil.init(e.getConfiguration());
     expiredDataCleanEnable = e.getConfiguration().getBoolean(
       ThemisMasterObserver.THEMIS_EXPIRED_DATA_CLEAN_ENABLE_KEY, true);
@@ -43,22 +43,21 @@ public class ThemisRegionObserver extends BaseRegionObserver {
       LOG.info("themis expired data clean enable, deleteThemisDeletedDataWhenCompact=" + deleteThemisDeletedDataWhenCompact);
     }
   }
-  
+
   @Override
   public void prePut(final ObserverContext<RegionCoprocessorEnvironment> c, final Put put,
-      final WALEdit edit, final boolean writeToWAL) throws IOException {
+      final WALEdit edit, Durability durability) throws IOException {
     byte[] primaryQualifier = put.getAttribute(SINGLE_ROW_PRIMARY_QUALIFIER);
     if (primaryQualifier != null) {
-      HRegion region = c.getEnvironment().getRegion();
-      List<KeyValue> kvs = put.getFamilyMap().get(ColumnUtil.LOCK_FAMILY_NAME);
+      Region region = c.getEnvironment().getRegion();
+      List<Cell> kvs = put.getFamilyCellMap().get(ColumnUtil.LOCK_FAMILY_NAME);
       if (kvs.size() != put.size() || kvs.size() == 0) {
         throw new IOException(
             "contain no-lock family kvs when do prewrite for single row transaction, put=" + put);
       }
 
-      Store lockStore = region.getStore(ColumnUtil.LOCK_FAMILY_NAME);
-      long addedSize = 0;
-      
+      HStore lockStore = (HStore) region.getStore(ColumnUtil.LOCK_FAMILY_NAME);
+
       // we must make sure all the kvs of lock family be written to memstore at the same time,
       // if not, secondary lock kvs might be written firstly, snapshot and flushed while primary
       // kv not, which will break the atomic of transaction if region server is crashed before
@@ -68,7 +67,7 @@ public class ThemisRegionObserver extends BaseRegionObserver {
         // we must write lock for primary firstly
         int primaryIndex = -1;
         for (int i = 0; i < kvs.size(); ++i) {
-          if (Bytes.equals(primaryQualifier, kvs.get(i).getQualifier())) {
+          if (Bytes.equals(primaryQualifier, kvs.get(i).getQualifierArray())) {
             primaryIndex = i;
           }
         }
@@ -78,14 +77,21 @@ public class ThemisRegionObserver extends BaseRegionObserver {
               + Bytes.toString(primaryQualifier) + ", put=" + put);
         }
 
-        kvs.get(primaryIndex).setMemstoreTS(0); // visible by any read
-        addedSize += lockStore.memstore.add(kvs.get(primaryIndex));
+        KeyValue newCell = new KeyValue(kvs.get(primaryIndex));
+        // visible by any read
+        newCell.setTimestamp(0);
+        kvs.set(primaryIndex, newCell);
+
+        MemStoreSizing memstoreAccounting = new NonThreadSafeMemStoreSizing();
+        lockStore.memstore.add(kvs.get(primaryIndex), memstoreAccounting);
 
         // then, we write secondaries' locks
         for (int i = 0; i < kvs.size(); ++i) {
           if (i != primaryIndex) {
-            kvs.get(i).setMemstoreTS(0);
-            addedSize += lockStore.memstore.add(kvs.get(i));
+            newCell = new KeyValue(kvs.get(primaryIndex));
+            newCell.setTimestamp(0);
+            kvs.set(i, newCell);
+            lockStore.memstore.add(kvs.get(i), memstoreAccounting);
           }
         }
       } finally {
@@ -95,84 +101,66 @@ public class ThemisRegionObserver extends BaseRegionObserver {
       //        of memory. There is a corner case when there are only prewrites for single row transaction,
       //        we need to avoid memstore exceeds upper bound in this situation
       // TODO : keep region size consistent with memestore size(move to finally)
-      region.addAndGetGlobalMemstoreSize(addedSize);
+      //memstoreAccounting has been updated
       c.bypass();
     }
   }
 
   @Override
-  public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
-      throws IOException {
-    if (expiredDataCleanEnable
-        && (ThemisMasterObserver.isThemisEnableFamily(store.getFamily()) || ColumnUtil
-            .isCommitFamily(store.getFamily().getName()))) {
-      InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.scanInfo,
-        Collections.singletonList(memstoreScanner), ScanType.MINOR_COMPACT, store.getHRegion()
-            .getSmallestReadPoint(), HConstants.OLDEST_TIMESTAMP, false);
-      if (scanner != null) {
-        return scanner;
-      }
+  public void preFlushScannerOpen(ObserverContext<RegionCoprocessorEnvironment> c, Store store, ScanOptions options, FlushLifeCycleTracker tracker) throws IOException {
+    if (expiredDataCleanEnable && (ThemisMasterObserver.isThemisEnableFamily(store.getColumnFamilyDescriptor())
+            || ColumnUtil.isCommitFamily(store.getColumnFamilyDescriptor().getName()))) {
+      getScannerToCleanExpiredThemisData(store, ScanType.COMPACT_DROP_DELETES, options, true);
     }
-    return s;
   }
-  
+
   @Override
-  public InternalScanner preCompactScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      final Store store, List<? extends KeyValueScanner> scanners, final ScanType scanType,
-      final long earliestPutTs, final InternalScanner s, CompactionRequest request)
-      throws IOException {
+  public void preCompactScannerOpen(ObserverContext<RegionCoprocessorEnvironment> c, Store store, ScanType scanType,
+                                    ScanOptions options, CompactionLifeCycleTracker tracker,
+                                    CompactionRequest request) throws IOException {
     if (expiredDataCleanEnable
-        && (ThemisMasterObserver.isThemisEnableFamily(store.getFamily()) || ColumnUtil
-            .isCommitFamily(store.getFamily().getName()))) {
-      InternalScanner scanner = getScannerToCleanExpiredThemisData(store, store.getScanInfo(),
-        scanners, scanType, store.getHRegion().getSmallestReadPoint(), earliestPutTs, true);
-      if (scanner != null) {
-        return scanner;
-      }
+            && (ThemisMasterObserver.isThemisEnableFamily(store.getColumnFamilyDescriptor()) || ColumnUtil
+            .isCommitFamily(store.getColumnFamilyDescriptor().getName()))) {
+        getScannerToCleanExpiredThemisData(store, scanType, options, true);
     }
-    return s;
   }
-  
-  protected InternalScanner getScannerToCleanExpiredThemisData(final Store store,
-      final ScanInfo scanInfo, final List<? extends KeyValueScanner> scanners,
-      final ScanType scanType, final long smallestReadPoint, final long earliestPutTs,
-      final boolean isCompact)
-      throws IOException {
-    long cleanTs = Long.MIN_VALUE;
-    ZooKeeperWatcher zk = store.getHRegion().getRegionServerServices().getZooKeeper();
+
+  private void getScannerToCleanExpiredThemisData(Store store, ScanType scanType, ScanOptions options, boolean isCompact) {
+    HStore hStore = (HStore) store;
+    long cleanTs;
+
+    ZKWatcher zk = hStore.getHRegion().getRegionServerServices().getZooKeeper();
     try {
       cleanTs = ThemisMasterObserver.getThemisExpiredTsFromZk(zk);
     } catch (Exception e) {
       LOG.error("themis region oberver get cleanTs fail, region="
-          + store.getHRegionInfo().getEncodedName() + ", family="
-          + store.getFamily().getNameAsString() + ", scanType=" + scanType, e);
-      return null;
-    }
-    if (cleanTs == Long.MIN_VALUE) {
-      LOG.warn("can't get a valid cleanTs, region=" + store.getHRegionInfo().getEncodedName()
-          + ", family=" + store.getFamily().getNameAsString() + ", scanType=" + scanType
-          + ", please check zk path:" + ThemisMasterObserver.getThemisExpiredTsZNodePath(zk)
-          + " is valid");
-      return null;
+          + hStore.getRegionInfo().getEncodedName() + ", family="
+          + hStore.getColumnFamilyName() + ", scanType=" + scanType, e);
+      return;
     }
 
-    Scan scan = new Scan();
-    scan.setMaxVersions(store.scanInfo.getMaxVersions());
+    if (cleanTs == Long.MIN_VALUE) {
+      LOG.warn("can't get a valid cleanTs, region=" + hStore.getRegionInfo().getEncodedName()
+            + ", family=" + store.getColumnFamilyName() + ", scanType=" + scanType
+            + ", please check zk path:" + ThemisMasterObserver.getThemisExpiredTsZNodePath(zk)
+            + " is valid");
+      return;
+    }
+
+    Scan scan = options.getScan();
+    scan.setMaxVersions(hStore.getScanInfo().getMaxVersions());
+
     ThemisExpiredDataCleanFilter filter = null;
     if (deleteThemisDeletedDataWhenCompact && isCompact) {
-      filter = new ThemisExpiredDataCleanFilter(cleanTs, store.getHRegion());
+      filter = new ThemisExpiredDataCleanFilter(cleanTs, hStore.getHRegion());
     } else {
       filter = new ThemisExpiredDataCleanFilter(cleanTs);
     }
-    
     scan.setFilter(filter);
-    InternalScanner scanner = new StoreScanner(store, scanInfo, scan, scanners, scanType,
-        smallestReadPoint, earliestPutTs);
     LOG.info("themis clean data, add expired data clean filter for region="
-        + store.getHRegionInfo().getEncodedName() + ", family="
-        + store.getFamily().getNameAsString() + ", ScanType=" + scanType + ", smallestReadPoint="
-        + smallestReadPoint + ", earliestPutTs=" + earliestPutTs + ", cleanTs=" + cleanTs);
-    return scanner;
-  }
+        + hStore.getRegionInfo().getEncodedName() + ", family="
+        + hStore.getColumnFamilyName() + ", ScanType=" + scanType
+        + "cleanTs=" + cleanTs);
+}
+
 }

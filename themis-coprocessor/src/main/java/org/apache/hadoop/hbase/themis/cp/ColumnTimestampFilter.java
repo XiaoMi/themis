@@ -4,11 +4,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.themis.columns.Column;
 import org.apache.hadoop.hbase.util.Pair;
@@ -17,21 +18,17 @@ import org.apache.hadoop.hbase.util.Pair;
 // is implemented to specify the timestamp for each column. 
 public class ColumnTimestampFilter extends FilterBase {
   // index timestamp for each column
-  private List<Pair<Column, Long>> columnsTs = new ArrayList<Pair<Column, Long>>();
+  private List<Pair<Column, Long>> columnsTs = new ArrayList<>();
   private int curColumnIdx = -1;
   
   // TODO(cuijianwei) : should check add deplicated column?
   public void addColumnTimestamp(Column column, long timestamp) {
-    columnsTs.add(new Pair<Column, Long>(new Column(column.getFamily(), column
-        .getQualifier()), timestamp));
+    columnsTs.add(new Pair<>(new Column(column.getFamily(), column
+            .getQualifier()), timestamp));
   }
 
   private void sortColumnsTs() {
-    Collections.sort(columnsTs, new Comparator<Pair<Column, Long>>() {
-      public int compare(Pair<Column, Long> o1, Pair<Column, Long> o2) {
-        return o1.getFirst().compareTo(o2.getFirst());
-      }
-    });
+    columnsTs.sort(Comparator.comparing(Pair::getFirst));
   }
   
   public ReturnCode filterKeyValue(KeyValue v) {
@@ -44,10 +41,10 @@ public class ColumnTimestampFilter extends FilterBase {
       return ReturnCode.NEXT_ROW;
     }
     
-    Column column = new Column(v.getFamily(), v.getQualifier());
-    Column curColumn = null;
-    Long curTs = null;
-    int cmpRet = 0;
+    Column column = new Column(v.getFamilyArray(), v.getQualifierArray());
+    Column curColumn;
+    Long curTs;
+    int cmpRet;
     do {
       curColumn = columnsTs.get(curColumnIdx).getFirst();
       curTs = columnsTs.get(curColumnIdx).getSecond();
@@ -75,15 +72,13 @@ public class ColumnTimestampFilter extends FilterBase {
   }
   
   @Override
-  public KeyValue getNextKeyHint(KeyValue kv) {
+  public Cell getNextCellHint(Cell kv) {
     if (curColumnIdx >= columnsTs.size()) {
       return null;
     }
-    
+
     Column column = columnsTs.get(curColumnIdx).getFirst();
-    return KeyValue.createFirstOnRow(kv.getBuffer(), kv.getRowOffset(), kv.getRowLength(),
-      column.getFamily(), 0, column.getFamily() == null ? 0 : column.getFamily().length,
-      column.getQualifier(), 0, column.getQualifier() == null ? 0 : column.getQualifier().length);
+    return KeyValueUtil.createFirstOnRow(kv.getRowArray(), column.getFamily(), column.getQualifier());
   }
   
   public void readFields(DataInput arg0) throws IOException {

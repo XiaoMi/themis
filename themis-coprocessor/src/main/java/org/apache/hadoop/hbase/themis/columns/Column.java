@@ -35,12 +35,14 @@ public class Column implements Writable, Comparable<Column> {
   public byte[] getQualifier() {
     return this.qualifier;
   }
-  
+
+  @Override
   public void write(DataOutput out) throws IOException {
     Bytes.writeByteArray(out, family);
     Bytes.writeByteArray(out, qualifier);
   }
 
+  @Override
   public void readFields(DataInput in) throws IOException {
     family = Bytes.readByteArray(in);
     qualifier = Bytes.readByteArray(in);

@@ -28,22 +28,22 @@ public class TestThemisRead extends TestBase {
       
       // illegal Filter class directly
       try {
-        reader.setFilter(new DependentColumnFilter());
+        reader.setFilter(new DependentColumnFilter(null, null));
         Assert.fail();
       } catch (IOException e) {}
       // illegal Filter class in FilterList
       FilterList filterList = new FilterList();
-      filterList.addFilter(new PrefixFilter());
-      filterList.addFilter(new ColumnRangeFilter());
+      filterList.addFilter(new PrefixFilter(null));
+      filterList.addFilter(new ColumnRangeFilter(null, true, null, false));
       try {
-        reader.setFilter(new DependentColumnFilter());
+        reader.setFilter(new DependentColumnFilter(null, null));
         Assert.fail();
       } catch (IOException e) {}
       
-      reader.setFilter(new PrefixFilter());
+      reader.setFilter(new PrefixFilter(null));
       Assert.assertEquals(PrefixFilter.class.getName(), reader.getFilter().getClass().getName());
       filterList = new FilterList();
-      filterList.addFilter(new PrefixFilter());
+      filterList.addFilter(new PrefixFilter(null));
       reader.setFilter(filterList);
       Assert.assertEquals(FilterList.class.getName(), reader.getFilter().getClass().getName());
     }

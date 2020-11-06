@@ -3,13 +3,16 @@ package org.apache.hadoop.hbase.themis.cp;
 import java.io.IOException;
 import java.util.List;
 
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
+import org.apache.hadoop.hbase.regionserver.ScannerContext;
 
-// themis scanner wrapper for RegionScanner which will be created by ThemisScanObserver
+/**
+ * themis scanner wrapper for RegionScanner which will be created by ThemisScanObserver
+ */
 public class ThemisServerScanner implements RegionScanner {
   private final Scan scan;
   private final Scan dataScan;
@@ -38,52 +41,63 @@ public class ThemisServerScanner implements RegionScanner {
   public Scan getDataScan() {
     return this.dataScan;
   }
-  
-  public boolean next(List<KeyValue> results) throws IOException {
-    return scanner.next(results);
+
+  @Override
+  public boolean next(List<Cell> result) throws IOException {
+    return scanner.next(result);
   }
 
-  public boolean next(List<KeyValue> results, String metric) throws IOException {
-    return scanner.next(results, metric);
+  @Override
+  public boolean nextRaw(List<Cell> list) throws IOException {
+    return scanner.nextRaw(list);
   }
 
-  public boolean next(List<KeyValue> result, int limit) throws IOException {
-    return scanner.next(result, limit);
+  @Override
+  public boolean next(List<Cell> list, ScannerContext scannerContext) throws IOException {
+    return scanner.next(list, scannerContext);
   }
 
-  public boolean next(List<KeyValue> result, int limit, String metric) throws IOException {
-    return scanner.next(result, limit, metric);
-  }
-  
-  public boolean nextRaw(List<KeyValue> result, String metric) throws IOException {
-    return scanner.nextRaw(result, metric);
+  @Override
+  public boolean nextRaw(List<Cell> list, ScannerContext scannerContext) throws IOException {
+    return scanner.nextRaw(list, scannerContext);
   }
 
-  public boolean nextRaw(List<KeyValue> result, int limit, String metric) throws IOException {
-    return scanner.nextRaw(result, limit, metric);
-  }
-  
+  @Override
   public long getMvccReadPoint() {
     return scanner.getMvccReadPoint();
   }
-  
+
+    @Override
+  public int getBatch() {
+    return scanner.getBatch();
+  }
+
+  @Override
   public void close() throws IOException {
     scanner.close();
   }
 
-  public HRegionInfo getRegionInfo() {
+  @Override
+  public RegionInfo getRegionInfo() {
     return scanner.getRegionInfo();
   }
 
-  public boolean isFilterDone() {
+  @Override
+  public boolean isFilterDone() throws IOException {
     return scanner.isFilterDone();
   }
 
+  @Override
   public boolean reseek(byte[] row) throws IOException {
     return scanner.reseek(row);
   }
 
-  public long getStartTs() {
+    @Override
+    public long getMaxResultSize() {
+        return scanner.getMaxResultSize();
+    }
+
+    public long getStartTs() {
     return startTs;
   }
 }

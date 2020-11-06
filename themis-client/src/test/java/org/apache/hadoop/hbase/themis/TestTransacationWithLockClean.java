@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
 import org.apache.hadoop.hbase.client.Result;
@@ -85,7 +86,7 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     Result result = transaction.get(TABLENAME, getThemisGet(COLUMN));
     Assert.assertNull(readLockBytes(COLUMN, prewriteTs - 2));
     Assert.assertEquals(1, result.size());
-    Assert.assertArrayEquals(VALUE, result.list().get(0).getValue());
+    Assert.assertArrayEquals(VALUE, result.listCells().get(0).getValueArray());
     // lock can not be cleaned
     deleteOldDataAndUpdateTs();
     nextTransactionTs();
@@ -129,8 +130,8 @@ public class TestTransacationWithLockClean extends ClientTestBase {
     Result result = transaction.tryToCleanLockAndGetAgain(TABLENAME,
       getThemisGet(COLUMN).getHBaseGet(), Arrays.asList(lockKv));
     Assert.assertEquals(1, result.size());
-    KeyValue dataKv = result.list().get(0);
+    Cell dataKv = result.listCells().get(0);
     Assert.assertEquals(prewriteTs - 4, dataKv.getTimestamp());
-    Assert.assertArrayEquals(VALUE, dataKv.getValue());
+    Assert.assertArrayEquals(VALUE, dataKv.getValueArray());
   }
 }

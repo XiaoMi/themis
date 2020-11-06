@@ -2,7 +2,10 @@ package org.apache.hadoop.hbase.themis;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Result;
@@ -197,14 +200,16 @@ public class TestTransactionWrite extends ClientTestBase {
     // other ioexception, commit primary fail
     deleteOldDataAndUpdateTs();
     prepareCommit();
-    HBaseAdmin admin = new HBaseAdmin(connection.getConfiguration());
-    admin.disableTable(TABLENAME);
+
+    TableName tn = TableName.valueOf(TABLENAME);
+    Admin admin = connection.getAdmin();
+    admin.disableTable(tn);
     try {
       transaction.commitPrimary();
       Assert.fail();
     } catch (IOException e) {
       Assert.assertFalse(e instanceof LockCleanedException);
-      admin.enableTable(TABLENAME);
+      admin.enableTable(tn);
       checkPrewriteRowSuccess(transaction.primary.getTableName(), transaction.primaryRow);
       checkPrewriteSecondariesSuccess();
     } finally {
@@ -227,10 +232,11 @@ public class TestTransactionWrite extends ClientTestBase {
     // commit one secondary lock fail
     deleteOldDataAndUpdateTs();
     prepareCommit();
-    HBaseAdmin admin = new HBaseAdmin(connection.getConfiguration());
-    admin.disableTable(ANOTHER_TABLENAME);
+    Admin admin = connection.getAdmin();
+    TableName anotherTableName = TableName.valueOf(ANOTHER_TABLENAME);
+    admin.disableTable(anotherTableName);
     transaction.commitSecondaries();
-    admin.enableTable(ANOTHER_TABLENAME);
+    admin.enableTable(anotherTableName);
     for (Pair<byte[], RowMutation> secondaryRow : transaction.secondaryRows) {
       RowMutation rowMutation = secondaryRow.getSecond();
       for (Column column : rowMutation.getColumns()) {
@@ -274,8 +280,8 @@ public class TestTransactionWrite extends ClientTestBase {
     Result result = getTable(TABLENAME).get(new Get(ROW));
     Assert.assertEquals(1, result.size());
     Column expect = ColumnUtil.getDeleteColumn(COLUMN);
-    KeyValue kv = result.list().get(0);
-    Column actual = new Column(kv.getFamily(), kv.getQualifier());
+    Cell kv = result.listCells().get(0);
+    Column actual = new Column(kv.getFamilyArray(), kv.getQualifierArray());
     Assert.assertTrue(expect.equals(actual));
   }
 }

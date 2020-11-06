@@ -23,9 +23,9 @@ public class ColumnUtil {
   public static final String THEMIS_COMMIT_FAMILY_TYPE = "themis.commit.family.type";
   protected static CommitFamily commitFamily;
 
-  public static enum CommitFamily {
+  public enum CommitFamily {
     SAME_WITH_DATA_FAMILY,
-      DIFFERNT_FAMILY
+    DIFFERNT_FAMILY
   }
 
   public static void init(Configuration conf) {

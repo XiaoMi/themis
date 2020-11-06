@@ -21,10 +21,14 @@ public class MultiRowExceptions extends ThemisException {
   }
   
   public static String constructMessage(Map<TableAndRow, IOException> exceptions) {
-    String message = "";
+    StringBuilder message = new StringBuilder();
     for (Entry<TableAndRow, IOException> rowException : exceptions.entrySet()) {
-      message += ("tableAndRow=" + rowException.getKey() + ", exception=" + rowException.getValue() + "\n");
+      message.append("tableAndRow=")
+              .append(rowException.getKey())
+              .append(", exception=")
+              .append(rowException.getValue())
+              .append("\n");
     }
-    return message;
+    return message.toString();
   }
 }

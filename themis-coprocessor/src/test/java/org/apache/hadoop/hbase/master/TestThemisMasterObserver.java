@@ -7,30 +7,34 @@ import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.themis.columns.ColumnUtil;
 import org.apache.hadoop.hbase.themis.cp.ServerLockCleaner;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
-import org.apache.hadoop.hbase.themis.cp.TransactionTTL;
 import org.apache.hadoop.hbase.themis.cp.TransactionTestBase;
-import org.apache.hadoop.hbase.themis.cp.TransactionTTL.TimestampType;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestThemisMasterObserver extends TransactionTestBase {
-  private HBaseAdmin admin = null;
+  private Admin admin = null;
   private byte[] testTable = Bytes.toBytes("test_table");
   private byte[] testFamily = Bytes.toBytes("test_family");
   
   @Before
   public void initEnv() throws IOException {
     super.initEnv();
-    admin = new HBaseAdmin(conf);
+    Connection c = ConnectionFactory.createConnection(conf);
+    admin = c.getAdmin();
   }
   
   @After
@@ -43,7 +47,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   
   @Test
   public void testCreateThemisLockFamily() throws Exception {
-    HColumnDescriptor columnDesc = ThemisMasterObserver.createLockFamily();
+    ColumnFamilyDescriptor columnDesc = ThemisMasterObserver.createLockFamily();
     checkLockFamilyDesc(columnDesc);
   }
   
@@ -55,26 +59,26 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   @Test
   public void testGetThemisCommitFamily() throws Exception {
     for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-      HColumnDescriptor columnDesc = ThemisMasterObserver.getCommitFamily(family);
+      ColumnFamilyDescriptor columnDesc = ThemisMasterObserver.getCommitFamily(family);
       checkCommitFamilyDesc(columnDesc);
     }
   }
   
-  protected void checkLockFamilyDesc(HColumnDescriptor columnDesc) {
+  protected void checkLockFamilyDesc(ColumnFamilyDescriptor columnDesc) {
     Assert.assertArrayEquals(ColumnUtil.LOCK_FAMILY_NAME, columnDesc.getName());
     Assert.assertEquals(1, columnDesc.getMaxVersions());
     Assert.assertTrue(columnDesc.isInMemory());
     Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
   }
   
-  protected void checkCommitFamilyDesc(HTableDescriptor desc) {
+  protected void checkCommitFamilyDesc(TableDescriptor desc) {
     for (byte[] family : ColumnUtil.COMMIT_FAMILY_NAME_BYTES) {
-      Assert.assertNotNull(desc.getFamily(family));
-      checkCommitFamilyDesc(desc.getFamily(family));
+      Assert.assertNotNull(desc.getColumnFamily(family));
+      checkCommitFamilyDesc(desc.getColumnFamily(family));
     }
   }
   
-  protected void checkCommitFamilyDesc(HColumnDescriptor columnDesc) {
+  protected void checkCommitFamilyDesc(ColumnFamilyDescriptor columnDesc) {
     Assert.assertEquals(Integer.MAX_VALUE, columnDesc.getMaxVersions());
     Assert.assertEquals(HConstants.FOREVER, columnDesc.getTimeToLive());
   }
@@ -84,7 +88,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   }
   
   protected HTableDescriptor getTestTableDesc(boolean themisEnable) throws IOException {
-    HTableDescriptor tableDesc = new HTableDescriptor(testTable);
+    HTableDescriptor tableDesc = new HTableDescriptor(TableName.valueOf(testTable));
     HColumnDescriptor columnDesc = new HColumnDescriptor(testFamily);
     if (themisEnable) {
       columnDesc.setValue(ThemisMasterObserver.THEMIS_ENABLE_KEY, "true");
@@ -98,8 +102,9 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     // create table without setting THEMIS_ENABLE
     deleteTable(admin, testTable);
     createTestTable(false);
-    Assert
-        .assertFalse(admin.getTableDescriptor(testTable).getFamiliesKeys().contains(ColumnUtil.LOCK_FAMILY_NAME));
+    final TableName tableName = TableName.valueOf(testTable);
+
+    Assert.assertFalse(admin.getTableDescriptor(tableName).getFamiliesKeys().contains(ColumnUtil.LOCK_FAMILY_NAME));
     
     // create table with THEMIS_ENABLE and family 'L'
     deleteTable(admin, testTable);
@@ -116,9 +121,9 @@ public class TestThemisMasterObserver extends TransactionTestBase {
     // create table with THEMIS_ENABLE
     deleteTable(admin, testTable);
     createTestTable(true);
-    Assert.assertTrue(admin.getTableDescriptor(testTable).getFamiliesKeys()
+    Assert.assertTrue(admin.getTableDescriptor(tableName).getFamiliesKeys()
       .contains(ColumnUtil.LOCK_FAMILY_NAME));
-    tableDesc = admin.getTableDescriptor(testTable);
+    tableDesc = admin.getTableDescriptor(tableName);
     checkLockFamilyDesc(tableDesc);
     if (ColumnUtil.isCommitToSameFamily()) {
       Assert.assertTrue(tableDesc.getFamily(ColumnUtil.PUT_FAMILY_NAME_BYTES) == null);
@@ -152,8 +157,9 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   public void testAddCommitFamilyForThemisTable() throws Exception {
     if (ColumnUtil.isCommitToDifferentFamily()) {
       deleteTable(admin, testTable);
+      final TableName tableName = TableName.valueOf(testTable);
       createTestTable(true);
-      HTableDescriptor tableDesc = admin.getTableDescriptor(testTable);
+      HTableDescriptor tableDesc = admin.getTableDescriptor(tableName);
       checkLockFamilyDesc(tableDesc);
       checkCommitFamilyDesc(tableDesc);
       HColumnDescriptor dataColumnDesc = tableDesc.getFamily(testFamily);
@@ -166,12 +172,13 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   public void testTruncateTable() throws IOException {
     deleteTable(admin, testTable);
     createTestTable(true);
-    HTableInterface table = connection.getTable(testTable);
+    final TableName tableName = TableName.valueOf(testTable);
+    Table table = connection.getTable(tableName);
     HTableDescriptor desc = table.getTableDescriptor();
-    admin.disableTable(testTable);
-    admin.deleteTable(testTable);
+    admin.disableTable(tableName);
+    admin.deleteTable(tableName);
     admin.createTable(desc);
-    checkLockFamilyDesc(admin.getTableDescriptor(testTable));
+    checkLockFamilyDesc(admin.getTableDescriptor(tableName));
     table.close();
     deleteTable(admin, testTable);
   }
@@ -180,7 +187,7 @@ public class TestThemisMasterObserver extends TransactionTestBase {
   public void testSetExpiredTsToZk() throws Exception {
     long ts = System.currentTimeMillis() - 10l * 86400 * 1000;
     ThemisMasterObserver masterObserver = new ThemisMasterObserver();
-    masterObserver.zk = new ZooKeeperWatcher(conf, "test", null, true);
+    masterObserver.zk = new ZKWatcher(conf, "test", null, true);
     masterObserver.themisExpiredTsZNodePath = ThemisMasterObserver.getThemisExpiredTsZNodePath(masterObserver.zk);
     masterObserver.setExpiredTsToZk(ts);
     Assert.assertEquals(ts, ThemisMasterObserver.getThemisExpiredTsFromZk(masterObserver.zk));

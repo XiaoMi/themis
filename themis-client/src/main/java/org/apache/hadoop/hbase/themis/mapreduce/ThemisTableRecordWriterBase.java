@@ -5,8 +5,8 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.themis.Transaction;
 import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.util.Pair;
@@ -19,7 +19,7 @@ public abstract class ThemisTableRecordWriterBase<K, V> extends RecordWriter<K, 
   public static final String LOG_PER_WRITE_TRANSACTION_COUNT = "themis.mapreduce.log.write.rowcount";
   public static final String THEMIS_WRITE_RETRY_COUNT = "themis.write.retry.count";
   public static final String THEMIS_WRITE_RETRY_PAUSE = "themis.write.retry.pause";
-  protected HConnection connection;
+  protected Connection connection;
   private final int logPerWriteTransaction;
   private final int writeRetryCount;
   private final int writeRetryPause;
@@ -56,7 +56,8 @@ public abstract class ThemisTableRecordWriterBase<K, V> extends RecordWriter<K, 
       super.update(latency);
       currentTotalColumn += columnCount;
     }
-    
+
+    @Override
     public void resetCurrent() {
       super.resetCurrent();
       this.currentTotalColumn = 0;
@@ -76,7 +77,8 @@ public abstract class ThemisTableRecordWriterBase<K, V> extends RecordWriter<K, 
       super.update(latency, columnCount);
       currentTotalRow += rowCount;
     }
-    
+
+    @Override
     public void resetCurrent() {
       super.resetCurrent();
       currentTotalRow = 0;
@@ -130,7 +132,7 @@ public abstract class ThemisTableRecordWriterBase<K, V> extends RecordWriter<K, 
   }
   
   public ThemisTableRecordWriterBase(Configuration conf) throws IOException {
-    connection = HConnectionManager.createConnection(conf);
+    connection = ConnectionFactory.createConnection(conf);
     this.logPerWriteTransaction = conf.getInt(LOG_PER_WRITE_TRANSACTION_COUNT, 100);
     this.writeRetryCount = conf.getInt(THEMIS_WRITE_RETRY_COUNT, 1);
     this.writeRetryPause = conf.getInt(THEMIS_WRITE_RETRY_PAUSE, 1000);

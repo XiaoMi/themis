@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.commons.collections.MapUtils;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.client.Put;
 
 // a wrapper class of Put in HBase which not expose timestamp to user
@@ -16,7 +17,7 @@ public class ThemisPut extends ThemisMutation {
   }
   
   public ThemisPut(Put put) throws IOException {
-    checkContainingPreservedColumns(put.getFamilyMap());
+    checkContainingPreservedColumns(put.getFamilyCellMap());
     setHBasePut(put);
   }
 
@@ -27,7 +28,7 @@ public class ThemisPut extends ThemisMutation {
   // must specify both the family and qualifier when add mutation
   public ThemisPut add(byte[] family, byte[] qualifier, byte[] value) throws IOException {
     checkContainingPreservedColumn(family, qualifier);
-    this.put.add(family, qualifier, Long.MIN_VALUE, value);
+    put.addColumn(family, qualifier, Long.MIN_VALUE, value);
     return this;
   }
   
@@ -41,11 +42,11 @@ public class ThemisPut extends ThemisMutation {
 
   @Override
   protected boolean hasColumn() {
-    return put.getFamilyMap() != null && put.getFamilyMap().size() != 0;
+    return MapUtils.isNotEmpty(put.getFamilyCellMap());
   }
 
   @Override
-  public Map<byte[], List<KeyValue>> getFamilyMap() {
-    return put.getFamilyMap();
+  public Map<byte[], List<Cell>> getFamilyMap() {
+    return put.getFamilyCellMap();
   }
 }

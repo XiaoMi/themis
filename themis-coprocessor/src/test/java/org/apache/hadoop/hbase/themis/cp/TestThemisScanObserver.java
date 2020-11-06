@@ -14,7 +14,7 @@ public class TestThemisScanObserver extends TestBase {
     TransactionTTL.init(HBaseConfiguration.create());
     ThemisScanObserver observer =new ThemisScanObserver();
     try {
-      observer.preScannerOpen(null, null, null);
+      observer.preScannerOpen(null, null);
       Assert.fail();
     } catch (IOException e) {
       Assert.assertTrue(e.getCause() instanceof NullPointerException);

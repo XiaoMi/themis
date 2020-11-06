@@ -15,14 +15,14 @@ import org.apache.hadoop.hbase.themis.TransactionConstant;
 public abstract class WorkerRegister extends Configured {
   private static final Log LOG = LogFactory.getLog(WorkerRegister.class);
   private static WorkerRegister register;
-  private static Object registerLock = new Object();
+  private static final Object REGISTER_LOCK = new Object();
   private AtomicBoolean registered = new AtomicBoolean(false);
   
   public static WorkerRegister getWorkerRegister(Configuration conf) throws IOException {
     String workerRegisterCls = conf.get(TransactionConstant.WORKER_REGISTER_CLASS_KEY,
       TransactionConstant.DEFAULT_WORKER_REISTER_CLASS);
     if (register == null) {
-      synchronized (registerLock) {
+      synchronized (REGISTER_LOCK) {
         if (register == null) {
           try {
             register = (WorkerRegister) (Class.forName(workerRegisterCls).getConstructor(Configuration.class)

@@ -23,7 +23,7 @@ public class ThemisRowCounter {
   static class RowCounterMapper
   extends TableMapper<ImmutableBytesWritable, Result> {
 
-    public static enum Counters {ROWS}
+    public enum Counters {ROWS}
 
     @Override
     public void map(ImmutableBytesWritable row, Result values,

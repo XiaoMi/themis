@@ -3,8 +3,8 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.themis.columns.ColumnMutation;
 import org.apache.hadoop.hbase.themis.cp.ThemisCoprocessorClient;
@@ -12,7 +12,7 @@ import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 
 // a wrapped client of ThemisCoprocessorClient which computes latency of key methods
 public class WrappedCoprocessorClient extends ThemisCoprocessorClient {
-  public WrappedCoprocessorClient(HConnection connection) {
+  public WrappedCoprocessorClient(Connection connection) {
     super(connection);
   }
   

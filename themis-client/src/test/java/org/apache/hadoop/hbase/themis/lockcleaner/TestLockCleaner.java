@@ -7,10 +7,12 @@ import java.util.List;
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValue.Type;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.RetriesExhaustedException;
 import org.apache.hadoop.hbase.themis.ClientTestBase;
 import org.apache.hadoop.hbase.themis.TransactionConstant;
@@ -114,13 +116,14 @@ public class TestLockCleaner extends ClientTestBase {
       ThemisLock lc = getLock(COLUMN);
       writeLockAndData(COLUMN);
       Mockito.when(mockRegister.isWorkerAlive(lc.getClientAddress())).thenReturn(false);
-      HBaseAdmin admin = new HBaseAdmin(connection.getConfiguration());
-      admin.disableTable(TABLENAME);
+      Admin admin = connection.getAdmin();
+      TableName tn = TableName.valueOf(TABLENAME);
+      admin.disableTable(tn);
       try {
         invokeTryToCleanLock(lc, cleanLocks);
       } catch (IOException e) {
         Assert.assertTrue(e.getCause() instanceof RetriesExhaustedException);
-        admin.enableTable(TABLENAME);
+        admin.enableTable(tn);
         checkPrewriteColumnSuccess(COLUMN);
       } finally {
         admin.close();
@@ -190,7 +193,7 @@ public class TestLockCleaner extends ClientTestBase {
   @Test
   public void testConstructLocks() throws IOException {
     ThemisLock expectLock = getPrimaryLock();
-    List<KeyValue> kvs = new ArrayList<KeyValue>();
+    List<Cell> kvs = new ArrayList<>();
     kvs.add(getLockKv(KEYVALUE, ThemisLock.toByte(expectLock)));
     String rawClientLockTTL = conf.get(TransactionConstant.CLIENT_LOCK_TTL_KEY);
     int clientLockTTL = 10;
