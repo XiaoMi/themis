@@ -118,6 +118,7 @@ public class TransactionTestBase extends TestBase {
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster(3);
     TEST_UTIL.getMiniHBaseCluster().waitForActiveAndReadyMaster();
+    Thread.currentThread().sleep(10000);
     for (TableName tableName : Arrays.asList(TABLENAME, ANOTHER_TABLENAME)) {
       TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(tableName);
       builder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY)
