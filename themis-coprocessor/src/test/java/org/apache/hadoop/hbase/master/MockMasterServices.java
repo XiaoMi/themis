@@ -24,7 +24,6 @@ import org.apache.hadoop.hbase.master.locking.LockManager;
 import org.apache.hadoop.hbase.master.normalizer.RegionNormalizer;
 import org.apache.hadoop.hbase.master.procedure.MasterProcedureEnv;
 import org.apache.hadoop.hbase.master.replication.ReplicationPeerManager;
-import org.apache.hadoop.hbase.master.replication.SyncReplicationReplayWALManager;
 import org.apache.hadoop.hbase.master.snapshot.SnapshotManager;
 import org.apache.hadoop.hbase.procedure.MasterProcedureManagerHost;
 import org.apache.hadoop.hbase.procedure2.LockedResource;
@@ -35,7 +34,8 @@ import org.apache.hadoop.hbase.quotas.MasterQuotaManager;
 import org.apache.hadoop.hbase.replication.ReplicationException;
 import org.apache.hadoop.hbase.replication.ReplicationPeerConfig;
 import org.apache.hadoop.hbase.replication.ReplicationPeerDescription;
-import org.apache.hadoop.hbase.replication.SyncReplicationState;
+import org.apache.hadoop.hbase.security.access.AccessChecker;
+import org.apache.hadoop.hbase.security.access.ZKPermissionWatcher;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 
 public class MockMasterServices implements MasterServices {
@@ -291,7 +291,7 @@ public class MockMasterServices implements MasterServices {
   }
 
   @Override
-  public boolean isInMaintenanceMode() throws IOException {
+  public boolean isInMaintenanceMode() {
     return false;
   }
 
@@ -378,11 +378,6 @@ public class MockMasterServices implements MasterServices {
   }
 
   @Override
-  public SyncReplicationReplayWALManager getSyncReplicationReplayWALManager() {
-    return null;
-  }
-
-  @Override
   public long updateReplicationPeerConfig(String peerId, ReplicationPeerConfig peerConfig)
       throws ReplicationException, IOException {
     return 0;
@@ -392,12 +387,6 @@ public class MockMasterServices implements MasterServices {
   public List<ReplicationPeerDescription> listReplicationPeers(String regex)
       throws ReplicationException, IOException {
     return null;
-  }
-
-  @Override
-  public long transitReplicationPeerSyncReplicationState(String peerId,
-      SyncReplicationState clusterState) throws ReplicationException, IOException {
-    return 0;
   }
 
   @Override
@@ -425,4 +414,24 @@ public class MockMasterServices implements MasterServices {
   public boolean isClusterUp() {
     return false;
   }
+
+    @Override
+    public AccessChecker getAccessChecker() {
+        return null;
+    }
+
+    @Override
+    public ZKPermissionWatcher getZKPermissionWatcher() {
+        return null;
+    }
+
+    @Override
+    public List<RegionPlan> executeRegionPlansWithThrottling(List<RegionPlan> list) {
+        return null;
+    }
+
+    @Override
+    public void runReplicationBarrierCleaner() {
+
+    }
 }

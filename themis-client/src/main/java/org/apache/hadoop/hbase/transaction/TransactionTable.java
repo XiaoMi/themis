@@ -1,15 +1,16 @@
 package org.apache.hadoop.hbase.transaction;
 
-import com.xiaomi.infra.hbase.client.HConfigUtil;
-import com.xiaomi.infra.hbase.client.HException;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.ThemisTransactionService;
+import org.apache.hadoop.hbase.themis.exception.HException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,10 +20,10 @@ public abstract class TransactionTable implements Table {
   protected TableName tableName;
   protected int scannerCaching;
 
-  public TransactionTable(TableName tableName, Transaction transaction) throws HException {
+  public TransactionTable(TableName tableName, Transaction transaction) {
     this.tableName = tableName;
     this.transaction = transaction;
-    this.scannerCaching = transaction.getConf().getInt(HConfigUtil.HBASE_CLIENT_SCANNER_CACHING, 1);
+    this.scannerCaching = transaction.getConf().getInt(HConstants.HBASE_CLIENT_SCANNER_CACHING, 1);
   }
 
   public List<Result> scan(Scan scan) throws HException {
@@ -48,7 +49,6 @@ public abstract class TransactionTable implements Table {
       }
       return results;
     } catch (Throwable e) {
-      ThemisTransactionService.addFailCounter("themisScan");
       throw new HException(e);
     } finally {
       if (scanner != null) {
@@ -56,7 +56,6 @@ public abstract class TransactionTable implements Table {
       }
       long consumeInMs = System.currentTimeMillis() - startTs;
       ThemisTransactionService.logHBaseSlowAccess("themisScan", consumeInMs);
-      ThemisTransactionService.addCounter("themisScan", consumeInMs);
     }
   }
 }

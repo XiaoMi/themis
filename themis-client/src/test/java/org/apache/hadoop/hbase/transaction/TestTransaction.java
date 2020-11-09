@@ -3,7 +3,6 @@ package org.apache.hadoop.hbase.transaction;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.xiaomi.infra.hbase.client.HBaseClientInterface;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -21,10 +20,8 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
-import org.apache.hadoop.hbase.coprocessor.AggregateImplementation;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.coprocessor.MultiRowMutationEndpoint;
-import org.apache.hadoop.hbase.coprocessor.example.BulkDeleteEndpoint;
 import org.apache.hadoop.hbase.master.ThemisMasterObserver;
 import org.apache.hadoop.hbase.regionserver.ThemisRegionObserver;
 import org.apache.hadoop.hbase.themis.ThemisTransaction;
@@ -40,7 +37,6 @@ public class TestTransaction {
   public static final TableName tableName = TableName.valueOf("themis_table");
   public static final byte[] familyName = Bytes.toBytes("C");
   public static final byte[] qualifierName = Bytes.toBytes("Q");
-  protected HBaseClientInterface client;
   private static HBaseTestingUtility util = null;
   private static MiniHBaseCluster cluster = null;
   private static TransactionService transactionService;
@@ -53,7 +49,6 @@ public class TestTransaction {
     conf.setStrings("hbase.coprocessor.user.region.classes", ThemisEndpoint.class.getName(),
       ThemisScanObserver.class.getName(), ThemisRegionObserver.class.getName());
     conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
-      AggregateImplementation.class.getName(), BulkDeleteEndpoint.class.getName(),
       MultiRowMutationEndpoint.class.getName(),
       /* TestServerCustomProtocol.PingHandler.class.getName(), */ ThemisScanObserver.class
         .getName());

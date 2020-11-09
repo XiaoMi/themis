@@ -73,7 +73,7 @@ public class ThemisTableOutputFormat<KEY> extends OutputFormat<KEY, Mutation>
 
     try {
       if (address != null) {
-        ZKUtil.applyClusterKeyToConf(this.conf, address);
+        HBaseConfiguration.createClusterConf(this.conf, address, null);
       }
       if (serverClass != null) {
         this.conf.set(HConstants.REGION_SERVER_IMPL, serverImpl);

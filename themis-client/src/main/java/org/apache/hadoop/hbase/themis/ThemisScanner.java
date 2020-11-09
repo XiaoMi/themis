@@ -3,6 +3,8 @@ package org.apache.hadoop.hbase.themis;
 import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
+
+import com.google.common.io.Closeables;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.AbstractClientScanner;
 import org.apache.hadoop.hbase.client.Get;
@@ -13,8 +15,6 @@ import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.themis.cp.ThemisCpUtil;
 import org.apache.hadoop.hbase.themis.cp.ThemisScanObserver;
 import org.apache.hadoop.hbase.util.Bytes;
-
-import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
 
 // scanner for range read
 public class ThemisScanner extends AbstractClientScanner {
@@ -59,7 +59,7 @@ public class ThemisScanner extends AbstractClientScanner {
     }
     return get;
   }
-
+  @Override
   public Result next() throws IOException {
     long beginTs = System.nanoTime();
     Result pResult = null;
@@ -90,6 +90,7 @@ public class ThemisScanner extends AbstractClientScanner {
     }
   }
 
+  @Override
   public void close() {
     if (scanner != null) {
       this.scanner.close();

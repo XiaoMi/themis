@@ -15,7 +15,8 @@ public class TestTransactionTTL extends TestBase {
     TransactionTTL.init(HBaseConfiguration.create());
     long ms = TransactionTTL.toMs(369778447744761856l);
     Assert.assertTrue(ms < System.currentTimeMillis());
-    Assert.assertTrue(ms > (System.currentTimeMillis() - 5l * 365 * 24 * 3600 * 1000));
+    //this program can only live five year ??
+    Assert.assertTrue(ms > (System.currentTimeMillis() - 10l * 365 * 24 * 3600 * 1000));
   }
   
   @Test

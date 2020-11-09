@@ -1,8 +1,7 @@
 package org.apache.hadoop.hbase.transaction;
 
 import org.apache.hadoop.conf.Configuration;
-
-import com.xiaomi.infra.hbase.client.HException;
+import org.apache.hadoop.hbase.themis.exception.HException;
 
 public abstract class Transaction {
   protected TransactionService service;

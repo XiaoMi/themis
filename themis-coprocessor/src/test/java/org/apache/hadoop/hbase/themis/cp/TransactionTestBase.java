@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.Cell.Type;
@@ -46,7 +48,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
 
 public class TransactionTestBase extends TestBase {
   public static final int TEST_LOCK_CLEAN_RETRY_COUNT = 2;

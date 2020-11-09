@@ -1,6 +1,8 @@
 package org.apache.hadoop.hbase.themis.index.cp;
 
 import java.io.IOException;
+
+import com.google.common.io.Closeables;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
@@ -19,8 +21,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-
-import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
 
 public class IndexTestBase extends ClientTestBase {
   public static final TableName MAIN_TABLE = TableName.valueOf("test_index_main");

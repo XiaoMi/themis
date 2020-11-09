@@ -1,9 +1,9 @@
 package org.apache.hadoop.hbase.themis;
 
-import com.xiaomi.infra.hbase.client.HException;
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.themis.exception.HException;
 import org.apache.hadoop.hbase.transaction.NotSupportedException;
 import org.apache.hadoop.hbase.transaction.Transaction;
 import org.apache.hadoop.hbase.transaction.TransactionService;
@@ -30,12 +30,10 @@ public class ThemisTransaction extends Transaction {
     try {
       this.impl.commit();
     } catch (IOException e) {
-      ThemisTransactionService.addFailCounter("themisCommit");
       throw new HException(e);
     } finally {
       long consumeInMs = System.currentTimeMillis() - startTs;
       ThemisTransactionService.logHBaseSlowAccess("themisCommit", consumeInMs);
-      ThemisTransactionService.addCounter("themisCommit", consumeInMs);
     }
   }
 

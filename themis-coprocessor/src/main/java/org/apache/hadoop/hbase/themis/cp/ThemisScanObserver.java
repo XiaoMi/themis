@@ -1,9 +1,18 @@
 package org.apache.hadoop.hbase.themis.cp;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.Maps;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
@@ -15,13 +24,16 @@ import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.RegionObserver;
+import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
+import org.apache.hadoop.hbase.themis.util.ObjectUtils;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.misc.Unsafe;
 
 public class ThemisScanObserver implements RegionObserver, RegionCoprocessor {
 
@@ -31,6 +43,17 @@ public class ThemisScanObserver implements RegionObserver, RegionCoprocessor {
   private static final byte[] PRE_SCANNER_OPEN_FEEK_ROW = Bytes.toBytes("preScannerOpen");
   private static final byte[] PRE_SCANNER_NEXT_FEEK_ROW = Bytes.toBytes("preScannerNext");
 
+  private static final Unsafe UNSAFE;
+
+  static {
+    try {
+      Field f = Unsafe.class.getDeclaredField("theUnsafe");
+      f.setAccessible(true);
+      UNSAFE = (Unsafe) f.get(null);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
   @Override
   public Optional<RegionObserver> getRegionObserver() {
     return Optional.of(this);
@@ -126,7 +149,49 @@ public class ThemisScanObserver implements RegionObserver, RegionCoprocessor {
     // postScannerOpen, we will fetch it and create the ThemisServerScanner.
     Scan internalScan = ThemisCpUtil.constructLockAndWriteScan(scan, themisStartTs);
     userScanHolder.set(new Scan(scan));
-    scan.copy(internalScan);
+    copy(scan, internalScan);
+  }
+
+  private void copy(Scan to, Scan from) throws IOException {
+    List<Field> allFileds = Lists.newArrayList();
+    ObjectUtils.getAllField(Scan.class, allFileds);
+    List<Field> fieldToCopy = allFileds.stream()
+        .filter(f -> !Modifier.isStatic(f.getModifiers()))
+        .filter(f -> {
+          final String name = f.getName();
+          return !("familyMap".equals(name) || "attributes".equals(name) || "colFamTimeRangeMap".equals(name));
+        }).collect(Collectors.toList());
+
+    ObjectUtils.copyScan(to, from, fieldToCopy);
+
+    //handle fams
+    Map<byte[], NavigableSet<byte[]>> toFamilyMap = to.getFamilyMap();
+    Map<byte[], NavigableSet<byte[]>> fromFamilyMap = from.getFamilyMap();
+
+    for (Map.Entry<byte[], NavigableSet<byte[]>> entry : fromFamilyMap.entrySet()) {
+      NavigableSet<byte[]> familys = toFamilyMap.get(entry.getKey());
+      if (Objects.isNull(familys)) {
+        toFamilyMap.put(entry.getKey(), entry.getValue());
+      } else {
+        familys.addAll(entry.getValue());
+      }
+    }
+
+    try {
+      ObjectUtils.setObject("familyMap", to, toFamilyMap);
+
+      //handle
+      Map<String, byte[]> copyAttributes = Maps.newHashMap(to.getAttributesMap());
+      copyAttributes.putAll(from.getAttributesMap());
+      ObjectUtils.setObject("attributes", to, copyAttributes);
+
+      //handle
+      Map<byte[], TimeRange> copyColumnFamilyTimeRange = Maps.newHashMap(to.getColumnFamilyTimeRange());
+      copyColumnFamilyTimeRange.putAll(from.getColumnFamilyTimeRange());
+      ObjectUtils.setObject("colFamTimeRangeMap", to, copyColumnFamilyTimeRange);
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
   }
 
   @Override

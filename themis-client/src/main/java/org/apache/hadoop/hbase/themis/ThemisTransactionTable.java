@@ -2,7 +2,6 @@ package org.apache.hadoop.hbase.themis;
 
 import com.google.protobuf.Service;
 import com.google.protobuf.ServiceException;
-import com.xiaomi.infra.hbase.client.HException;
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -10,6 +9,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.RegionLocator;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -24,7 +24,7 @@ public class ThemisTransactionTable extends TransactionTable {
 
   private ThemisTransaction themisTransaction;
 
-  public ThemisTransactionTable(TableName tableName, Transaction transaction) throws HException {
+  public ThemisTransactionTable(TableName tableName, Transaction transaction) {
     super(tableName, transaction);
     themisTransaction = (ThemisTransaction) this.transaction;
   }
@@ -41,12 +41,10 @@ public class ThemisTransactionTable extends TransactionTable {
       // TODO : check get is legal for themis
       return themisTransaction.impl.get(tableName, new ThemisGet(get));
     } catch (IOException e) {
-      ThemisTransactionService.addFailCounter("themisGet");
       throw e;
     } finally {
       long consumeInMs = System.currentTimeMillis() - startTs;
       ThemisTransactionService.logHBaseSlowAccess("themisGet", consumeInMs);
-      ThemisTransactionService.addCounter("themisGet", consumeInMs);
     }
   }
 
@@ -109,5 +107,10 @@ public class ThemisTransactionTable extends TransactionTable {
   public <T extends Service, R> void coprocessorService(Class<T> service, byte[] startKey,
       byte[] endKey, Call<T, R> callable, Callback<R> callback) throws ServiceException, Throwable {
     throw new NotSupportedException();
+  }
+
+  @Override
+  public RegionLocator getRegionLocator() throws IOException {
+    return null;
   }
 }

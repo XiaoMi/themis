@@ -3,6 +3,8 @@ package org.apache.hadoop.hbase.themis.lockcleaner;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
@@ -24,7 +26,6 @@ import org.apache.hadoop.hbase.util.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.xiaomi.infra.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 public class LockCleaner extends ServerLockCleaner {
   private static final Logger LOG = LoggerFactory.getLogger(LockCleaner.class);

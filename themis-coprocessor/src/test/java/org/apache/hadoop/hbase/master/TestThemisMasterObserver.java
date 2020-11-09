@@ -12,6 +12,8 @@ import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.util.List;
+
+import com.google.common.io.Closeables;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
@@ -29,8 +31,6 @@ import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.xiaomi.infra.thirdparty.com.google.common.io.Closeables;
 
 public class TestThemisMasterObserver extends TransactionTestBase {
   private Admin admin = null;

@@ -1,5 +1,6 @@
 package org.apache.hadoop.hbase.themis.cp;
 
+import com.google.common.base.Throwables;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.HBaseZeroCopyByteString;
 import java.io.IOException;
@@ -32,9 +33,7 @@ import org.apache.hadoop.hbase.themis.exception.LockCleanedException;
 import org.apache.hadoop.hbase.themis.exception.WriteConflictException;
 import org.apache.hadoop.hbase.themis.lock.ThemisLock;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.themis.cp.BlockingRpcCallback;
 
-import com.xiaomi.infra.thirdparty.com.google.common.base.Throwables;
 
 // coprocessor client for ThemisProtocol
 public class ThemisEndpointClient {

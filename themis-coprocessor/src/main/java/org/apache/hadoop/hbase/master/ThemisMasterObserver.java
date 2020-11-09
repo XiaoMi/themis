@@ -8,6 +8,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
@@ -46,8 +49,6 @@ import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.xiaomi.infra.thirdparty.com.google.common.annotations.VisibleForTesting;
-import com.xiaomi.infra.thirdparty.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 @CoreCoprocessor
 public class ThemisMasterObserver implements MasterObserver, MasterCoprocessor {
